@@ -494,6 +494,7 @@ class SidebarComponent {
       { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', roles: ['super_admin', 'admin'] },
       { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'reports', label: 'ระบบรายงาน', icon: 'fa-chart-line', roles: ['super_admin', 'admin'] },
+      { id: 'rates', label: 'ตั้งค่าเรท & ค่าบริการ', icon: 'fa-sliders', roles: ['super_admin', 'admin'] },
       { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & Google Sheets', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
     ];
   }
@@ -1137,16 +1138,98 @@ class ReportsComponent {
   }
 }
 
+class RatesComponent {
+  static render(state) {
+    const rates = state.rates || { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, customFees: [] };
+    const customFees = rates.customFees || [];
+
+    return `
+      <div class="view-container animate-fade-in">
+        <div class="view-header">
+          <div>
+            <h2><i class="fa-solid fa-sliders text-primary"></i> ตั้งค่าเรท & ค่าบริการสาธารณูปโภค (Rates & Service Fees)</h2>
+            <p>กำหนดเรทค่าน้ำ ค่าไฟ ค่าขยะ และเพิ่ม/แก้ไข/ลบ รายการค่าบริการอื่นๆ เพื่อบันทึกลงชีตและออกบิลอัตโนมัติ</p>
+          </div>
+        </div>
+
+        <!-- 1. Standard Rates Form -->
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-bolt text-warning"></i> 1. อัตราเรทค่าน้ำ - ค่าไฟ และค่าขยะหลัก</h3>
+          <form id="form-rates-main" style="margin-top:1rem;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
+              <div class="form-group">
+                <label>ค่าไฟฟ้า (บาท / ยูนิต) *</label>
+                <input type="number" step="0.1" id="rate-elec" class="form-control" value="${rates.electricityRate || 8.0}" required>
+              </div>
+              <div class="form-group">
+                <label>ค่าน้ำประปา (บาท / ยูนิต) *</label>
+                <input type="number" step="0.1" id="rate-water" class="form-control" value="${rates.waterRate || 20.0}" required>
+              </div>
+              <div class="form-group">
+                <label>ค่าบริการขยะ (บาท / เดือน) *</label>
+                <input type="number" step="0.1" id="rate-trash" class="form-control" value="${rates.trashFee !== undefined ? rates.trashFee : 20.0}" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกปรับเรทหลัก</button>
+          </form>
+        </div>
+
+        <!-- 2. Custom Extra Fees Management -->
+        <div class="glass-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <div>
+              <h3><i class="fa-solid fa-boxes-packing text-primary"></i> 2. รายการค่าใช้จ่ายและค่าบริการเสริมอื่นๆ (Custom Service Fees)</h3>
+              <p class="text-muted text-sm">สามารถเพิ่ม แก้ไข ลบ รายการค่าบริการอื่นๆ เพื่อนำไปบันทึกลงชีตและคำนวณในบิลได้</p>
+            </div>
+            <button id="btn-add-custom-fee" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> เพิ่มรายการค่าใช้จ่ายใหม่</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ชื่อรายการค่าใช้จ่าย</th>
+                  <th>รูปแบบคำนวณ</th>
+                  <th>อัตราค่าบริการ (บาท)</th>
+                  <th>หมายเหตุรายละเอียด</th>
+                  <th>การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${customFees.length === 0 ? `
+                  <tr><td colspan="5" class="text-center text-muted" style="padding:2rem;">ยังไม่มีรายการค่าใช้จ่ายเสริม สามารถกดเพิ่มใหม่ได้</td></tr>
+                ` : customFees.map(fee => `
+                  <tr>
+                    <td><strong>${fee.name}</strong></td>
+                    <td><span class="badge-pill badge-info">${fee.unitType === 'monthly' ? '📅 รายเดือน (บาท/เดือน)' : '⚡ ตามหน่วย (บาท/ยูนิต)'}</span></td>
+                    <td><strong class="text-primary">${Formatters.currency(fee.amount)}</strong></td>
+                    <td><span class="text-muted text-sm">${fee.note || '-'}</span></td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-edit-custom-fee" data-id="${fee.id}"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                        <button class="btn btn-danger btn-xs btn-delete-custom-fee" data-id="${fee.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
 class SettingsComponent {
   static render(state) {
     const settings = state.settings;
-    const rates = state.rates;
     const users = state.users || [];
 
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
-          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท), ตั้งค่าเรทค่าน้ำค่าไฟ และบันทึกข้อมูลซิงค์คลาวด์ Google Sheets</p></div>
+          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท) และบันทึกข้อมูลซิงค์คลาวด์ Google Sheets</p></div>
         </div>
 
         <div class="glass-card" style="margin-bottom:1.5rem;">
@@ -1163,17 +1246,6 @@ class SettingsComponent {
             <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้</button>
             <button class="btn btn-secondary" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> คัดลอกลิงก์แชร์เชื่อมต่อทุกเครื่อง</button>
           </div>
-        </div>
-
-        <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-solid fa-bolt text-warning"></i> กำหนดเรทค่าน้ำ - ค่าไฟ และค่าบริการสาธารณูปโภค</h3>
-          <form id="form-rates" style="margin-top:1rem;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-              <div class="form-group"><label>ค่าไฟฟ้า (บาท / ยูนิต):</label><input type="number" step="0.1" id="rate-elec" class="form-control" value="${rates.electricityRate || 8.0}"></div>
-              <div class="form-group"><label>ค่าน้ำประปา (บาท / ยูนิต):</label><input type="number" step="0.1" id="rate-water" class="form-control" value="${rates.waterRate || 20.0}"></div>
-            </div>
-            <button type="submit" class="btn btn-primary" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกปรับเรทค่าน้ำไฟ</button>
-          </form>
         </div>
 
         <div class="glass-card">
@@ -1303,6 +1375,7 @@ class App {
       case 'accounting': workspace.innerHTML = AccountingComponent.render(this.state); this.bindAccountingEvents(); break;
       case 'calendar': workspace.innerHTML = CalendarComponent.render(this.state); this.bindCalendarEvents(); break;
       case 'reports': workspace.innerHTML = ReportsComponent.render(this.state); this.bindReportsEvents(); break;
+      case 'rates': workspace.innerHTML = RatesComponent.render(this.state); this.bindRatesEvents(); break;
       case 'settings': workspace.innerHTML = SettingsComponent.render(this.state); this.bindSettingsEvents(); break;
       default: workspace.innerHTML = DashboardComponent.render(this.state);
     }
@@ -2576,7 +2649,121 @@ class App {
     }
   }
 
-  // --- 8. SETTINGS EVENTS ---
+  // --- 8. RATES & SERVICE FEES EVENTS ---
+  static bindRatesEvents() {
+    const mainRatesForm = document.getElementById('form-rates-main');
+    if (mainRatesForm) {
+      mainRatesForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.state.rates.electricityRate = parseFloat(document.getElementById('rate-elec').value) || 8.0;
+        this.state.rates.waterRate = parseFloat(document.getElementById('rate-water').value) || 20.0;
+        this.state.rates.trashFee = parseFloat(document.getElementById('rate-trash').value) || 20.0;
+        DBService.saveState(this.state);
+        alert('✅ บันทึกปรับเรทค่าน้ำ ค่าไฟ และค่าขยะเรียบร้อยแล้ว!');
+      });
+    }
+
+    const addFeeBtn = document.getElementById('btn-add-custom-fee');
+    if (addFeeBtn) {
+      addFeeBtn.addEventListener('click', () => this.openCustomFeeModal());
+    }
+
+    document.querySelectorAll('.btn-edit-custom-fee').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const fee = (this.state.rates.customFees || []).find(f => f.id === id);
+        if (fee) this.openCustomFeeModal(fee);
+      });
+    });
+
+    document.querySelectorAll('.btn-delete-custom-fee').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (confirm('คุณต้องการลบรายการค่าใช้จ่ายนี้ใช่หรือไม่?')) {
+          const fees = this.state.rates.customFees || [];
+          const idx = fees.findIndex(f => f.id === id);
+          if (idx !== -1) {
+            fees.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('rates');
+          }
+        }
+      });
+    });
+  }
+
+  static openCustomFeeModal(feeToEdit = null) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const isEdit = !!feeToEdit;
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid ${isEdit ? 'fa-pen text-info' : 'fa-plus text-primary'}"></i> ${isEdit ? 'แก้ไขรายการค่าใช้จ่าย' : 'เพิ่มรายการค่าใช้จ่ายใหม่'}</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="custom-fee-form">
+          <div class="form-group">
+            <label>ชื่อรายการค่าใช้จ่าย *</label>
+            <input type="text" id="fee-name" class="form-control" value="${feeToEdit ? feeToEdit.name : ''}" placeholder="เช่น ค่าอินเทอร์เน็ต WiFi, ค่าที่จอดรถ" required>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>รูปแบบการคิดค่าบริการ *</label>
+              <select id="fee-unittype" class="form-control" required>
+                <option value="monthly" ${feeToEdit && feeToEdit.unitType === 'monthly' ? 'selected' : ''}>📅 คิดรายเดือน (บาท/เดือน)</option>
+                <option value="per_unit" ${feeToEdit && feeToEdit.unitType === 'per_unit' ? 'selected' : ''}>⚡ คิดตามหน่วย (บาท/ยูนิต)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>อัตราค่าบริการ (บาท) *</label>
+              <input type="number" step="0.1" id="fee-amount" class="form-control" value="${feeToEdit ? feeToEdit.amount : 100}" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>หมายเหตุรายละเอียดเพิ่มเติม</label>
+            <input type="text" id="fee-note" class="form-control" value="${feeToEdit ? (feeToEdit.note || '') : ''}" placeholder="รายละเอียดเงื่อนไข...">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลค่าใช้จ่าย
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('custom-fee-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('fee-name').value.trim();
+      const unitType = document.getElementById('fee-unittype').value;
+      const amount = parseFloat(document.getElementById('fee-amount').value) || 0;
+      const note = document.getElementById('fee-note').value.trim();
+
+      if (!this.state.rates.customFees) this.state.rates.customFees = [];
+
+      if (isEdit) {
+        const idx = this.state.rates.customFees.findIndex(f => f.id === feeToEdit.id);
+        if (idx !== -1) {
+          this.state.rates.customFees[idx] = { ...this.state.rates.customFees[idx], name, unitType, amount, note };
+        }
+      } else {
+        const newFee = {
+          id: 'fee_' + Date.now(),
+          name, unitType, amount, note
+        };
+        this.state.rates.customFees.push(newFee);
+      }
+
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('rates');
+    });
+  }
+
+  // --- 9. SETTINGS EVENTS ---
   static bindSettingsEvents() {
     const saveUrlBtn = document.getElementById('btn-save-sheets-url');
     if (saveUrlBtn) {

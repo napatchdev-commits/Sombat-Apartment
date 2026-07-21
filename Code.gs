@@ -38,10 +38,7 @@ function doPost(e) {
     }
     
     if (action === "sync") {
-      // Store full database JSON state inside cell A1 for 1-click full restore
       sheet.getRange(1, 1).setValue(JSON.stringify(requestData.data));
-      
-      // Write structured rows into explicit Sheet Tabs for all Left-Sidebar Menus
       writeAllStructuredSheets(ss, requestData.data);
 
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "All data synced to Google Sheets successfully!" }))
@@ -67,8 +64,31 @@ function readAndMergeSheetTabs(ss, data) {
   if (!data.ledger) data.ledger = [];
   if (!data.events) data.events = [];
   if (!data.users) data.users = [];
+  if (!data.rates) data.rates = { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, customFees: [] };
 
-  // A. Read ROOMS Tab
+  // A. Read RATES_AND_FEES Tab
+  var ratesSheet = ss.getSheetByName("RATES_AND_FEES");
+  if (ratesSheet) {
+    var rateValues = ratesSheet.getRange("A2:E100").getValues();
+    rateValues.forEach(function(row) {
+      var id = String(row[0]).trim();
+      var name = String(row[1]).trim();
+      var val = Number(row[3]);
+      if (id === 'RATE_ELEC') data.rates.electricityRate = val || 8.0;
+      else if (id === 'RATE_WATER') data.rates.waterRate = val || 20.0;
+      else if (id === 'RATE_TRASH') data.rates.trashFee = val || 20.0;
+      else if (id.indexOf('fee_') === 0 && name) {
+        var existing = (data.rates.customFees || []).find(function(f) { return f.id === id; });
+        if (existing) {
+          existing.name = name;
+          existing.amount = val || 0;
+          if (row[4]) existing.note = String(row[4]);
+        }
+      }
+    });
+  }
+
+  // B. Read ROOMS Tab
   var rSheet = ss.getSheetByName("ROOMS");
   if (rSheet) {
     var rValues = rSheet.getRange("A2:H100").getValues();
@@ -89,7 +109,7 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // B. Read TENANTS Tab
+  // C. Read TENANTS Tab
   var tSheet = ss.getSheetByName("TENANTS");
   if (tSheet) {
     var tValues = tSheet.getRange("A2:J200").getValues();
@@ -109,7 +129,7 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // C. Read INVOICES Tab
+  // D. Read INVOICES Tab
   var invSheet = ss.getSheetByName("INVOICES");
   if (invSheet) {
     var invValues = invSheet.getRange("A2:P300").getValues();
@@ -129,7 +149,6 @@ function readAndMergeSheetTabs(ss, data) {
           if (row[14] !== "") inv.totalAmount = Number(row[14]);
           if (row[15]) {
             var statusStr = String(row[15]).trim().toLowerCase();
-            inv.status = statusStr;
             if (statusStr === 'paid' || statusStr === 'ชำระแล้ว') {
               inv.status = 'paid';
               inv.paidAmount = inv.totalAmount;
@@ -145,7 +164,7 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // D. Read REPAIRS Tab
+  // E. Read REPAIRS Tab
   var repSheet = ss.getSheetByName("REPAIRS");
   if (repSheet) {
     var repValues = repSheet.getRange("A2:I200").getValues();
@@ -192,6 +211,26 @@ function writeAllStructuredSheets(ss, data) {
   writeLedgerSheet(ss, data.ledger || []);
   writeEventsSheet(ss, data.events || []);
   writeUsersSheet(ss, data.users || []);
+  writeRatesSheet(ss, data.rates || {});
+}
+
+function writeRatesSheet(ss, rates) {
+  var sheet = ss.getSheetByName("RATES_AND_FEES");
+  if (!sheet) {
+    sheet = ss.insertSheet("RATES_AND_FEES");
+    sheet.appendRow(["ID รายการ", "ชื่อรายการค่าใช้จ่าย", "ประเภทการคิดเงิน", "อัตราค่าบริการ (บาท)", "หมายเหตุ"]);
+  }
+  sheet.getRange("A2:E100").clearContent();
+
+  sheet.appendRow(["RATE_ELEC", "ค่าไฟฟ้าหลัก", "บาท / ยูนิต", rates.electricityRate || 8.0, "อัตราค่าไฟฟ้าหลัก"]);
+  sheet.appendRow(["RATE_WATER", "ค่าน้ำประปาหลัก", "บาท / ยูนิต", rates.waterRate || 20.0, "อัตราค่าน้ำประปาหลัก"]);
+  sheet.appendRow(["RATE_TRASH", "ค่าขยะ / สาธารณูปโภค", "บาท / เดือน", rates.trashFee !== undefined ? rates.trashFee : 20.0, "ค่าขยะประจำเดือน"]);
+
+  var customFees = rates.customFees || [];
+  customFees.forEach(function(fee) {
+    var unitStr = fee.unitType === 'monthly' ? "บาท / เดือน" : "บาท / ยูนิต";
+    sheet.appendRow([fee.id, fee.name, unitStr, fee.amount, fee.note || ""]);
+  });
 }
 
 function writeDashboardSheet(ss, data) {
