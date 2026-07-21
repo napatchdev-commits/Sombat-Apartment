@@ -231,79 +231,12 @@ class DBService {
         { id: 'rt_air', name: 'ห้องแอร์ปรับอากาศ', description: 'เครื่องปรับอากาศประหยัดไฟเบอร์ 5 พร้อมเฟอร์นิเจอร์', defaultRent: 3500 },
         { id: 'rt_shop', name: 'ห้องพาณิชย์ร้านค้า', description: 'ติดถนนหลัก เหมาะค้าขายหรือทำออฟฟิศ', defaultRent: 5500 }
       ],
-      rooms: [
-        { id: 'r101', name: 'A101', floor: 1, typeId: 'rt_air', baseRent: 3500, status: 'occupied', currentTenantId: 't1', currentTenantName: 'น.ส.กันญา บัวแดง', entryDate: '2025-05-01', lastWaterMeter: 140, lastElecMeter: 1250 },
-        { id: 'r102', name: 'A102', floor: 1, typeId: 'rt_air', baseRent: 3500, status: 'overdue', currentTenantId: 't2', currentTenantName: 'นายสมชาย ดีมาก', entryDate: '2025-06-15', lastWaterMeter: 98, lastElecMeter: 840 },
-        { id: 'r103', name: 'A103', floor: 1, typeId: 'rt_fan', baseRent: 2500, status: 'vacant', lastWaterMeter: 50, lastElecMeter: 400 },
-        { id: 'r104', name: 'A104', floor: 1, typeId: 'rt_fan', baseRent: 2500, status: 'reserved', currentTenantName: 'นายวิชัย จงเจริญ (จองแล้ว)', entryDate: '2026-08-01', lastWaterMeter: 30, lastElecMeter: 210 },
-        { id: 'r201', name: 'A201', floor: 2, typeId: 'rt_air', baseRent: 3500, status: 'occupied', currentTenantId: 't3', currentTenantName: 'นางวิไล พรหมดี', entryDate: '2024-03-10', lastWaterMeter: 210, lastElecMeter: 1980 },
-        { id: 'r202', name: 'A202', floor: 2, typeId: 'rt_air', baseRent: 3500, status: 'vacant', lastWaterMeter: 85, lastElecMeter: 750 },
-        { id: 'r203', name: 'A203', floor: 2, typeId: 'rt_fan', baseRent: 2500, status: 'occupied', currentTenantId: 't4', currentTenantName: 'นายณัฐพงษ์ ศรีสุข', entryDate: '2026-01-10', lastWaterMeter: 115, lastElecMeter: 920 },
-        { id: 'r301', name: 'A301', floor: 3, typeId: 'rt_shop', baseRent: 5500, status: 'occupied', currentTenantId: 't5', currentTenantName: 'ร้านสมบัติมินิมาร์ท (คุณมณี)', entryDate: '2023-01-01', lastWaterMeter: 450, lastElecMeter: 4100 }
-      ],
-      tenants: [
-        {
-          id: 't1', name: 'น.ส.กันญา บัวแดง', idCard: '3451200115491', tel: '081-2345678', lineId: 'kanya_b', email: 'kanya@gmail.com', address: '12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี',
-          startDate: '2025-05-01', endDate: '2026-08-31', assignedRoomId: 'r101',
-          deposit: { initialBail: 7000, deductions: [], status: 'active' },
-          documents: [
-            { id: 'doc1', title: 'สำเนาบัตรประชาชน', category: 'idcard', fileName: 'บัตรประชาชน_กันญา.pdf', dataUrl: '', uploadDate: '2025-05-01' }
-          ]
-        },
-        {
-          id: 't2', name: 'นายสมชาย ดีมาก', idCard: '1100200345678', tel: '089-8765432', lineId: 'somchai_d', address: '88/1 ถ.แจ้งวัฒนะ อ.ปากเกร็ด จ.นนทบุรี',
-          startDate: '2025-06-15', endDate: '2026-06-14', assignedRoomId: 'r102',
-          deposit: { initialBail: 7000, deductions: [], status: 'active' }, documents: []
-        },
-        {
-          id: 't3', name: 'นางวิไล พรหมดี', idCard: '3100500890123', tel: '086-1122334', address: '45/10 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี',
-          startDate: '2024-03-10', endDate: '2026-07-31', assignedRoomId: 'r201',
-          deposit: { initialBail: 7000, deductions: [], status: 'active' }, documents: []
-        }
-      ],
-      invoices: [
-        {
-          id: 'inv_2026_07_r101', invoiceNumber: 'INV202607-101', monthKey: '2026-07', roomId: 'r101', roomName: 'A101',
-          tenantId: 't1', tenantName: 'น.ส.กันญา บัวแดง', issueDate: '2026-07-01', dueDate: '2026-07-05',
-          waterPrev: 130, waterCurr: 140, elecPrev: 1180, elecCurr: 1250, rentAmount: 3500, waterAmount: 200, elecAmount: 560,
-          trashFee: 20, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 0, totalAmount: 4280, paidAmount: 4280, outstandingAmount: 0, status: 'paid', paymentDate: '2026-07-03'
-        },
-        {
-          id: 'inv_2026_07_r102', invoiceNumber: 'INV202607-102', monthKey: '2026-07', roomId: 'r102', roomName: 'A102',
-          tenantId: 't2', tenantName: 'นายสมชาย ดีมาก', issueDate: '2026-07-01', dueDate: '2026-07-05',
-          waterPrev: 85, waterCurr: 98, elecPrev: 750, elecCurr: 840, rentAmount: 3500, waterAmount: 260, elecAmount: 720,
-          trashFee: 20, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 100, totalAmount: 4600, paidAmount: 0, outstandingAmount: 4600, status: 'unpaid'
-        },
-        {
-          id: 'inv_2026_07_r201', invoiceNumber: 'INV202607-201', monthKey: '2026-07', roomId: 'r201', roomName: 'A201',
-          tenantId: 't3', tenantName: 'นางวิไล พรหมดี', issueDate: '2026-07-01', dueDate: '2026-07-05',
-          waterPrev: 200, waterCurr: 210, elecPrev: 1900, elecCurr: 1980, rentAmount: 3500, waterAmount: 200, elecAmount: 640,
-          trashFee: 20, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 0, totalAmount: 4360, paidAmount: 4360, outstandingAmount: 0, status: 'paid', paymentDate: '2026-07-02'
-        },
-        {
-          id: 'inv_2026_07_r203', invoiceNumber: 'INV202607-203', monthKey: '2026-07', roomId: 'r203', roomName: 'A203',
-          tenantId: 't4', tenantName: 'นายณัฐพงษ์ ศรีสุข', issueDate: '2026-07-01', dueDate: '2026-07-05',
-          waterPrev: 105, waterCurr: 115, elecPrev: 870, elecCurr: 920, rentAmount: 2500, waterAmount: 200, elecAmount: 400,
-          trashFee: 20, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 0, totalAmount: 3120, paidAmount: 3120, outstandingAmount: 0, status: 'paid', paymentDate: '2026-07-04'
-        },
-        {
-          id: 'inv_2026_07_r301', invoiceNumber: 'INV202607-301', monthKey: '2026-07', roomId: 'r301', roomName: 'A301',
-          tenantId: 't5', tenantName: 'ร้านสมบัติมินิมาร์ท (คุณมณี)', issueDate: '2026-07-01', dueDate: '2026-07-05',
-          waterPrev: 420, waterCurr: 450, elecPrev: 3950, elecCurr: 4100, rentAmount: 5500, waterAmount: 600, elecAmount: 1200,
-          trashFee: 50, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 0, totalAmount: 7350, paidAmount: 7350, outstandingAmount: 0, status: 'paid', paymentDate: '2026-07-01'
-        }
-      ],
-      repairs: [
-        { id: 'rep_1', ticketNumber: 'REP-2026-001', roomId: 'r101', roomName: 'A101', tenantName: 'น.ส.กันญา บัวแดง', title: 'เครื่องปรับอากาศน้ำหยด', description: 'แอร์มีน้ำหยดลงเตียงนอน', category: 'aircon', requestDate: '2026-07-10', status: 'completed', expenseAmount: 500, assignedTechnician: 'ช่างสมศักดิ์ แอร์เซอร์วิส' }
-      ],
-      ledger: [
-        { id: 'led_1', date: '2026-07-03', type: 'income', category: 'rent_collected', description: 'รับชำระค่าเช่าห้อง A101', amount: 4280, recordedBy: 'admin' },
-        { id: 'led_2', date: '2026-07-12', type: 'expense', category: 'maintenance', description: 'ค่าล้างแอร์ห้อง A101', amount: 500, recordedBy: 'admin' }
-      ],
-      events: [
-        { id: 'evt_1', date: '2026-07-05', title: 'กำหนดชำระค่าเช่าประจำเดือน', category: 'billing', roomName: 'ทุกห้อง' },
-        { id: 'evt_2', date: '2026-07-25', title: 'ล้างแอร์ประจำปี ชั้น 2', category: 'maintenance', roomName: 'ชั้น 2' }
-      ]
+      rooms: [],
+      tenants: [],
+      invoices: [],
+      repairs: [],
+      ledger: [],
+      events: []
     };
   }
 
@@ -644,7 +577,7 @@ class DashboardComponent {
           </div>
           <div class="kpi-card card-green">
             <div class="kpi-icon"><i class="fa-solid fa-user-check"></i></div>
-            <div class="kpi-content"><span class="label">ห้องที่มีผู้เช่า</span><h3 class="value">${occupiedRooms} <small>ห้อง</small></h3><span class="subtext">คิดเป็น ${((occupiedRooms/totalRooms)*100).toFixed(0)}% ของหอพัก</span></div>
+            <div class="kpi-content"><span class="label">ห้องที่มีผู้เช่า</span><h3 class="value">${occupiedRooms} <small>ห้อง</small></h3><span class="subtext">คิดเป็น ${totalRooms > 0 ? ((occupiedRooms/totalRooms)*100).toFixed(0) : 0}% ของหอพัก</span></div>
           </div>
           <div class="kpi-card card-gray">
             <div class="kpi-icon"><i class="fa-solid fa-door-open"></i></div>
@@ -930,7 +863,14 @@ class RoomsComponent {
         </div>
 
         <div class="rooms-cards-grid" id="rooms-grid">
-          ${rooms.map(room => {
+          ${rooms.length === 0 ? `
+            <div class="glass-card text-center" style="grid-column: 1 / -1; padding:4rem 2rem; border-radius:16px;">
+              <div style="font-size:3.5rem; color:#cbd5e1; margin-bottom:1rem;"><i class="fa-solid fa-door-closed"></i></div>
+              <h3 style="color:#334155; font-size:1.25rem; font-weight:700;">ยังไม่มีข้อมูลห้องพักในระบบ</h3>
+              <p class="text-muted" style="margin-top:0.35rem; margin-bottom:1.5rem;">คุณสามารถกดปุ่ม "เพิ่มห้องพักใหม่" ด้านบนเพื่อเริ่มสร้างห้องเช่าประจำหอพักได้ทันที</p>
+              <button class="btn btn-primary" id="btn-add-room-empty"><i class="fa-solid fa-plus"></i> เพิ่มห้องพักแรกในระบบ</button>
+            </div>
+          ` : rooms.map(room => {
             const type = roomTypes.find(t => t.id === room.typeId);
             const typeName = type ? type.name : 'มาตรฐาน';
 
@@ -1726,6 +1666,11 @@ class App {
     const addRoomBtn = document.getElementById('btn-add-room');
     if (addRoomBtn) {
       addRoomBtn.addEventListener('click', () => this.openRoomModal());
+    }
+
+    const addRoomBtnEmpty = document.getElementById('btn-add-room-empty');
+    if (addRoomBtnEmpty) {
+      addRoomBtnEmpty.addEventListener('click', () => this.openRoomModal());
     }
 
     document.querySelectorAll('.btn-edit-room').forEach(btn => {
