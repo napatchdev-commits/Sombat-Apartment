@@ -1964,12 +1964,14 @@ class App {
                   <td style="text-align:center;">4</td>
                   <td>ค่าบริการสาธารณูปโภค / ขยะ</td>
                   <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
                   <td style="text-align:right;">-</td>
                   <td style="text-align:right;">฿${(inv.trashFee || 20).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                 </tr>
               ` : ''}
               <tr style="font-weight:bold; background:#f5f5f5;">
-                <td colspan="4" style="text-align:right;">ยอดรวมสุทธิที่ต้องชำระ:</td>
+                <td colspan="6" style="text-align:right;">ยอดรวมสุทธิที่ต้องชำระ:</td>
                 <td style="text-align:right;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
               </tr>
             </tbody>
