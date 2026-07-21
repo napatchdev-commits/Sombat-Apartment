@@ -1872,15 +1872,22 @@ class App {
 
           <!-- Signatures -->
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:2.5rem; text-align:center;">
-            <div style="display:flex; flex-direction:column; align-items:center;">
-              <div style="height:35px;"></div>
-              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้จ่ายเงิน/ผู้เช่า</div>
-              <div style="margin-top:0.35rem; width:180px; text-align:center;">( ${inv.tenantName} )</div>
+            <div style="display:flex; justify-content:center; align-items:flex-start;">
+              <span style="line-height:2.2;">ลงชื่อ</span>
+              <div style="display:inline-flex; flex-direction:column; align-items:center; margin:0 0.35rem;">
+                <span style="display:inline-block; width:190px; border-bottom:1px dotted #000; height:1.6rem;"></span>
+                <span style="font-size:0.9rem; margin-top:0.35rem; white-space:nowrap;">( ${inv.tenantName} )</span>
+              </div>
+              <span style="line-height:2.2;">ผู้จ่ายเงิน/ผู้เช่า</span>
             </div>
-            <div style="display:flex; flex-direction:column; align-items:center;">
-              <div style="height:35px;"></div>
-              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้รับเงิน/เจ้าของหอพัก</div>
-              <div style="margin-top:0.35rem; width:180px; text-align:center;">( นางสมผิว น้ำวน )</div>
+
+            <div style="display:flex; justify-content:center; align-items:flex-start;">
+              <span style="line-height:2.2;">ลงชื่อ</span>
+              <div style="display:inline-flex; flex-direction:column; align-items:center; margin:0 0.35rem;">
+                <span style="display:inline-block; width:190px; border-bottom:1px dotted #000; height:1.6rem;"></span>
+                <span style="font-size:0.9rem; margin-top:0.35rem; white-space:nowrap;">( นางสมผิว น้ำวน )</span>
+              </div>
+              <span style="line-height:2.2;">ผู้รับเงิน/เจ้าของหอพัก</span>
             </div>
           </div>
         </div>
@@ -1986,15 +1993,22 @@ class App {
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:2.5rem; text-align:center;">
-            <div style="display:flex; flex-direction:column; align-items:center;">
-              <div style="height:35px;"></div>
-              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้จ่ายเงิน/ผู้เช่า</div>
-              <div style="margin-top:0.35rem; width:180px; text-align:center;">( ${inv.tenantName} )</div>
+            <div style="display:flex; justify-content:center; align-items:flex-start;">
+              <span style="line-height:2.2;">ลงชื่อ</span>
+              <div style="display:inline-flex; flex-direction:column; align-items:center; margin:0 0.35rem;">
+                <span style="display:inline-block; width:190px; border-bottom:1px dotted #000; height:1.6rem;"></span>
+                <span style="font-size:0.9rem; margin-top:0.35rem; white-space:nowrap;">( ${inv.tenantName} )</span>
+              </div>
+              <span style="line-height:2.2;">ผู้จ่ายเงิน/ผู้เช่า</span>
             </div>
-            <div style="display:flex; flex-direction:column; align-items:center;">
-              <div style="height:35px;"></div>
-              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้รับเงิน/เจ้าของหอพัก</div>
-              <div style="margin-top:0.35rem; width:180px; text-align:center;">( นางสมผิว น้ำวน )</div>
+
+            <div style="display:flex; justify-content:center; align-items:flex-start;">
+              <span style="line-height:2.2;">ลงชื่อ</span>
+              <div style="display:inline-flex; flex-direction:column; align-items:center; margin:0 0.35rem;">
+                <span style="display:inline-block; width:190px; border-bottom:1px dotted #000; height:1.6rem;"></span>
+                <span style="font-size:0.9rem; margin-top:0.35rem; white-space:nowrap;">( นางสมผิว น้ำวน )</span>
+              </div>
+              <span style="line-height:2.2;">ผู้รับเงิน/เจ้าของหอพัก</span>
             </div>
           </div>
         </div>
