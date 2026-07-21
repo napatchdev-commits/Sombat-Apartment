@@ -33,15 +33,37 @@ const USER_PERMISSIONS = {
 
 class Formatters {
   static currency(amount) {
-    return '฿' + (amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return '฿' + (parseFloat(amount) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   static thaiDate(dateStr) {
     if (!dateStr) return '-';
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return dateStr;
-    const yearBE = parseInt(parts[0], 10) + 543;
-    return `${parts[2]}/${parts[1]}/${yearBE}`;
+    // If dateStr is YYYY-MM-DD (ISO format)
+    if (String(dateStr).includes('-')) {
+      const parts = String(dateStr).split('T')[0].split('-');
+      if (parts.length === 3) {
+        const yearBE = parseInt(parts[0], 10) + 543;
+        const day = parts[2].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        return `${day}/${month}/${yearBE}`;
+      }
+    }
+    return dateStr;
+  }
+
+  static parseThaiDateToISO(thDateStr) {
+    if (!thDateStr) return new Date().toISOString().slice(0, 10);
+    if (String(thDateStr).includes('/')) {
+      const parts = String(thDateStr).split('/');
+      if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        let yearAD = parseInt(parts[2], 10);
+        if (yearAD > 2400) yearAD -= 543;
+        return `${yearAD}-${month}-${day}`;
+      }
+    }
+    return thDateStr;
   }
 
   static thaiMonthBE(monthKey) {
@@ -3658,12 +3680,12 @@ class App {
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
-              <label>วันเริ่มสัญญา *</label>
-              <input type="date" id="ctr-start-date" class="form-control" value="${new Date().toISOString().slice(0,10)}" required>
+              <label>วันเริ่มสัญญา (วัน/เดือน/ปี พ.ศ.) *</label>
+              <input type="text" id="ctr-start-date" class="form-control" value="${Formatters.thaiDate(new Date().toISOString().slice(0,10))}" placeholder="21/07/2569" required>
             </div>
             <div class="form-group">
-              <label>วันสิ้นสุดสัญญา *</label>
-              <input type="date" id="ctr-end-date" class="form-control" value="2027-07-31" required>
+              <label>วันสิ้นสุดสัญญา (วัน/เดือน/ปี พ.ศ.) *</label>
+              <input type="text" id="ctr-end-date" class="form-control" value="31/07/2570" placeholder="31/07/2570" required>
             </div>
           </div>
 
