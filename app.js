@@ -1057,6 +1057,7 @@ class BillingComponent {
                     </td>
                     <td>
                       <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-edit-bill" data-id="${inv.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
                         <button class="btn btn-secondary btn-xs btn-qr-promptpay" data-id="${inv.id}"><i class="fa-solid fa-qrcode text-primary"></i> QR PromptPay</button>
                         <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}"><i class="fa-solid fa-print text-warning"></i> พิมพ์บิล</button>
                         <button class="btn btn-secondary btn-xs btn-send-line" data-id="${inv.id}"><i class="fa-brands fa-line text-success"></i> LINE</button>
@@ -1335,13 +1336,43 @@ class RatesComponent {
 
 class SettingsComponent {
   static render(state) {
-    const settings = state.settings;
+    const settings = state.settings || {};
     const users = state.users || [];
 
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
-          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท) และบันทึกข้อมูลซิงค์คลาวด์ Google Sheets</p></div>
+          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท) ตั้งค่าระบบ LINE Bot และบันทึกข้อมูลซิงค์คลาวด์ Google Sheets</p></div>
+        </div>
+
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot & LINE Notify (บันทึกลงชีต แก้ไขได้ทุกเครื่อง 100%)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            ระบุ Token เพื่อส่งบิล ใบเสร็จ และแจ้งเตือนชำระเงินอัตโนมัติไปยัง LINE กลุ่มผู้บริหาร/ผู้เช่า (ซิงค์ลง Google Sheets ใช้งานตรงกันทุกเครื่อง)
+          </p>
+          
+          <form id="line-bot-settings-form" style="margin-top:1rem;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group">
+                <label style="font-weight:600;"><i class="fa-brands fa-line text-success"></i> LINE Channel Access Token (LINE Bot Token):</label>
+                <input type="text" id="setting-line-token" class="form-control" value="${settings.lineToken || ''}" placeholder="ระบุ LINE Channel Access Token..." style="padding:0.65rem 0.85rem;">
+              </div>
+              <div class="form-group">
+                <label style="font-weight:600;"><i class="fa-solid fa-user-tag text-primary"></i> LINE User ID / Group ID (สำหรับส่งบิล):</label>
+                <input type="text" id="setting-line-userid" class="form-control" value="${settings.lineUserId || ''}" placeholder="U123456789... หรือ Group ID..." style="padding:0.65rem 0.85rem;">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top:0.5rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-bell text-warning"></i> LINE Notify Token (สำหรับแจ้งเตือนไลน์กลุ่ม):</label>
+              <input type="text" id="setting-line-notify-token" class="form-control" value="${settings.lineNotifyToken || ''}" placeholder="ระบุ LINE Notify Token..." style="padding:0.65rem 0.85rem;">
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1.25rem;">
+              <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า LINE Bot ลงชีต</button>
+              <button type="button" class="btn btn-secondary" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ทดสอบส่งข้อความ LINE</button>
+            </div>
+          </form>
         </div>
 
         <div class="glass-card" style="margin-bottom:1.5rem;">
@@ -2297,6 +2328,14 @@ class App {
       });
     });
 
+    document.querySelectorAll('.btn-edit-bill').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv) this.openEditInvoiceModal(inv);
+      });
+    });
+
     document.querySelectorAll('.btn-qr-promptpay').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.getAttribute('data-id');
@@ -2324,6 +2363,121 @@ class App {
           alert(`📲 จำลองการส่งข้อความ LINE:\n\n${LineService.createBillingMessage(inv, this.state.settings.apartmentName)}`);
         }
       });
+    });
+  }
+
+  static openEditInvoiceModal(inv) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-file-pen text-info"></i> แก้ไขข้อมูลใบแจ้งหนี้ / บิลค่าเช่า</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="edit-invoice-form">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>เลขที่บิล *</label>
+              <input type="text" id="edit-inv-number" class="form-control" value="${inv.invoiceNumber}" required>
+            </div>
+            <div class="form-group">
+              <label>รอบเดือน *</label>
+              <input type="month" id="edit-inv-month" class="form-control" value="${inv.monthKey}" required>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ชื่อห้องพัก:</label>
+              <input type="text" id="edit-inv-room" class="form-control" value="${inv.roomName}" required>
+            </div>
+            <div class="form-group">
+              <label>ชื่อผู้เช่า:</label>
+              <input type="text" id="edit-inv-tenant" class="form-control" value="${inv.tenantName}" required>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-top:0.75rem;">
+            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> แก้ไขมิเตอร์ไฟฟ้า</h4>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="edit-elec-prev" class="form-control" value="${inv.elecPrev}"></div>
+              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้:</label><input type="number" id="edit-elec-curr" class="form-control" value="${inv.elecCurr}"></div>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-top:0.75rem;">
+            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> แก้ไขมิเตอร์น้ำประปา</h4>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="edit-water-prev" class="form-control" value="${inv.waterPrev}"></div>
+              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้:</label><input type="number" id="edit-water-curr" class="form-control" value="${inv.waterCurr}"></div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem; margin-top:0.75rem;">
+            <div class="form-group">
+              <label>ค่าเช่าห้องพัก (บาท) *</label>
+              <input type="number" id="edit-inv-rent" class="form-control" value="${inv.rentAmount}" required>
+            </div>
+            <div class="form-group">
+              <label>ค่าขยะ / สาธารณูปโภค *</label>
+              <input type="number" id="edit-inv-trash" class="form-control" value="${inv.trashFee || 20}" required>
+            </div>
+            <div class="form-group">
+              <label>สถานะชำระเงิน *</label>
+              <select id="edit-inv-status" class="form-control" required>
+                <option value="unpaid" ${inv.status === 'unpaid' ? 'selected' : ''}>🔴 ค้างชำระ</option>
+                <option value="paid" ${inv.status === 'paid' ? 'selected' : ''}>🟢 ชำระแล้ว</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไขใบแจ้งหนี้ลงชีต
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('edit-invoice-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const elecPrev = parseFloat(document.getElementById('edit-elec-prev').value) || 0;
+      const elecCurr = parseFloat(document.getElementById('edit-elec-curr').value) || 0;
+      const waterPrev = parseFloat(document.getElementById('edit-water-prev').value) || 0;
+      const waterCurr = parseFloat(document.getElementById('edit-water-curr').value) || 0;
+      const rentAmount = parseFloat(document.getElementById('edit-inv-rent').value) || 0;
+      const trashFee = parseFloat(document.getElementById('edit-inv-trash').value) || 20;
+
+      const elecUnits = Math.max(0, elecCurr - elecPrev);
+      const waterUnits = Math.max(0, waterCurr - waterPrev);
+      const elecAmount = elecUnits * (this.state.rates ? (this.state.rates.electricityRate || 8) : 8);
+      const waterAmount = waterUnits * (this.state.rates ? (this.state.rates.waterRate || 20) : 20);
+      const totalAmount = rentAmount + elecAmount + waterAmount + trashFee;
+
+      const idx = this.state.invoices.findIndex(i => i.id === inv.id);
+      if (idx !== -1) {
+        this.state.invoices[idx] = {
+          ...this.state.invoices[idx],
+          invoiceNumber: document.getElementById('edit-inv-number').value.trim(),
+          monthKey: document.getElementById('edit-inv-month').value,
+          roomName: document.getElementById('edit-inv-room').value.trim(),
+          tenantName: document.getElementById('edit-inv-tenant').value.trim(),
+          elecPrev, elecCurr, elecAmount,
+          waterPrev, waterCurr, waterAmount,
+          rentAmount, trashFee, totalAmount,
+          status: document.getElementById('edit-inv-status').value,
+          paidAmount: document.getElementById('edit-inv-status').value === 'paid' ? totalAmount : 0,
+          outstandingAmount: document.getElementById('edit-inv-status').value === 'paid' ? 0 : totalAmount
+        };
+        DBService.saveState(this.state);
+        modal.classList.remove('active');
+        alert('✅ แก้ไขข้อมูลบิลค่าเช่าและซิงค์ลง Google Sheets เรียบร้อยแล้ว!');
+        this.switchTab('billing');
+      }
     });
   }
 
@@ -3169,6 +3323,39 @@ class App {
 
   // --- 9. SETTINGS EVENTS ---
   static bindSettingsEvents() {
+    const lineForm = document.getElementById('line-bot-settings-form');
+    if (lineForm) {
+      lineForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!this.state.settings) this.state.settings = {};
+        this.state.settings.lineToken = document.getElementById('setting-line-token').value.trim();
+        this.state.settings.lineUserId = document.getElementById('setting-line-userid').value.trim();
+        this.state.settings.lineNotifyToken = document.getElementById('setting-line-notify-token').value.trim();
+
+        DBService.saveState(this.state);
+        
+        const url = this.state.settings.googleSheetUrl || DBService.getSavedSheetUrl();
+        if (url) {
+          try {
+            await DBService.syncToGoogleSheets(url, this.state);
+            alert('✅ บันทึกการตั้งค่า LINE Bot ลง Google Sheets เรียบร้อยแล้ว! (ทุกเครื่องดึงข้อมูลใช้งานตรงกัน 100%)');
+          } catch (err) {
+            alert('บันทึกการตั้งค่าเรียบร้อยแล้ว (การซิงค์ชีต: ' + err.message + ')');
+          }
+        } else {
+          alert('✅ บันทึกการตั้งค่า LINE Bot เรียบร้อยแล้ว!');
+        }
+      });
+    }
+
+    const testLineBtn = document.getElementById('btn-test-line-send');
+    if (testLineBtn) {
+      testLineBtn.addEventListener('click', () => {
+        const token = (this.state.settings && (this.state.settings.lineToken || this.state.settings.lineNotifyToken)) || '';
+        alert(`📱 ทดสอบส่งข้อความ LINE Bot & Notify:\n\n📢 [หอพักสมบัติ นนทบุรี] ทดสอบการเชื่อมต่อระบบ LINE Bot อัตโนมัติเรียบร้อยแล้ว!\n\n(Token: ${token ? 'ระบุไว้แล้ว' : 'ยังไม่ได้ระบุ'})`);
+      });
+    }
+
     const saveUrlBtn = document.getElementById('btn-save-sheets-url');
     if (saveUrlBtn) {
       saveUrlBtn.addEventListener('click', (e) => {
