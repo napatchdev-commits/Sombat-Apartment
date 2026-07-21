@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ระบบจัดการห้องเช่า (Rental Management System) Sombat Apartment Enterprise Edition - ระบบบันทึกผู้เช่า ออกบิลอัตโนมัติ สแกน Dynamic PromptPay QR และระบบรายงาน">
+    <title>🏠 ระบบจัดการห้องเช่า - Sombat Apartment Enterprise Edition</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6 for Professional Modern Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom Modern Minimal CSS Design System -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Toast Notifications Root -->
+    <div id="toast-container"></div>
+
+    <!-- Application Shell Layout -->
+    <div id="app-root">
+        <!-- Sidebar Navigation Mount Point -->
+        <div id="sidebar-container"></div>
+
+        <!-- Main View Workspace -->
+        <div class="main-content-wrapper">
+            <!-- Navbar Header Mount Point -->
+            <div id="navbar-container"></div>
+
+            <!-- Workspace Content View Container -->
+            <main id="main-workspace" class="main-workspace">
+                <!-- Skeleton Loader Placeholder -->
+                <div class="skeleton-loader-view">
+                    <div class="skeleton-header"></div>
+                    <div class="skeleton-cards-grid">
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal Dialog Popup Shell -->
+    <div id="app-modal" class="app-modal">
+        <div class="modal-dialog"></div>
+    </div>
+
+    <!-- Printable Paper/Slip Area (Only visible on paper) -->
+    <div id="print-receipt-area" class="print-only-area"></div>
+
+    <!-- Main Clean Architecture TypeScript/JS Application Engine -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
