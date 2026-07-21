@@ -1,6 +1,7 @@
 // ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - FULLY INTERACTIVE APP CONTROLLER
 // 100% Compatible with Vercel, GitHub Pages, Local file:// & Google Sheets Sync
+// Includes Official Front & Back Page Rental Contracts with Dotted Fill Engine
 // ==========================================================================
 
 /* ==========================================================================
@@ -26,7 +27,7 @@ const USER_PERMISSIONS = {
 };
 
 /* ==========================================================================
-   2. UTILITY SERVICES (FORMATTERS & VALIDATORS)
+   2. UTILITY SERVICES (FORMATTERS, THAI BAHT TEXT & VALIDATORS)
    ========================================================================== */
 
 class Formatters {
@@ -60,10 +61,32 @@ class Formatters {
     if (clean.length !== 13) return idCard || '-';
     return `${clean.substring(0, 1)}-${clean.substring(1, 5)}-${clean.substring(5, 10)}-${clean.substring(10, 12)}-${clean.substring(12)}`;
   }
+
+  static thaiBahtText(num) {
+    num = parseFloat(num) || 0;
+    if (num === 0) return 'ศูนย์บาทถ้วน';
+    const numbers = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+    const units = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+    
+    let str = Math.floor(num).toString();
+    let text = '';
+    const len = str.length;
+    for (let i = 0; i < len; i++) {
+      const digit = parseInt(str.charAt(i), 10);
+      const pos = len - 1 - i;
+      if (digit !== 0) {
+        if (pos === 1 && digit === 1) text += 'สิบ';
+        else if (pos === 1 && digit === 2) text += 'ยี่สิบ';
+        else if (pos === 0 && digit === 1 && len > 1) text += 'เอ็ด';
+        else text += numbers[digit] + units[pos];
+      }
+    }
+    return text + 'บาทถ้วน';
+  }
 }
 
 /* ==========================================================================
-   3. SERVICES (AUTH, LOGGER, PROMPTPAY, LINE, EXPORT, DB, SHEETS)
+   3. SERVICES (AUTH, LOGGER, PROMPTPAY, LINE, EXPORT, DB)
    ========================================================================== */
 
 class AuthService {
@@ -102,11 +125,7 @@ class LoggerService {
     const newLog = {
       id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       timestamp: new Date().toISOString(),
-      username,
-      userRole,
-      action,
-      module,
-      details
+      username, userRole, action, module, details
     };
     logs.unshift(newLog);
     if (logs.length > 500) logs.pop();
@@ -226,18 +245,18 @@ class DBService {
       ],
       tenants: [
         {
-          id: 't1', name: 'น.ส.กันญา บัวแดง', idCard: '3451200115491', tel: '081-2345678', lineId: 'kanya_b', email: 'kanya@gmail.com',
+          id: 't1', name: 'น.ส.กันญา บัวแดง', idCard: '3451200115491', tel: '081-2345678', lineId: 'kanya_b', email: 'kanya@gmail.com', address: '12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี',
           startDate: '2025-05-01', endDate: '2026-08-31', assignedRoomId: 'r101',
           deposit: { initialBail: 7000, deductions: [], status: 'active' },
           documents: [ { id: 'doc1', name: 'สำเนาบัตรประชาชน.pdf', fileType: 'pdf' } ]
         },
         {
-          id: 't2', name: 'นายสมชาย ดีมาก', idCard: '1100200345678', tel: '089-8765432', lineId: 'somchai_d',
+          id: 't2', name: 'นายสมชาย ดีมาก', idCard: '1100200345678', tel: '089-8765432', lineId: 'somchai_d', address: '88/1 ถ.แจ้งวัฒนะ อ.ปากเกร็ด จ.นนทบุรี',
           startDate: '2025-06-15', endDate: '2026-06-14', assignedRoomId: 'r102',
           deposit: { initialBail: 7000, deductions: [], status: 'active' }, documents: []
         },
         {
-          id: 't3', name: 'นางวิไล พรหมดี', idCard: '3100500890123', tel: '086-1122334',
+          id: 't3', name: 'นางวิไล พรหมดี', idCard: '3100500890123', tel: '086-1122334', address: '45/10 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี',
           startDate: '2024-03-10', endDate: '2026-07-31', assignedRoomId: 'r201',
           deposit: { initialBail: 7000, deductions: [], status: 'active' }, documents: []
         }
@@ -339,9 +358,7 @@ class NavbarComponent {
     return `
       <header class="app-header">
         <div class="header-left">
-          <button id="mobile-toggle-btn" class="icon-btn mobile-only">
-            <i class="fa-solid fa-bars"></i>
-          </button>
+          <button id="mobile-toggle-btn" class="icon-btn mobile-only"><i class="fa-solid fa-bars"></i></button>
           <div class="global-search-container">
             <i class="fa-solid fa-magnifying-glass search-icon"></i>
             <input type="text" id="global-search-input" class="global-search-input" placeholder="ค้นหาห้องพัก, ผู้เช่า, เลขบัตร, บิล (Real-time)..." autocomplete="off">
@@ -683,10 +700,7 @@ class ContractsComponent {
                     <td>
                       <div class="action-buttons">
                         <button class="btn btn-secondary btn-xs btn-print-contract-pdf" data-tenant-id="${c.tenantId}" title="พิมพ์สัญญา PDF">
-                          <i class="fa-solid fa-print text-warning"></i> พิมพ์สัญญา
-                        </button>
-                        <button class="btn btn-secondary btn-xs btn-edit-contract" data-tenant-id="${c.tenantId}">
-                          <i class="fa-solid fa-pen text-info"></i> แก้ไข
+                          <i class="fa-solid fa-print text-warning"></i> พิมพ์สัญญา (หน้า-หลัง)
                         </button>
                       </div>
                     </td>
@@ -955,7 +969,6 @@ class ReportsComponent {
 
 class SettingsComponent {
   static render(state) {
-    const logs = LoggerService.getLogs();
     const settings = state.settings;
 
     return `
@@ -1098,44 +1111,12 @@ class App {
       });
     });
 
-    document.querySelectorAll('.btn-print-contract-pdf').forEach(btn => {
+    // Interactive Contract Viewer with Dotted Line Autofill (Front & Back Pages)
+    document.querySelectorAll('.btn-print-contract-pdf, .btn-gen-contract').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const tenantId = e.currentTarget.getAttribute('data-tenant-id');
+        const tenantId = e.currentTarget.getAttribute('data-tenant-id') || e.currentTarget.getAttribute('data-id');
         const tenant = this.state.tenants.find(t => t.id === tenantId);
-        if (tenant) {
-          const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
-          const printArea = document.getElementById('print-receipt-area');
-          printArea.innerHTML = `
-            <div style="padding: 2.5rem; font-family: 'Sarabun', sans-serif; background: #fff; max-width: 700px; margin: 0 auto; border: 1px solid #ccc;">
-              <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 1rem; margin-bottom: 1.5rem;">
-                <h2>หนังสือสัญญาเช่าห้องพัก</h2>
-                <h4>${this.state.settings.apartmentName}</h4>
-                <p>${this.state.settings.address} โทร. ${this.state.settings.tel}</p>
-              </div>
-
-              <p style="text-indent: 2rem; margin-bottom: 0.75rem;">
-                สัญญาฉบับนี้ทำขึ้นเมื่อวันที่ <strong>${Formatters.thaiDate(tenant.startDate)}</strong> ระหว่าง <strong>${this.state.settings.apartmentName}</strong> (ผู้ให้เช่า) 
-                และ <strong>คุณ${tenant.name}</strong> ถือบัตรประชาชนเลขที่ <code>${Formatters.formatIdCard(tenant.idCard)}</code> (ผู้เช่า)
-              </p>
-
-              <p style="text-indent: 2rem; margin-bottom: 0.75rem;">
-                ข้อ 1. ผู้ให้เช่าตกลงให้เช่า และผู้เช่าตกลงเช่าห้องพักหมายเลข <strong>${room ? room.name : '-'}</strong> ในอัตราค่าเช่าเดือนละ <strong>${Formatters.currency(room ? room.baseRent : 3500)}</strong> 
-                โดยมีระยะเวลาสัญญาเช่าตั้งแต่ <strong>${Formatters.thaiDate(tenant.startDate)}</strong> ถึง <strong>${Formatters.thaiDate(tenant.endDate)}</strong>
-              </p>
-
-              <p style="text-indent: 2rem; margin-bottom: 1.5rem;">
-                ข้อ 2. ในวันทำสัญญานี้ ผู้เช่าได้วางเงินประกันมัดจำไว้เป็นจำนวนเงิน <strong>${Formatters.currency(tenant.deposit ? tenant.deposit.initialBail : 7000)}</strong> 
-                แก่ผู้ให้เช่าไว้เป็นหลักฐานเรียบร้อยแล้ว
-              </p>
-
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; text-align: center; margin-top: 3rem;">
-                <div><p>(ลงชื่อ).................................................ผู้เช่า</p><p>(${tenant.name})</p></div>
-                <div><p>(ลงชื่อ).................................................ผู้ให้เช่า</p><p>(${this.state.settings.apartmentName})</p></div>
-              </div>
-            </div>
-          `;
-          window.print();
-        }
+        if (tenant) this.openOfficialContractModal(tenant);
       });
     });
 
@@ -1149,6 +1130,155 @@ class App {
     }
   }
 
+  static openOfficialContractModal(tenant) {
+    const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
+
+    // Initial values
+    const today = new Date();
+    const d = {
+      day: today.getDate().toString(),
+      month: Formatters.thaiMonthBE(today.toISOString().slice(0, 7)).split(' ')[0],
+      year: (today.getFullYear() + 543).toString(),
+      landlordAge: '๕๕',
+      tenantName: tenant.name,
+      tenantAddress: tenant.address || '12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี',
+      tenantIdCard: Formatters.formatIdCard(tenant.idCard),
+      tenantIdIssueDate: Formatters.thaiDate(tenant.startDate),
+      roomName: room ? room.name : 'A101',
+      startDateDay: tenant.startDate ? tenant.startDate.split('-')[2] : '1',
+      startDateMonth: tenant.startDate ? Formatters.thaiMonthBE(tenant.startDate.slice(0, 7)).split(' ')[0] : 'พฤษภาคม',
+      startDateYear: tenant.startDate ? (parseInt(tenant.startDate.split('-')[0], 10) + 543).toString() : '2568',
+      monthlyRentAmt: room ? room.baseRent.toLocaleString() : '3,500',
+      monthlyRentThai: Formatters.thaiBahtText(room ? room.baseRent : 3500),
+      depositAmt: tenant.deposit ? tenant.deposit.initialBail.toLocaleString() : '7,000',
+      depositThai: Formatters.thaiBahtText(tenant.deposit ? tenant.deposit.initialBail : 7000),
+      witness1: 'นางสมศรี ใจดี',
+      witness2: 'นายวิเชียร สมบัติ'
+    };
+
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-file-contract text-warning"></i> สัญญาเช่าห้องพักทางการ (หอพักสมบัติ.คอม)</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+
+      <!-- Tab Switcher for Front & Back Document Pages -->
+      <div class="contract-tab-switcher" style="padding-top: 1rem;">
+        <button class="contract-tab-btn active" id="tab-front-doc"><i class="fa-solid fa-file-lines"></i> ด้านหน้า (หนังสือสัญญา)</button>
+        <button class="contract-tab-btn" id="tab-back-doc"><i class="fa-solid fa-list-ol"></i> ด้านหลัง (กฎและมารยาท 13 ข้อ)</button>
+      </div>
+
+      <div class="modal-body" style="padding-top: 0.5rem;">
+        <!-- Front Page Document Shell -->
+        <div id="contract-front-view" class="contract-paper front-page">
+          <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
+            หนังสือสัญญาเช่าห้องแถว
+          </div>
+          <div style="text-align:right; margin-bottom:1rem; font-size:0.95rem;">
+            เขียนที่ ๔๕/๓ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ๑๑๑๕๐ โทร. ๐๒-๐๕๓๔๓๑๑,๐๘๐-๕๙๙๑๖๙๑
+          </div>
+          <div style="text-align:right; margin-bottom:1.5rem; font-size:0.95rem;">
+            วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
+          </div>
+
+          <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>นายสมบัติ น้ำวน</strong> อายุ <span class="dotted-fill">${d.landlordAge}</span> ปี อยู่บ้านเลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
+            อยู่บ้านเลขที่ <span class="dotted-fill">${d.tenantAddress}</span><br>
+            ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
+            ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้เช่า”</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้คือ<br>
+
+            <strong>ข้อ ๑.</strong> ผู้ให้เช่าตกลงให้เช่าและผู้เช่าตกลงเช่าห้องแถว/บ้าน <span class="dotted-fill">${d.roomName}</span> ตั้งอยู่ ณ. เลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี เริ่มตั้งแต่วันที่ <span class="dotted-fill">${d.startDateDay}</span> เดือน <span class="dotted-fill">${d.startDateMonth}</span> พ.ศ. <span class="dotted-fill">${d.startDateYear}</span> ถึงจนกว่าจะออก/ยกเลิกสัญญา<br>
+
+            <strong>ข้อ ๒.</strong> ผู้เช่าตกลงให้ค่าเช่าเป็นรายเดือนๆ ละ <span class="dotted-fill">${d.monthlyRentAmt}</span> บาท (<span class="dotted-fill">${d.monthlyRentThai}</span>) มีกำหนดชำระเงินค่าเช่าทุกวันที่ ๑ ของทุก ๆ เดือน หากผู้เช่าไม่ชำระตามกําหนดยอมให้ผู้ใช้เช่ายึดทรัพย์สินและใส่กุญแจห้องของผู้เช่าได้<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>๒.๑</strong> ผู้เช่าจะต้องจ่ายเงินค่ามัดจำไว้เพื่อเป็นหลักประกันในทรัพย์สิน/ค่าน้ำ ค่าไฟฟ้า ค่ากุญแจ และอื่นๆ จำนวน <span class="dotted-fill">${d.depositAmt}</span> บาท (<span class="dotted-fill">${d.depositThai}</span>) และจะคืนให้เมื่อครบกำหนด ๖ เดือน/เมื่อย้ายออก<br>
+
+            <strong>ข้อ ๓.</strong> ผู้เช่าได้ตรวจดูห้องเช่าแล้ว เห็นว่าทุกสิ่งอยู่ในสภาพเรียบร้อยใช้การได้อย่างสมบูรณ์จะดูแลมิให้ชำรุดทรุดโทรม และจะบำรุงรักษาให้อยู่ในสภาพดี พร้อมที่จะส่งมอบคืนตามสภาพเดิมทุกประการ และตกลงยอมให้ผู้เช่าหรือตัวแทน เข้าตรวจดูห้องได้ทุกเวลาภายหลังจากได้แจ้งความประสงค์ให้ผู้เช่าทราบแล้ว ถ้าผู้เช่าออกจากห้องแถวที่เช่าไม่ว่ากรณีใด ๆ ผู้เช่าจะเรียกร้องค่าเสียหายและ/หรือค่าขนย้ายจากผู้ให้เช่ามิได้<br>
+
+            <strong>ข้อ ๔.</strong> ผู้เช่าไม่มีสิทธินำห้องเช่า ที่เช่าออกให้ผู้อื่นเช่าช่วง หรือทำนิติกรรมใดๆ กับผู้อื่นในอันที่จะเป็นผลก่อให้เกิดความผูกพันในห้องเช่า ไม่ว่าโดยตรงหรือโดยปริยาย และจะไม่ทำการดัดแปลงหรือต่อเติมห้องเช่าไม่ว่าทั้งหมดหรือบางส่วน เว้นแต่จะได้รับความยินยอมเป็นหนังสือจากผู้ให้เช่า และหากผู้เช่าได้ทำการดัดแปลงหรือต่อเติมสิ่งใดตามที่ได้รับความยินยอมเมื่อใดแล้ว ผู้เช่ายอมยกกรรมสิทธิ์ในทรัพย์สินนั้นให้ตกเป็นของผู้ให้เช่านับแต่เมื่อนั้นด้วยทั้งสิ้น<br>
+
+            <strong>ข้อ ๕.</strong> ถ้าเกิดอัคคีภัยขึ้นไม่ว่ากรณีใดๆ ให้สัญญานี้เป็นอันสิ้นสุดลง<br>
+            <strong>ข้อ ๖.</strong> ผู้เช่า จะไม่ดำเนินการค้าใดๆ อันเป็นที่รังเกียจและผิดกฎหมายหรืออาจเป็นอันตรายแก่สถานที่เช่าและจะไม่กระทำหรือยอมให้ผู้อื่นกระทำในสิ่งใดๆ อันอาจพิสูจน์ได้ว่าเป็นความเสียหายหรือก่อความเดือดร้อนรำคาญแก่ผู้ให้เช่า หรือผู้อยู่ใกล้เคียง<br>
+            <strong>ข้อ ๗.</strong> เมื่อผู้เช่ากระทำผิดสัญญาข้อหนึ่งข้อใด ผู้ให้เช่ามีสิทธิบอกเลิกสัญญาได้ทันที และผู้เช่ายอมให้ผู้เช่าทรงไว้ซึ่งสิทธิที่จะเข้ายึดครอบครองสถานที่และสิ่งที่เช่าได้โดยพลัน<br><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความอย่างเดียวกัน ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความในสัญญานี้โดยละเอียดดีแล้ว ต่างยึดถือไว้คนละฉบับ และได้ลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem; margin-top:2.5rem; text-align:center;">
+            <div>ลงชื่อ....................................................ผู้เช่า<br>(<span class="dotted-fill">${d.tenantName}</span>)</div>
+            <div>ลงชื่อ....................................................ผู้ให้เช่า<br>( นายสมบัติ น้ำวน )</div>
+            <div style="margin-top:1.5rem;">ลงชื่อ....................................................พยาน<br>(<span class="dotted-fill">${d.witness1}</span>)</div>
+            <div style="margin-top:1.5rem;">ลงชื่อ....................................................พยาน<br>(<span class="dotted-fill">${d.witness2}</span>)</div>
+          </div>
+        </div>
+
+        <!-- Back Page Rules Shell (Hidden by default) -->
+        <div id="contract-back-view" class="contract-paper back-page" style="display: none;">
+          <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.5rem;">
+            กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
+          </div>
+
+          <ol style="line-height:2.1; font-size:0.95rem; margin-left:1.5rem; text-align:justify;">
+            <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
+            <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
+            <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
+            <li>ห้ามตอกตะปู หรือใช้วัสดุใดที่ทำให้ผนังเป็นรูเด็ดขาด หากจำเป็นควรใช้ที่แขวนติดแทน ปรับจุดละ 200 บาท</li>
+            <li>ห้ามเสพสิ่งเสพติดทุกชนิด/มั่วสุม ถ้าผู้ให้เช่าทราบจะดำเนินการทางกฎหมายและเชิญออกทันที</li>
+            <li>ถ้ามีการดื่มสุรา/หรือจัดงานใด ๆ ไม่เกินเวลา 22.00 น.</li>
+            <li>ห้ามเลี้ยงสัตว์เลี้ยงที่ก่อให้เกิดความเสียหายกับห้องและรบกวนห้องข้างทุกชนิด หากเกิดความเสียหายชดใช้ทั้งหมดทุกกรณี</li>
+            <li>ถ้ามีเครื่องเสียงเวลาเปิดไม่ควรดังเกินจนเกิดความรำคาญแก่คนห้องอื่น (เตือน 3 ครั้ง เชิญออก)</li>
+            <li>หากทำสิ่งของภายในห้องชำรุดหรือเสียหาย ต้องเสียค่าปรับเท่ากับราคาของนั้น</li>
+            <li>หากหลอดไฟ ก๊อกน้ำเสื่อมสภาพ เครื่องปรับอากาศไม่เย็น กรุณาแจ้งผู้ให้เช่าทราบเพื่อแก้ไข</li>
+            <li>ควรปิดไฟ ปิดน้ำ ปิดเตาแก๊ส หรือเครื่องใช้ไฟฟ้าก่อนออกจากห้องทุกครั้ง</li>
+            <li>ควรปิดล็อคห้องด้วยลูกกุญแจอีกชั้น เพื่อความปลอดภัยต่อทรัพย์สิน (ผู้ให้เช่าไม่รับผิดชอบกรณีของสูญหายทุกกรณี)</li>
+            <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
+          </ol>
+
+          <div style="margin-top:2.5rem; font-size:0.95rem; line-height:1.9;">
+            <p>เบอร์เจ้าของห้อง 062-6252564</p>
+            <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
+            <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
+
+            <div style="text-align:center; margin-top:2rem; font-weight:600;">
+              <p>ขอบคุณทุกท่านที่ไว้ใจในบริการและให้ความร่วมมือในการใช้บริการจากเรา</p>
+              <h3 style="margin-top:0.4rem; font-size:1.2rem; color:var(--primary);">หอพักสมบัติ.คอม</h3>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" id="btn-do-print-official-contract" style="margin-top: 1.5rem;">
+          <i class="fa-solid fa-print"></i> สั่งพิมพ์หนังสือสัญญาเช่า (PDF หน้า-หลัง)
+        </button>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    const tabFront = document.getElementById('tab-front-doc');
+    const tabBack = document.getElementById('tab-back-doc');
+    const viewFront = document.getElementById('contract-front-view');
+    const viewBack = document.getElementById('contract-back-view');
+
+    tabFront.addEventListener('click', () => {
+      tabFront.classList.add('active'); tabBack.classList.remove('active');
+      viewFront.style.display = 'block'; viewBack.style.display = 'none';
+    });
+
+    tabBack.addEventListener('click', () => {
+      tabBack.classList.add('active'); tabFront.classList.remove('active');
+      viewBack.style.display = 'block'; viewFront.style.display = 'none';
+    });
+
+    document.getElementById('btn-do-print-official-contract').addEventListener('click', () => {
+      // Print both front and back views
+      viewFront.style.display = 'block';
+      viewBack.style.display = 'block';
+      window.print();
+    });
+  }
+
   static bindTenantsEvents() {
     const exportExcel = document.getElementById('btn-export-tenants-excel');
     if (exportExcel) {
@@ -1158,6 +1288,14 @@ class App {
         ExportService.exportToCSV('ทะเบียนผู้เช่า_Sombat.csv', headers, rows);
       });
     }
+
+    document.querySelectorAll('.btn-gen-contract').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const tenant = this.state.tenants.find(t => t.id === id);
+        if (tenant) this.openOfficialContractModal(tenant);
+      });
+    });
   }
 
   static bindBillingEvents() {

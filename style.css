@@ -327,7 +327,6 @@ body {
 .user-profile-badge .name {
     font-size: 0.85rem;
     font-weight: 600;
-
 }
 
 .role-pill {
@@ -450,7 +449,7 @@ body {
     flex-wrap: wrap;
 }
 
-.status-filter-btn {
+.status-filter-btn, .contract-filter-btn {
     padding: 0.5rem 1.25rem;
     border-radius: var(--radius-full);
     border: 1px solid var(--border-color);
@@ -462,7 +461,8 @@ body {
     transition: var(--transition);
 }
 
-.status-filter-btn:hover, .status-filter-btn.active {
+.status-filter-btn:hover, .status-filter-btn.active,
+.contract-filter-btn:hover, .contract-filter-btn.active {
     background: var(--primary);
     color: #fff;
     border-color: var(--primary);
@@ -635,6 +635,69 @@ body {
 .btn-xs { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: var(--radius-sm); }
 .btn-full { width: 100%; }
 
+/* Dotted Lines Document Formatting (Front & Back Contract Papers) */
+.dotted-fill {
+    display: inline-block;
+    min-width: 100px;
+    border-bottom: 1px dotted #1e40af;
+    color: #1e40af;
+    font-weight: 700;
+    text-align: center;
+    padding: 0 6px;
+    line-height: 1.2;
+}
+
+.contract-paper {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: var(--radius-lg);
+    padding: 2.5rem 3rem;
+    box-shadow: var(--shadow-lg);
+    font-family: 'Sarabun', sans-serif;
+    color: #0f172a;
+    line-height: 2.2;
+    margin: 0 auto;
+    max-width: 750px;
+}
+
+.contract-paper h2 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+
+.contract-paper h4 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.contract-tab-switcher {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.contract-tab-btn {
+    padding: 0.6rem 1.5rem;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    background: #ffffff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.contract-tab-btn.active {
+    background: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
+}
+
 /* Toast Notifications */
 #toast-container {
     position: fixed;
@@ -690,7 +753,7 @@ body {
     background: #ffffff;
     border-radius: var(--radius-lg);
     width: 100%;
-    max-width: 600px;
+    max-width: 750px;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
@@ -745,7 +808,18 @@ body {
 
 @media print {
     body { background: #fff !important; color: #000 !important; }
-    .app-sidebar, .app-header, #toast-container, .header-actions { display: none !important; }
+    .app-sidebar, .app-header, #toast-container, .header-actions, .contract-tab-switcher { display: none !important; }
     .main-workspace { padding: 0 !important; }
     .print-only-area { display: block !important; }
+    .contract-paper {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    .dotted-fill {
+        color: #000 !important;
+        border-bottom: 1px dotted #000 !important;
+    }
 }
