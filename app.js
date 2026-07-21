@@ -307,25 +307,56 @@ class DBService {
     };
   }
 
+  static getSavedSheetUrl() {
+    const rawState = localStorage.getItem(this.STORAGE_KEY);
+    let fromState = '';
+    if (rawState) {
+      try {
+        const parsed = JSON.parse(rawState);
+        if (parsed.settings && parsed.settings.googleSheetUrl) {
+          fromState = parsed.settings.googleSheetUrl;
+        }
+      } catch (e) {}
+    }
+    if (fromState) return fromState;
+    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (fromStorage) return fromStorage;
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromParam = urlParams.get('sheetUrl');
+    if (fromParam) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', fromParam);
+      return fromParam;
+    }
+    return '';
+  }
+
   static getState() {
     const raw = localStorage.getItem(this.STORAGE_KEY);
-    if (!raw) {
-      const initial = this.getInitialState();
-      this.saveState(initial);
-      return initial;
+    let state = null;
+    if (raw) {
+      try { state = JSON.parse(raw); } catch (e) {}
     }
-    try { return JSON.parse(raw); } catch {
-      const initial = this.getInitialState();
-      this.saveState(initial);
-      return initial;
+    if (!state) {
+      state = this.getInitialState();
     }
+    // Ensure googleSheetUrl is populated from persistent fallback
+    const savedUrl = this.getSavedSheetUrl();
+    if (savedUrl && (!state.settings || !state.settings.googleSheetUrl)) {
+      if (!state.settings) state.settings = {};
+      state.settings.googleSheetUrl = savedUrl;
+    }
+    return state;
   }
 
   static saveState(state) {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
-    // Background Auto Sync to Google Sheets if URL is set
     if (state.settings && state.settings.googleSheetUrl) {
-      this.syncToGoogleSheets(state.settings.googleSheetUrl, state).catch(() => {});
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', state.settings.googleSheetUrl);
+    }
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    // Background Real-time Auto Sync to Google Sheets if URL is set
+    const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
+    if (url) {
+      this.syncToGoogleSheets(url, state).catch(() => {});
     }
   }
 
@@ -334,8 +365,11 @@ class DBService {
     const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
     const res = await fetch(fetchUrl);
     const data = await res.json();
-    if (data && typeof data === 'object' && data.tenants && data.rooms) {
-      this.saveState(data);
+    if (data && typeof data === 'object' && (data.tenants || data.rooms)) {
+      if (!data.settings) data.settings = {};
+      data.settings.googleSheetUrl = url;
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
       return data;
     }
     return null;
@@ -343,6 +377,7 @@ class DBService {
 
   static async syncToGoogleSheets(url, state) {
     if (!url) throw new Error('กรุณาระบุ Google Sheets Web App URL ก่อน');
+    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -1111,14 +1146,18 @@ class SettingsComponent {
         </div>
 
         <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-solid fa-cloud text-primary"></i> เชื่อมต่อซิงค์ข้อมูล Google Sheets แบบเรียลไทม์</h3>
+          <h3><i class="fa-solid fa-cloud text-primary"></i> เชื่อมต่อซิงค์ข้อมูล Google Sheets แบบเรียลไทม์ (ทุกเครื่องตรงกัน 100%)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            ระบบจะดึงข้อมูลจาก Google Sheets เสมอแม้ล้างแคชหรือเปิดจากคอมพิวเตอร์เครื่องใหม่
+          </p>
           <div class="form-group" style="margin-top:1rem;">
             <label>Google Apps Script Web App URL:</label>
             <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
           </div>
-          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+          <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1rem;">
             <button class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-save"></i> บันทึก URL</button>
             <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้</button>
+            <button class="btn btn-secondary" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> คัดลอกลิงก์แชร์เชื่อมต่อทุกเครื่อง</button>
           </div>
         </div>
 
@@ -1174,24 +1213,38 @@ class App {
   static activeTab = 'dashboard';
 
   static async init() {
-    let currentUser = AuthService.getCurrentUser();
-    if (!currentUser) {
-      const initialState = DBService.getState();
-      currentUser = initialState.users[0];
-      AuthService.setCurrentUser(currentUser);
-      LoggerService.log(currentUser.username, currentUser.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบสำเร็จ');
-    }
-
     this.state = DBService.getState();
 
-    // Auto pull real-time database state from Google Sheets on application startup
-    if (this.state.settings && this.state.settings.googleSheetUrl) {
+    // 1. Check URL query parameters for sheetUrl shared link (?sheetUrl=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramUrl = urlParams.get('sheetUrl');
+    if (paramUrl) {
+      if (!this.state.settings) this.state.settings = {};
+      this.state.settings.googleSheetUrl = paramUrl;
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', paramUrl);
+    }
+
+    // 2. Persistent Google Sheets Web App URL lookup across devices & cleared cache
+    const savedUrl = DBService.getSavedSheetUrl();
+    if (savedUrl) {
+      if (!this.state.settings) this.state.settings = {};
+      this.state.settings.googleSheetUrl = savedUrl;
       try {
-        const cloudState = await DBService.pullFromGoogleSheets(this.state.settings.googleSheetUrl);
-        if (cloudState) this.state = cloudState;
+        const cloudState = await DBService.pullFromGoogleSheets(savedUrl);
+        if (cloudState) {
+          this.state = cloudState;
+          console.log('✅ Real-time Cloud state pulled from Google Sheets successfully');
+        }
       } catch (err) {
         console.warn('Could not auto-pull from Google Sheets:', err);
       }
+    }
+
+    let currentUser = AuthService.getCurrentUser();
+    if (!currentUser) {
+      currentUser = (this.state.users && this.state.users.length > 0) ? this.state.users[0] : { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin' };
+      AuthService.setCurrentUser(currentUser);
+      LoggerService.log(currentUser.username, currentUser.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบสำเร็จ');
     }
 
     this.renderShell();
@@ -2508,6 +2561,23 @@ class App {
           syncSheetsBtn.disabled = false;
           syncSheetsBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้';
         }
+      });
+    }
+
+    const copyLinkBtn = document.getElementById('btn-copy-shared-link');
+    if (copyLinkBtn) {
+      copyLinkBtn.addEventListener('click', () => {
+        const url = this.state.settings.googleSheetUrl || DBService.getSavedSheetUrl();
+        if (!url) {
+          alert('กรุณาใส่ Google Sheets Web App URL ก่อนกดคัดลอกลิงก์แชร์');
+          return;
+        }
+        const sharedUrl = `${window.location.origin}${window.location.pathname}?sheetUrl=${encodeURIComponent(url)}`;
+        navigator.clipboard.writeText(sharedUrl).then(() => {
+          alert(`🔗 คัดลอกลิงก์เชื่อมต่อฐานข้อมูลชีตสำเร็จแล้ว!\n\n${sharedUrl}\n\nคุณสามารถส่งลิงก์นี้ให้คอมพิวเตอร์ หรือ มือถือเครื่องอื่นเปิดใช้งาน เพื่อดึงและซิงค์ข้อมูลจาก Google Sheets เดียวกันได้ทันที โดยข้อมูลไม่หายแม้ล้างแคช!`);
+        }).catch(() => {
+          prompt('คัดลอกลิงก์เชื่อมต่อฐานข้อมูลชีตด้านล่างนี้:', sharedUrl);
+        });
       });
     }
 
