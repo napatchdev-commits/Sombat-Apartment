@@ -1,7 +1,7 @@
 // ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - FULLY INTERACTIVE APP CONTROLLER
 // 100% Compatible with Vercel, GitHub Pages, Local file:// & Google Sheets Sync
-// Official Front & Back Page Rental Contracts + Full Tenants CRUD (Add, Edit, Delete)
+// Real-Time Google Sheets Cloud Engine & Multi-File Document Attachment System
 // ==========================================================================
 
 /* ==========================================================================
@@ -86,7 +86,7 @@ class Formatters {
 }
 
 /* ==========================================================================
-   3. SERVICES (AUTH, LOGGER, PROMPTPAY, LINE, EXPORT, DB)
+   3. SERVICES (AUTH, LOGGER, PROMPTPAY, LINE, EXPORT, DB & GOOGLE SHEETS)
    ========================================================================== */
 
 class AuthService {
@@ -248,7 +248,9 @@ class DBService {
           id: 't1', name: 'น.ส.กันญา บัวแดง', idCard: '3451200115491', tel: '081-2345678', lineId: 'kanya_b', email: 'kanya@gmail.com', address: '12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี',
           startDate: '2025-05-01', endDate: '2026-08-31', assignedRoomId: 'r101',
           deposit: { initialBail: 7000, deductions: [], status: 'active' },
-          documents: [ { id: 'doc1', name: 'สำเนาบัตรประชาชน.pdf', fileType: 'pdf' } ]
+          documents: [
+            { id: 'doc1', title: 'สำเนาบัตรประชาชน', category: 'idcard', fileName: 'บัตรประชาชน_กันญา.pdf', dataUrl: '', uploadDate: '2025-05-01' }
+          ]
         },
         {
           id: 't2', name: 'นายสมชาย ดีมาก', idCard: '1100200345678', tel: '089-8765432', lineId: 'somchai_d', address: '88/1 ถ.แจ้งวัฒนะ อ.ปากเกร็ด จ.นนทบุรี',
@@ -301,6 +303,22 @@ class DBService {
 
   static saveState(state) {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    // Background Auto Sync to Google Sheets if URL is set
+    if (state.settings && state.settings.googleSheetUrl) {
+      this.syncToGoogleSheets(state.settings.googleSheetUrl, state).catch(() => {});
+    }
+  }
+
+  static async pullFromGoogleSheets(url) {
+    if (!url) return null;
+    const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
+    const res = await fetch(fetchUrl);
+    const data = await res.json();
+    if (data && typeof data === 'object' && data.tenants && data.rooms) {
+      this.saveState(data);
+      return data;
+    }
+    return null;
   }
 
   static async syncToGoogleSheets(url, state) {
@@ -460,7 +478,7 @@ class SidebarComponent {
         </nav>
 
         <div class="sidebar-footer">
-          <p><i class="fa-solid fa-cloud"></i> บันทึกซิงค์ Google Sheets</p>
+          <p><i class="fa-solid fa-cloud text-success"></i> Real-time Google Sheets Active</p>
           <span class="version">v3.5 Enterprise Edition</span>
         </div>
       </aside>
@@ -724,7 +742,7 @@ class TenantsComponent {
         <div class="view-header">
           <div>
             <h2><i class="fa-solid fa-users text-primary"></i> จัดการข้อมูลผู้เช่าและเอกสารสัญญา</h2>
-            <p>บันทึกทะเบียนผู้เช่า เพิ่มผู้เช่าใหม่ แก้ไขข้อมูล และลบรายการผู้เช่า</p>
+            <p>บันทึกทะเบียนผู้เช่า เพิ่มผู้เช่าใหม่ แนบไฟล์บัตรประชาชน/ทะเบียนบ้าน แก้ไข และลบรายการ</p>
           </div>
           <div class="header-actions">
             <button id="btn-export-tenants-excel" class="btn btn-secondary"><i class="fa-solid fa-file-excel text-success"></i> Export Excel</button>
@@ -741,8 +759,8 @@ class TenantsComponent {
                   <th>ห้องพัก</th>
                   <th>เลขบัตรประชาชน</th>
                   <th>เบอร์โทร / Line</th>
+                  <th>เอกสารแนบ</th>
                   <th>วันเริ่ม - สิ้นสุดสัญญา</th>
-                  <th>เงินประกัน</th>
                   <th>การจัดการ</th>
                 </tr>
               </thead>
@@ -752,14 +770,19 @@ class TenantsComponent {
                 ` : tenants.map(t => {
                   const room = state.rooms.find(r => r.id === t.assignedRoomId);
                   const roomBadge = room ? `<span class="badge-pill badge-primary">ห้อง ${room.name}</span>` : `<span class="badge-pill badge-gray">ยังไม่ระบุ</span>`;
+                  const docCount = t.documents ? t.documents.length : 0;
                   return `
                     <tr>
                       <td><strong>${t.name}</strong></td>
                       <td>${roomBadge}</td>
                       <td><code>${Formatters.formatIdCard(t.idCard)}</code></td>
                       <td>${t.tel} ${t.lineId ? `(${t.lineId})` : ''}</td>
+                      <td>
+                        <button class="btn btn-secondary btn-xs btn-view-docs" data-id="${t.id}">
+                          <i class="fa-solid fa-folder-open text-primary"></i> เอกสาร (${docCount})
+                        </button>
+                      </td>
                       <td>${Formatters.thaiDate(t.startDate)} ➔ <strong class="text-warning">${Formatters.thaiDate(t.endDate)}</strong></td>
-                      <td><strong class="text-success">${Formatters.currency(t.deposit ? t.deposit.initialBail : 0)}</strong></td>
                       <td>
                         <div class="action-buttons">
                           <button class="btn btn-secondary btn-xs btn-gen-contract" data-id="${t.id}"><i class="fa-solid fa-file-contract text-warning"></i> สัญญา</button>
@@ -1006,7 +1029,7 @@ class App {
   static state;
   static activeTab = 'dashboard';
 
-  static init() {
+  static async init() {
     let currentUser = AuthService.getCurrentUser();
     if (!currentUser) {
       const initialState = DBService.getState();
@@ -1016,6 +1039,17 @@ class App {
     }
 
     this.state = DBService.getState();
+
+    // Auto pull real-time database state from Google Sheets on application startup
+    if (this.state.settings && this.state.settings.googleSheetUrl) {
+      try {
+        const cloudState = await DBService.pullFromGoogleSheets(this.state.settings.googleSheetUrl);
+        if (cloudState) this.state = cloudState;
+      } catch (err) {
+        console.warn('Could not auto-pull from Google Sheets:', err);
+      }
+    }
+
     this.renderShell();
     this.setupGlobalEvents();
     this.switchTab(this.activeTab);
@@ -1096,7 +1130,6 @@ class App {
   }
 
   static bindTenantsEvents() {
-    // 1. Export Excel
     const exportExcel = document.getElementById('btn-export-tenants-excel');
     if (exportExcel) {
       exportExcel.addEventListener('click', () => {
@@ -1106,13 +1139,11 @@ class App {
       });
     }
 
-    // 2. Add New Tenant (เพิ่มผู้เช่าใหม่)
     const addBtn = document.getElementById('btn-add-tenant');
     if (addBtn) {
       addBtn.addEventListener('click', () => this.openTenantModal());
     }
 
-    // 3. Edit Tenant (แก้ไขผู้เช่า)
     document.querySelectorAll('.btn-edit-tenant').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const tenantId = e.currentTarget.getAttribute('data-id');
@@ -1121,7 +1152,6 @@ class App {
       });
     });
 
-    // 4. Delete Tenant (ลบผู้เช่า)
     document.querySelectorAll('.btn-delete-tenant').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const tenantId = e.currentTarget.getAttribute('data-id');
@@ -1132,7 +1162,6 @@ class App {
       });
     });
 
-    // 5. Generate Contract
     document.querySelectorAll('.btn-gen-contract').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.getAttribute('data-id');
@@ -1140,9 +1169,34 @@ class App {
         if (tenant) this.openOfficialContractModal(tenant);
       });
     });
+
+    document.querySelectorAll('.btn-view-docs').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const tenant = this.state.tenants.find(t => t.id === id);
+        if (tenant) this.openViewTenantDocsModal(tenant);
+      });
+    });
   }
 
-  // Interactive Modal for Adding / Editing Tenant (เพิ่ม - แก้ไข ผู้เช่า)
+  // Multi-File Attachment Reader Helper (Reads images, PDFs, docx, etc. into Base64 Data URLs)
+  static readFileAsDataUrl(file) {
+    return new Promise((resolve) => {
+      if (!file) return resolve(null);
+      const reader = new FileReader();
+      reader.onload = (e) => resolve({
+        id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        dataUrl: e.target.result,
+        uploadDate: new Date().toISOString().slice(0, 10)
+      });
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Interactive Modal: Add/Edit Tenant with Multi-File Uploads (บัตรประชาชน, ทะเบียนบ้าน, เอกสารอื่นๆ)
   static openTenantModal(tenantToEdit = null) {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
@@ -1213,7 +1267,28 @@ class App {
             <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}" required>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;">
+          <!-- Multi-File Attachments Section (บัตรประชาชน & สำเนาทะเบียนบ้าน & เอกสารแนบ) -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
+            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-paperclip"></i> แนบไฟล์เอกสารผู้เช่า (รองรับทุกไฟล์: รูปถ่าย/PDF/DOCX/ZIP)</h4>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group">
+                <label><i class="fa-solid fa-id-card text-success"></i> สำเนาบัตรประชาชน:</label>
+                <input type="file" id="tn-file-idcard" class="form-control" accept="image/*,.pdf">
+              </div>
+              <div class="form-group">
+                <label><i class="fa-solid fa-house-user text-warning"></i> สำเนาทะเบียนบ้าน:</label>
+                <input type="file" id="tn-file-house" class="form-control" accept="image/*,.pdf">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label><i class="fa-solid fa-folder-plus text-info"></i> เอกสารประกอบอื่นๆ:</label>
+              <input type="file" id="tn-file-other" class="form-control" accept="*/*" multiple>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;" id="btn-submit-tenant">
             <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'บันทึกการแก้ไขข้อมูลผู้เช่า' : 'บันทึกเพิ่มผู้เช่าใหม่เข้าระบบ'}
           </button>
         </form>
@@ -1223,10 +1298,13 @@ class App {
     modal.classList.add('active');
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
 
-    document.getElementById('tenant-form').addEventListener('submit', (e) => {
+    document.getElementById('tenant-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const user = AuthService.getCurrentUser();
+      const submitBtn = document.getElementById('btn-submit-tenant');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกและซิงค์ข้อมูลลง Google Sheets...';
 
+      const user = AuthService.getCurrentUser();
       const name = document.getElementById('tn-name').value.trim();
       const idCard = document.getElementById('tn-idcard').value.trim();
       const tel = document.getElementById('tn-tel').value.trim();
@@ -1238,6 +1316,26 @@ class App {
       const endDate = document.getElementById('tn-end-date').value;
       const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
 
+      // Read attachments
+      const fileIdCard = document.getElementById('tn-file-idcard').files[0];
+      const fileHouse = document.getElementById('tn-file-house').files[0];
+      const otherFiles = Array.from(document.getElementById('tn-file-other').files);
+
+      const newDocs = tenantToEdit && tenantToEdit.documents ? [...tenantToEdit.documents] : [];
+
+      if (fileIdCard) {
+        const doc = await App.readFileAsDataUrl(fileIdCard);
+        if (doc) { doc.category = 'idcard'; doc.title = 'สำเนาบัตรประชาชน'; newDocs.push(doc); }
+      }
+      if (fileHouse) {
+        const doc = await App.readFileAsDataUrl(fileHouse);
+        if (doc) { doc.category = 'house'; doc.title = 'สำเนาทะเบียนบ้าน'; newDocs.push(doc); }
+      }
+      for (const f of otherFiles) {
+        const doc = await App.readFileAsDataUrl(f);
+        if (doc) { doc.category = 'other'; doc.title = doc.fileName; newDocs.push(doc); }
+      }
+
       if (isEdit) {
         tenantToEdit.name = name;
         tenantToEdit.idCard = idCard;
@@ -1248,6 +1346,7 @@ class App {
         tenantToEdit.assignedRoomId = roomId;
         tenantToEdit.startDate = startDate;
         tenantToEdit.endDate = endDate;
+        tenantToEdit.documents = newDocs;
         if (tenantToEdit.deposit) tenantToEdit.deposit.initialBail = bail;
 
         LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'UPDATE', 'TENANTS', `แก้ไขข้อมูลผู้เช่า ${name}`);
@@ -1257,7 +1356,7 @@ class App {
           name, idCard, tel, lineId, email, address,
           startDate, endDate, assignedRoomId: roomId,
           deposit: { initialBail: bail, deductions: [], status: 'active' },
-          documents: []
+          documents: newDocs
         };
         this.state.tenants.push(newTenant);
         LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'CREATE', 'TENANTS', `เพิ่มผู้เช่าใหม่ ${name}`);
@@ -1272,13 +1371,56 @@ class App {
         room.entryDate = startDate;
       }
 
+      // Save local and trigger background Google Sheets sync
       DBService.saveState(this.state);
       modal.classList.remove('active');
       this.switchTab('tenants');
     });
   }
 
-  // Delete Tenant Function (ลบข้อมูลผู้เช่า)
+  // Interactive Modal: View & Download Tenant Documents (ดูเอกสารแนบ)
+  static openViewTenantDocsModal(tenant) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const docs = tenant.documents || [];
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-folder-open text-primary"></i> เอกสารแนบผู้เช่า: ${tenant.name}</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        ${docs.length === 0 ? `
+          <p class="text-center text-muted" style="padding:2rem;">ยังไม่มีเอกสารแนบสำหรับผู้เช่ารายนี้ คุณสามารถกด "แก้ไข" เพื่อเพิ่มสำเนาบัตรประชาชน หรือสำเนาทะเบียนบ้านได้ครับ</p>
+        ` : `
+          <div style="display:flex; flex-direction:column; gap:1rem;">
+            ${docs.map(doc => `
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:0.85rem; border:1px solid #e2e8f0; border-radius:var(--radius-md); background:#f8fafc;">
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                  <i class="fa-solid ${doc.category === 'idcard' ? 'fa-id-card text-success' : doc.category === 'house' ? 'fa-house-user text-warning' : 'fa-file text-primary'}" style="font-size:1.4rem;"></i>
+                  <div>
+                    <strong>${doc.title || doc.fileName}</strong>
+                    <div class="text-muted text-sm">${doc.fileName} (${doc.uploadDate || '-'})</div>
+                  </div>
+                </div>
+                <div>
+                  ${doc.dataUrl ? `
+                    <a href="${doc.dataUrl}" download="${doc.fileName}" class="btn btn-secondary btn-xs"><i class="fa-solid fa-download"></i> ดาวน์โหลด</a>
+                    <a href="${doc.dataUrl}" target="_blank" class="btn btn-primary btn-xs"><i class="fa-solid fa-eye"></i> ดูไฟล์เต็ม</a>
+                  ` : `<span class="text-muted text-sm">ไม่มีตัวอย่างไฟล์</span>`}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+  }
+
+  // Delete Tenant Function (ลบผู้เช่า)
   static deleteTenant(tenantId) {
     const user = AuthService.getCurrentUser();
     const idx = this.state.tenants.findIndex(t => t.id === tenantId);
@@ -1286,7 +1428,6 @@ class App {
       const deletedName = this.state.tenants[idx].name;
       const assignedRoomId = this.state.tenants[idx].assignedRoomId;
 
-      // Free up room
       const room = this.state.rooms.find(r => r.id === assignedRoomId);
       if (room) {
         room.status = 'vacant';
@@ -1824,7 +1965,7 @@ class App {
   }
 }
 
-// Global Launcher
+// Global Launcher with Real-Time Google Sheets Auto-Pull
 window.addEventListener('DOMContentLoaded', () => {
   App.init();
 });
