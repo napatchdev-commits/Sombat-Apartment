@@ -343,7 +343,66 @@ class DBService {
     const savedUrl = this.getSavedSheetUrl();
     if (savedUrl && (!state.settings || !state.settings.googleSheetUrl)) {
       if (!state.settings) state.settings = {};
-      state.settings.googclass LoginComponent {
+      state.settings.googleSheetUrl = savedUrl;
+    }
+    return state;
+  }
+
+  static saveState(state) {
+    if (state.settings && state.settings.googleSheetUrl) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', state.settings.googleSheetUrl);
+    }
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    // Background Real-time Auto Sync to Google Sheets if URL is set
+    const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
+    if (url) {
+      this.syncToGoogleSheets(url, state).catch(() => {});
+    }
+  }
+
+  static async pullFromGoogleSheets(url) {
+    if (!url) return null;
+    const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
+    const res = await fetch(fetchUrl);
+    const data = await res.json();
+    if (data && typeof data === 'object' && (data.tenants || data.rooms)) {
+      if (!data.settings) data.settings = {};
+      data.settings.googleSheetUrl = url;
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+      return data;
+    }
+    return null;
+  }
+
+  static async syncToGoogleSheets(url, state) {
+    if (!url) throw new Error('กรุณาระบุ Google Sheets Web App URL ก่อน');
+    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'sync', data: state })
+    });
+    return response.json();
+  }
+
+  static exportJSON() {
+    const state = this.getState();
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Sombat_Apartment_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+
+/* ==========================================================================
+   4. UI COMPONENTS (ALL 10 MODULES FULLY INTERACTIVE)
+   ========================================================================== */
+
+class LoginComponent {
   static render(state) {
     const users = state.users || [
       { username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin' },
@@ -470,54 +529,6 @@ class NavbarComponent {
               <span class="name">${user.displayName}</span>
               <span class="role-pill role-${user.role}">
                 ${user.role === 'super_admin' ? '👑 Super Admin' : (user.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}
-              </span>
-            </div>
-          </div>
-
-          <button id="logout-btn" class="btn btn-secondary btn-sm" title="ออกจากระบบ">
-            <i class="fa-solid fa-right-from-bracket"></i> <span class="desktop-only">ออกจากระบบ</span>
-          </button>
-        </div>
-      </header>
-    `;
-  }
-}     <div class="notification-dropdown-wrapper">
-            <button id="notification-bell-btn" class="icon-btn">
-              <i class="fa-regular fa-bell"></i>
-              ${totalNotifications > 0 ? `<span class="notification-badge">${totalNotifications}</span>` : ''}
-            </button>
-            <div id="notification-menu" class="notification-menu-panel">
-              <div class="notification-header">
-                <h4><i class="fa-solid fa-bell"></i> ศูนย์แจ้งเตือนระบบ</h4>
-                <span class="text-muted">${totalNotifications} รายการใหม่</span>
-              </div>
-              <div class="notification-body">
-                ${overdueCount > 0 ? `
-                  <div class="notification-item item-danger">
-                    <i class="fa-solid fa-circle-exclamation icon"></i>
-                    <div><strong>ผู้เช่าค้างชำระ: ${overdueCount} ห้อง</strong><p>มีห้องพักเกินกำหนดชำระเงิน กรุณาตรวจสอบในระบบออกบิล</p></div>
-                  </div>
-                ` : ''}
-                ${expiringContracts > 0 ? `
-                  <div class="notification-item item-warning">
-                    <i class="fa-solid fa-file-contract icon"></i>
-                    <div><strong>สัญญาใกล้หมดอายุ: ${expiringContracts} ราย</strong><p>มีผู้เช่าที่มีสัญญาเช่าหมดอายุภายใน 30 วันนี้</p></div>
-                  </div>
-                ` : ''}
-                <div class="notification-item item-info">
-                  <i class="fa-solid fa-door-open icon"></i>
-                  <div><strong>ห้องว่างพร้อมเข้าอยู่: ${vacantCount} ห้อง</strong><p>สามารถลงทะเบียนผู้เช่าใหม่เข้าพักได้ทันที</p></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="user-profile-badge">
-            <div class="avatar"><i class="fa-solid fa-user-shield"></i></div>
-            <div class="user-info">
-              <span class="name">${user.displayName}</span>
-              <span class="role-pill role-${user.role}">
-                ${user.role === 'super_admin' ? '👑 Super Admin' : user.role === 'admin' ? '🛡️ Admin' : '👤 Staff'}
               </span>
             </div>
           </div>
