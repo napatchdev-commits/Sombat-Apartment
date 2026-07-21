@@ -1,7 +1,7 @@
 // ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - FULLY INTERACTIVE APP CONTROLLER
 // 100% Compatible with Vercel, GitHub Pages, Local file:// & Google Sheets Sync
-// Includes Official Front & Back Page Rental Contracts with Dotted Fill Engine
+// Official Front & Back Page Rental Contracts (Landlord Age Removed + Interactive Contract Generator)
 // ==========================================================================
 
 /* ==========================================================================
@@ -1111,7 +1111,13 @@ class App {
       });
     });
 
-    // Interactive Contract Viewer with Dotted Line Autofill (Front & Back Pages)
+    // Create New Contract Button Event
+    const createContractBtn = document.getElementById('btn-create-contract');
+    if (createContractBtn) {
+      createContractBtn.addEventListener('click', () => this.openCreateNewContractModal());
+    }
+
+    // Print Contract PDF Event
     document.querySelectorAll('.btn-print-contract-pdf, .btn-gen-contract').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const tenantId = e.currentTarget.getAttribute('data-tenant-id') || e.currentTarget.getAttribute('data-id');
@@ -1130,18 +1136,165 @@ class App {
     }
   }
 
+  // Interactive Modal: Create New Contract (ออกสัญญาเช่าใหม่)
+  static openCreateNewContractModal() {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-file-circle-plus text-primary"></i> ออกหนังสือสัญญาเช่าห้องพักใหม่</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="create-contract-form">
+          <div class="form-group">
+            <label>เลือกผู้เช่าหลัก *</label>
+            <select id="ctr-tenant-select" class="form-control" required>
+              <option value="">-- เลือกผู้เช่า หรือ กรอกผู้เช่าใหม่ด้านล่าง --</option>
+              ${this.state.tenants.map(t => `<option value="${t.id}">${t.name} (บัตร: ${t.idCard})</option>`).join('')}
+            </select>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ชื่อ-นามสกุล ผู้เช่า *</label>
+              <input type="text" id="ctr-tenant-name" class="form-control" placeholder="น.ส.กันญา บัวแดง" required>
+            </div>
+            <div class="form-group">
+              <label>เลขบัตรประชาชน (13 หลัก) *</label>
+              <input type="text" id="ctr-idcard" class="form-control" placeholder="3451200115491" required>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>เบอร์โทรศัพท์ *</label>
+              <input type="text" id="ctr-tel" class="form-control" placeholder="081-2345678" required>
+            </div>
+            <div class="form-group">
+              <label>เลือกห้องเช่า / บ้าน *</label>
+              <select id="ctr-room-select" class="form-control" required>
+                ${this.state.rooms.map(r => `<option value="${r.id}">ห้อง ${r.name} (ค่าเช่า ฿${r.baseRent.toLocaleString()}/เดือน)</option>`).join('')}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>ที่อยู่ตามภูมิเนาของผู้เช่า:</label>
+            <input type="text" id="ctr-address" class="form-control" placeholder="12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี">
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>วันเริ่มสัญญา *</label>
+              <input type="date" id="ctr-start-date" class="form-control" value="${new Date().toISOString().slice(0,10)}" required>
+            </div>
+            <div class="form-group">
+              <label>วันสิ้นสุดสัญญา *</label>
+              <input type="date" id="ctr-end-date" class="form-control" value="2027-07-31" required>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ค่าเช่ารายเดือน (บาท) *</label>
+              <input type="number" id="ctr-rent-amt" class="form-control" value="3500" required>
+            </div>
+            <div class="form-group">
+              <label>เงินประกันมัดจำ (บาท) *</label>
+              <input type="number" id="ctr-deposit-amt" class="form-control" value="7000" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;">
+            <i class="fa-solid fa-file-contract"></i> ออกสัญญาและดูพรีวิวสัญญา (PDF)
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    const tenantSelect = document.getElementById('ctr-tenant-select');
+    const nameInput = document.getElementById('ctr-tenant-name');
+    const idCardInput = document.getElementById('ctr-idcard');
+    const telInput = document.getElementById('ctr-tel');
+    const addressInput = document.getElementById('ctr-address');
+
+    tenantSelect.addEventListener('change', () => {
+      const selected = this.state.tenants.find(t => t.id === tenantSelect.value);
+      if (selected) {
+        nameInput.value = selected.name;
+        idCardInput.value = selected.idCard;
+        telInput.value = selected.tel;
+        addressInput.value = selected.address || '';
+      }
+    });
+
+    document.getElementById('create-contract-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = AuthService.getCurrentUser();
+      const tenantId = tenantSelect.value;
+
+      let tenant = this.state.tenants.find(t => t.id === tenantId);
+      const name = nameInput.value;
+      const idCard = idCardInput.value;
+      const tel = telInput.value;
+      const address = addressInput.value;
+      const roomId = document.getElementById('ctr-room-select').value;
+      const startDate = document.getElementById('ctr-start-date').value;
+      const endDate = document.getElementById('ctr-end-date').value;
+      const bail = parseFloat(document.getElementById('ctr-deposit-amt').value) || 7000;
+
+      if (tenant) {
+        tenant.name = name;
+        tenant.idCard = idCard;
+        tenant.tel = tel;
+        tenant.address = address;
+        tenant.startDate = startDate;
+        tenant.endDate = endDate;
+        tenant.assignedRoomId = roomId;
+        if (tenant.deposit) tenant.deposit.initialBail = bail;
+      } else {
+        tenant = {
+          id: 't_' + Date.now(),
+          name, idCard, tel, address, startDate, endDate, assignedRoomId: roomId,
+          deposit: { initialBail: bail, deductions: [], status: 'active' },
+          documents: []
+        };
+        this.state.tenants.push(tenant);
+      }
+
+      // Update room status
+      const room = this.state.rooms.find(r => r.id === roomId);
+      if (room) {
+        room.status = 'occupied';
+        room.currentTenantId = tenant.id;
+        room.currentTenantName = tenant.name;
+        room.entryDate = startDate;
+      }
+
+      DBService.saveState(this.state);
+      LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'CREATE', 'TENANTS', `ออกสัญญาเช่าใหม่ให้ห้อง ${room ? room.name : ''} (${tenant.name})`);
+
+      modal.classList.remove('active');
+      this.openOfficialContractModal(tenant);
+    });
+  }
+
+  // Official Front & Back Contract Modal with Landlord Age Removed
   static openOfficialContractModal(tenant) {
     const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
 
-    // Initial values
     const today = new Date();
     const d = {
       day: today.getDate().toString(),
       month: Formatters.thaiMonthBE(today.toISOString().slice(0, 7)).split(' ')[0],
       year: (today.getFullYear() + 543).toString(),
-      landlordAge: '๕๕',
       tenantName: tenant.name,
-      tenantAddress: tenant.address || '12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี',
+      tenantAddress: tenant.address || '45/10 หมู่ที่ 8 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี',
       tenantIdCard: Formatters.formatIdCard(tenant.idCard),
       tenantIdIssueDate: Formatters.thaiDate(tenant.startDate),
       roomName: room ? room.name : 'A101',
@@ -1161,18 +1314,17 @@ class App {
 
     dialog.innerHTML = `
       <div class="modal-header">
-        <h3><i class="fa-solid fa-file-contract text-warning"></i> สัญญาเช่าห้องพักทางการ (หอพักสมบัติ.คอม)</h3>
+        <h3><i class="fa-solid fa-file-contract text-warning"></i> หนังสือสัญญาเช่าห้องแถว (หอพักสมบัติ.คอม)</h3>
         <button class="close-modal-btn">&times;</button>
       </div>
 
-      <!-- Tab Switcher for Front & Back Document Pages -->
       <div class="contract-tab-switcher" style="padding-top: 1rem;">
         <button class="contract-tab-btn active" id="tab-front-doc"><i class="fa-solid fa-file-lines"></i> ด้านหน้า (หนังสือสัญญา)</button>
         <button class="contract-tab-btn" id="tab-back-doc"><i class="fa-solid fa-list-ol"></i> ด้านหลัง (กฎและมารยาท 13 ข้อ)</button>
       </div>
 
       <div class="modal-body" style="padding-top: 0.5rem;">
-        <!-- Front Page Document Shell -->
+        <!-- Front Page Document Shell (Landlord Age Removed) -->
         <div id="contract-front-view" class="contract-paper front-page">
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
             หนังสือสัญญาเช่าห้องแถว
@@ -1185,7 +1337,7 @@ class App {
           </div>
 
           <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>นายสมบัติ น้ำวน</strong> อายุ <span class="dotted-fill">${d.landlordAge}</span> ปี อยู่บ้านเลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>นายสมบัติ น้ำวน</strong> อยู่บ้านเลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ <span class="dotted-fill">${d.tenantAddress}</span><br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
             ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้เช่า”</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้คือ<br>
@@ -1213,7 +1365,7 @@ class App {
           </div>
         </div>
 
-        <!-- Back Page Rules Shell (Hidden by default) -->
+        <!-- Back Page Rules Shell -->
         <div id="contract-back-view" class="contract-paper back-page" style="display: none;">
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.5rem;">
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
@@ -1272,7 +1424,6 @@ class App {
     });
 
     document.getElementById('btn-do-print-official-contract').addEventListener('click', () => {
-      // Print both front and back views
       viewFront.style.display = 'block';
       viewBack.style.display = 'block';
       window.print();
