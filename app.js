@@ -1174,7 +1174,7 @@ class BillingComponent {
                     <td>
                       <div class="action-buttons">
                         <button class="btn btn-secondary btn-xs btn-edit-bill" data-id="${inv.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
-                        <button class="btn btn-secondary btn-xs btn-qr-promptpay" data-id="${inv.id}"><i class="fa-solid fa-qrcode text-primary"></i> QR PromptPay</button>
+                        <button class="btn btn-primary btn-xs btn-save-pdf-bill" data-id="${inv.id}" title="บันทึก PDF ลงชีต"><i class="fa-solid fa-file-pdf"></i> บันทึก PDF</button>
                         <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}"><i class="fa-solid fa-print text-warning"></i> พิมพ์บิล</button>
                         <button class="btn btn-secondary btn-xs btn-send-line" data-id="${inv.id}"><i class="fa-brands fa-line text-success"></i> LINE</button>
                         <button class="btn btn-danger btn-xs btn-delete-bill" data-id="${inv.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
@@ -2474,6 +2474,28 @@ class App {
         const id = e.currentTarget.getAttribute('data-id');
         const inv = this.state.invoices.find(i => i.id === id);
         if (inv) this.openInvoicePrintModal(inv);
+      });
+    });
+
+    document.querySelectorAll('.btn-save-pdf-bill').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv) {
+          inv.pdfUrl = `https://sombat-my-bills.vercel.app/?idCard=${encodeURIComponent(inv.idCard || '')}&roomId=${encodeURIComponent(inv.roomId || '')}&pdf=true`;
+          DBService.saveState(this.state);
+          const url = (this.state.settings && this.state.settings.googleSheetUrl) ? this.state.settings.googleSheetUrl : DBService.getSavedSheetUrl();
+          if (url) {
+            try {
+              await DBService.syncToGoogleSheets(url, this.state);
+              alert(`✅ บันทึก PDF บิลและอัปโหลดลิงก์/เอกสารของห้อง ${inv.roomName} ลงแถวหลังใน Google Sheets เรียบร้อยแล้ว!`);
+            } catch (err) {
+              alert(`✅ บันทึก PDF บิลเรียบร้อยแล้ว! (การซิงค์ชีต: ${err.message})`);
+            }
+          } else {
+            alert(`✅ บันทึก PDF บิลเรียบร้อยแล้ว!`);
+          }
+        }
       });
     });
 
