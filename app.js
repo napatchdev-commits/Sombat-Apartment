@@ -205,7 +205,7 @@ class ExportService {
 }
 
 class DBService {
-  static STORAGE_KEY = 'SOMBAT_APARTMENT_DB_STATE_V2';
+  static STORAGE_KEY = 'SOMBAT_APARTMENT_DB_STATE_V3';
 
   static getInitialState() {
     return {
@@ -214,9 +214,9 @@ class DBService {
         address: '45/10 หมู่ที่ 8 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี 11150',
         tel: '080-5991691',
         lineId: '@sombat_rent',
-        bankName: 'ธนาคารกสิกรไทย (K-Bank)',
-        bankAccountNo: '080-2-59916-1',
-        bankAccountName: 'นายสมบัติ น้ำวน',
+        bankName: 'ธนาคารกรุงศรีอยุธยา (BAY)',
+        bankAccountNo: '2401346663',
+        bankAccountName: 'นางสมผิว น้ำวน',
         promptPayId: '0805991691',
         googleSheetUrl: ''
       },
@@ -273,6 +273,24 @@ class DBService {
           tenantId: 't2', tenantName: 'นายสมชาย ดีมาก', issueDate: '2026-07-01', dueDate: '2026-07-05',
           waterPrev: 85, waterCurr: 98, elecPrev: 750, elecCurr: 840, rentAmount: 3500, waterAmount: 260, elecAmount: 720,
           trashFee: 20, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 100, totalAmount: 4600, paidAmount: 0, outstandingAmount: 4600, status: 'unpaid'
+        },
+        {
+          id: 'inv_2026_07_r201', invoiceNumber: 'INV202607-201', monthKey: '2026-07', roomId: 'r201', roomName: 'A201',
+          tenantId: 't3', tenantName: 'นางวิไล พรหมดี', issueDate: '2026-07-01', dueDate: '2026-07-05',
+          waterPrev: 200, waterCurr: 210, elecPrev: 1900, elecCurr: 1980, rentAmount: 3500, waterAmount: 200, elecAmount: 640,
+          trashFee: 20, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 0, totalAmount: 4360, paidAmount: 4360, outstandingAmount: 0, status: 'paid', paymentDate: '2026-07-02'
+        },
+        {
+          id: 'inv_2026_07_r203', invoiceNumber: 'INV202607-203', monthKey: '2026-07', roomId: 'r203', roomName: 'A203',
+          tenantId: 't4', tenantName: 'นายณัฐพงษ์ ศรีสุข', issueDate: '2026-07-01', dueDate: '2026-07-05',
+          waterPrev: 105, waterCurr: 115, elecPrev: 870, elecCurr: 920, rentAmount: 2500, waterAmount: 200, elecAmount: 400,
+          trashFee: 20, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 0, totalAmount: 3120, paidAmount: 3120, outstandingAmount: 0, status: 'paid', paymentDate: '2026-07-04'
+        },
+        {
+          id: 'inv_2026_07_r301', invoiceNumber: 'INV202607-301', monthKey: '2026-07', roomId: 'r301', roomName: 'A301',
+          tenantId: 't5', tenantName: 'ร้านสมบัติมินิมาร์ท (คุณมณี)', issueDate: '2026-07-01', dueDate: '2026-07-05',
+          waterPrev: 420, waterCurr: 450, elecPrev: 3950, elecCurr: 4100, rentAmount: 5500, waterAmount: 600, elecAmount: 1200,
+          trashFee: 50, internetFee: 0, commonFee: 0, otherFee: 0, fineAmount: 0, totalAmount: 7350, paidAmount: 7350, outstandingAmount: 0, status: 'paid', paymentDate: '2026-07-01'
         }
       ],
       repairs: [
@@ -1702,7 +1720,11 @@ class App {
     });
 
     document.querySelectorAll('.btn-print-bill').forEach(btn => {
-      btn.addEventListener('click', () => window.print());
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv) this.openInvoicePrintModal(inv);
+      });
     });
 
     document.querySelectorAll('.btn-send-line').forEach(btn => {
@@ -1715,6 +1737,250 @@ class App {
       });
     });
   }
+
+  static openInvoicePrintModal(inv) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    const elecUnits = Math.max(0, inv.elecCurr - inv.elecPrev);
+    const waterUnits = Math.max(0, inv.waterCurr - inv.waterPrev);
+    const elecRate = this.state.rates ? (this.state.rates.electricityRate || 8.0) : 8.0;
+    const waterRate = this.state.rates ? (this.state.rates.waterRate || 20.0) : 20.0;
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-file-invoice-dollar text-primary"></i> ใบแจ้งหนี้ / ใบเสร็จรับเงินค่าเช่าห้องพัก</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="invoice-paper" id="invoice-preview-card">
+          <!-- Header -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e2e8f0; padding-bottom:1rem; margin-bottom:1rem;">
+            <div>
+              <h2 style="font-size:1.35rem; color:var(--primary); font-weight:700;">หอพักสมบัติ นนทบุรี</h2>
+              <p style="font-size:0.85rem; color:#64748b; margin-top:0.25rem;">
+                45/10 หมู่ที่ 8 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี 11150<br>
+                โทร. 080-5991691, 062-6252564
+              </p>
+            </div>
+            <div style="text-align:right;">
+              <span class="badge-pill badge-primary" style="font-size:0.9rem; padding:0.4rem 0.85rem;">ใบแจ้งหนี้ / ใบเสร็จรับเงิน</span>
+              <div style="font-weight:bold; font-size:1.1rem; margin-top:0.5rem; color:#1e293b;">${inv.invoiceNumber}</div>
+              <div style="font-size:0.85rem; color:#64748b;">ประจำเดือน: ${Formatters.thaiMonthBE(inv.monthKey)}</div>
+            </div>
+          </div>
+
+          <!-- Customer info -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; background:#f8fafc; padding:1rem; border-radius:8px; margin-bottom:1.25rem;">
+            <div>
+              <div style="font-size:0.85rem; color:#64748b;">ห้องพัก (Room):</div>
+              <div style="font-size:1.1rem; font-weight:bold; color:var(--primary);">ห้อง ${inv.roomName}</div>
+            </div>
+            <div>
+              <div style="font-size:0.85rem; color:#64748b;">ชื่อผู้เช่า (Tenant):</div>
+              <div style="font-size:1.05rem; font-weight:bold; color:#1e293b;">${inv.tenantName}</div>
+            </div>
+            <div>
+              <div style="font-size:0.85rem; color:#64748b;">วันที่ออกบิล (Issue Date):</div>
+              <div>${Formatters.thaiDate(inv.issueDate)}</div>
+            </div>
+            <div>
+              <div style="font-size:0.85rem; color:#64748b;">กำหนดชำระเงิน (Due Date):</div>
+              <div style="font-weight:bold; color:#dc2626;">${Formatters.thaiDate(inv.dueDate)}</div>
+            </div>
+          </div>
+
+          <!-- Items breakdown table -->
+          <table class="invoice-details-table">
+            <thead>
+              <tr>
+                <th style="text-align:center; width:60px;">ลำดับ</th>
+                <th>รายการชำระ (Description)</th>
+                <th style="text-align:center;">หน่วยมิเตอร์ (ครั้งก่อน - ครั้งนี้)</th>
+                <th style="text-align:right;">ราคา/หน่วย</th>
+                <th style="text-align:right;">จำนวนเงิน (บาท)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="text-align:center;">1</td>
+                <td><strong>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(inv.monthKey)})</strong></td>
+                <td style="text-align:center;">-</td>
+                <td style="text-align:right;">-</td>
+                <td style="text-align:right;"><strong>฿${(inv.rentAmount || 3500).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+              </tr>
+              <tr>
+                <td style="text-align:center;">2</td>
+                <td><strong>ค่าไฟฟ้า (Electricity)</strong></td>
+                <td style="text-align:center;">${inv.elecPrev} - ${inv.elecCurr} (${elecUnits} ยูนิต)</td>
+                <td style="text-align:right;">฿${elecRate.toFixed(2)}</td>
+                <td style="text-align:right;"><strong>฿${(inv.elecAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+              </tr>
+              <tr>
+                <td style="text-align:center;">3</td>
+                <td><strong>ค่าน้ำประปา (Water)</strong></td>
+                <td style="text-align:center;">${inv.waterPrev} - ${inv.waterCurr} (${waterUnits} ยูนิต)</td>
+                <td style="text-align:right;">฿${waterRate.toFixed(2)}</td>
+                <td style="text-align:right;"><strong>฿${(inv.waterAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+              </tr>
+              ${(inv.trashFee || 20) > 0 ? `
+                <tr>
+                  <td style="text-align:center;">4</td>
+                  <td><strong>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</strong></td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:right;">-</td>
+                  <td style="text-align:right;"><strong>฿${(inv.trashFee || 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                </tr>
+              ` : ''}
+              ${(inv.fineAmount || 0) > 0 ? `
+                <tr>
+                  <td style="text-align:center;">5</td>
+                  <td><strong class="text-danger">ค่าปรับชำระเกินกำหนด (Overdue Fine)</strong></td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:right;">-</td>
+                  <td style="text-align:right;"><strong class="text-danger">฿${inv.fineAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                </tr>
+              ` : ''}
+              <tr style="background:#f1f5f9; font-weight:bold; font-size:1.05rem;">
+                <td colspan="4" style="text-align:right;">ยอดเงินรวมสุทธิที่ต้องชำระ (Total Net Amount):</td>
+                <td style="text-align:right; color:var(--primary); font-size:1.15rem;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="text-align:right; font-weight:bold; color:#475569; margin-top:0.5rem;">
+            (จำนวนเงินตัวอักษร: ${Formatters.thaiBahtText(inv.totalAmount)})
+          </div>
+
+          <!-- Official Red Note Box Requested by User -->
+          <div class="invoice-red-note-box" style="border: 2px solid #ef4444; background-color: #fef2f2; color: #991b1b; padding: 0.85rem 1.25rem; border-radius: 8px; margin-top: 1.25rem; font-size: 0.95rem; line-height: 1.6; text-align: center;">
+            📌 <strong>หมายเหตุสำคัญ:</strong> ชำระเงินสดได้ที่ร้าน / หรือโอน <strong>ธ.กรุงศรี 2401346663 นางสมผิว น้ำวน</strong> <span style="font-weight:bold; color:#ef4444;">(ไม่เกินวันที่ 5 ของเดือน)</span>
+          </div>
+
+          <!-- Signatures -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem; margin-top:2rem; text-align:center;">
+            <div>
+              <div style="height:40px;"></div>
+              ลงชื่อ ........................................................... ผู้จ่ายเงิน/ผู้เช่า<br>
+              ( ${inv.tenantName} )
+            </div>
+            <div>
+              <div style="height:40px;"></div>
+              ลงชื่อ ........................................................... ผู้รับเงิน/เจ้าของหอพัก<br>
+              ( นางสมผิว น้ำวน )
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" id="btn-do-print-invoice-pdf" style="margin-top:1.5rem;">
+          <i class="fa-solid fa-print"></i> พิมพ์ใบแจ้งหนี้ / ใบเสร็จ (PDF)
+        </button>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('btn-do-print-invoice-pdf').addEventListener('click', () => {
+      const printArea = document.getElementById('print-receipt-area');
+      printArea.innerHTML = `
+        <div class="contract-print-page">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #000; padding-bottom:1rem; margin-bottom:1rem;">
+            <div>
+              <h2 style="font-size:1.5rem; font-weight:700;">หอพักสมบัติ นนทบุรี</h2>
+              <p style="font-size:0.9rem; margin-top:0.25rem;">
+                45/10 หมู่ที่ 8 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี 11150 โทร. 080-5991691, 062-6252564
+              </p>
+            </div>
+            <div style="text-align:right;">
+              <h3 style="font-size:1.2rem; font-weight:bold;">ใบแจ้งหนี้ / ใบเสร็จรับเงิน</h3>
+              <div><strong>เลขที่: ${inv.invoiceNumber}</strong></div>
+              <div>ประจำเดือน: ${Formatters.thaiMonthBE(inv.monthKey)}</div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; background:#f8fafc; padding:1rem; border:1px solid #ccc; border-radius:6px; margin-bottom:1rem;">
+            <div><strong>ห้องพัก:</strong> ห้อง ${inv.roomName}</div>
+            <div><strong>ชื่อผู้เช่า:</strong> ${inv.tenantName}</div>
+            <div><strong>วันที่ออกบิล:</strong> ${Formatters.thaiDate(inv.issueDate)}</div>
+            <div><strong>กำหนดชำระ:</strong> ${Formatters.thaiDate(inv.dueDate)}</div>
+          </div>
+
+          <table style="width:100%; border-collapse:collapse; margin-bottom:1rem;" border="1" cellpadding="6">
+            <thead>
+              <tr style="background:#eee;">
+                <th style="text-align:center;">ลำดับ</th>
+                <th>รายการชำระ</th>
+                <th style="text-align:center;">หน่วยมิเตอร์</th>
+                <th style="text-align:right;">ราคา/หน่วย</th>
+                <th style="text-align:right;">จำนวนเงิน (บาท)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="text-align:center;">1</td>
+                <td>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(inv.monthKey)})</td>
+                <td style="text-align:center;">-</td>
+                <td style="text-align:right;">-</td>
+                <td style="text-align:right;">฿${(inv.rentAmount || 3500).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+              </tr>
+              <tr>
+                <td style="text-align:center;">2</td>
+                <td>ค่าไฟฟ้า (${inv.elecPrev} - ${inv.elecCurr})</td>
+                <td style="text-align:center;">${elecUnits} ยูนิต</td>
+                <td style="text-align:right;">฿${elecRate.toFixed(2)}</td>
+                <td style="text-align:right;">฿${(inv.elecAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+              </tr>
+              <tr>
+                <td style="text-align:center;">3</td>
+                <td>ค่าน้ำประปา (${inv.waterPrev} - ${inv.waterCurr})</td>
+                <td style="text-align:center;">${waterUnits} ยูนิต</td>
+                <td style="text-align:right;">฿${waterRate.toFixed(2)}</td>
+                <td style="text-align:right;">฿${(inv.waterAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+              </tr>
+              ${(inv.trashFee || 20) > 0 ? `
+                <tr>
+                  <td style="text-align:center;">4</td>
+                  <td>ค่าบริการสาธารณูปโภค / ขยะ</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:right;">-</td>
+                  <td style="text-align:right;">฿${(inv.trashFee || 20).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                </tr>
+              ` : ''}
+              <tr style="font-weight:bold; background:#f5f5f5;">
+                <td colspan="4" style="text-align:right;">ยอดรวมสุทธิที่ต้องชำระ:</td>
+                <td style="text-align:right;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="text-align:right; font-weight:bold; margin-top:0.5rem;">
+            (จำนวนเงินตัวอักษร: ${Formatters.thaiBahtText(inv.totalAmount)})
+          </div>
+
+          <div style="border: 2px solid #ef4444; background-color: #fef2f2; color: #991b1b; padding: 0.85rem; border-radius: 8px; margin-top: 1.25rem; font-size: 0.95rem; text-align: center;">
+            📌 <strong>หมายเหตุสำคัญ:</strong> ชำระเงินสดได้ที่ร้าน / หรือโอน <strong>ธ.กรุงศรี 2401346663 นางสมผิว น้ำวน</strong> <span style="font-weight:bold; color:#ef4444;">(ไม่เกินวันที่ 5 ของเดือน)</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem; margin-top:2.5rem; text-align:center;">
+            <div>
+              <div style="height:40px;"></div>
+              ลงชื่อ ........................................................... ผู้จ่ายเงิน/ผู้เช่า<br>
+              ( ${inv.tenantName} )
+            </div>
+            <div>
+              <div style="height:40px;"></div>
+              ลงชื่อ ........................................................... ผู้รับเงิน/เจ้าของหอพัก<br>
+              ( นางสมผิว น้ำวน )
+            </div>
+          </div>
+        </div>
+      `;
+      window.print();
+    });
+  }
+
 
   static openCreateBillModal(preselectedRoom = null) {
     const modal = document.getElementById('app-modal');
