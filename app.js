@@ -1,7 +1,7 @@
 // ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - FULLY INTERACTIVE APP CONTROLLER
 // 100% Compatible with Vercel, GitHub Pages, Local file:// & Google Sheets Sync
-// Official Front & Back Page Rental Contracts (Landlord Age Removed + Interactive Contract Generator)
+// Official Front & Back Page Rental Contracts (Witness Names Blank Dotted Line by Default)
 // ==========================================================================
 
 /* ==========================================================================
@@ -1181,7 +1181,7 @@ class App {
           </div>
 
           <div class="form-group">
-            <label>ที่อยู่ตามภูมิเนาของผู้เช่า:</label>
+            <label>ที่อยู่ตามภูมิลำเนาของผู้เช่า:</label>
             <input type="text" id="ctr-address" class="form-control" placeholder="12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี">
           </div>
 
@@ -1204,6 +1204,18 @@ class App {
             <div class="form-group">
               <label>เงินประกันมัดจำ (บาท) *</label>
               <input type="number" id="ctr-deposit-amt" class="form-control" value="7000" required>
+            </div>
+          </div>
+
+          <!-- Optional Witness Names Inputs -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ชื่อพยาน 1 (ถ้ามี):</label>
+              <input type="text" id="ctr-witness1" class="form-control" placeholder="เว้นว่างไว้เพื่อเว้นจุดไข่ปลา">
+            </div>
+            <div class="form-group">
+              <label>ชื่อพยาน 2 (ถ้ามี):</label>
+              <input type="text" id="ctr-witness2" class="form-control" placeholder="เว้นว่างไว้เพื่อเว้นจุดไข่ปลา">
             </div>
           </div>
 
@@ -1247,6 +1259,8 @@ class App {
       const startDate = document.getElementById('ctr-start-date').value;
       const endDate = document.getElementById('ctr-end-date').value;
       const bail = parseFloat(document.getElementById('ctr-deposit-amt').value) || 7000;
+      const witness1 = document.getElementById('ctr-witness1').value.trim();
+      const witness2 = document.getElementById('ctr-witness2').value.trim();
 
       if (tenant) {
         tenant.name = name;
@@ -1280,12 +1294,12 @@ class App {
       LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'CREATE', 'TENANTS', `ออกสัญญาเช่าใหม่ให้ห้อง ${room ? room.name : ''} (${tenant.name})`);
 
       modal.classList.remove('active');
-      this.openOfficialContractModal(tenant);
+      this.openOfficialContractModal(tenant, witness1, witness2);
     });
   }
 
-  // Official Front & Back Contract Modal with Landlord Age Removed
-  static openOfficialContractModal(tenant) {
+  // Official Front & Back Contract Modal (Witnesses Blank Dotted Line by Default)
+  static openOfficialContractModal(tenant, witness1Input = '', witness2Input = '') {
     const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
 
     const today = new Date();
@@ -1305,8 +1319,8 @@ class App {
       monthlyRentThai: Formatters.thaiBahtText(room ? room.baseRent : 3500),
       depositAmt: tenant.deposit ? tenant.deposit.initialBail.toLocaleString() : '7,000',
       depositThai: Formatters.thaiBahtText(tenant.deposit ? tenant.deposit.initialBail : 7000),
-      witness1: 'นางสมศรี ใจดี',
-      witness2: 'นายวิเชียร สมบัติ'
+      witness1: witness1Input,
+      witness2: witness2Input
     };
 
     const modal = document.getElementById('app-modal');
@@ -1324,13 +1338,13 @@ class App {
       </div>
 
       <div class="modal-body" style="padding-top: 0.5rem;">
-        <!-- Front Page Document Shell (Landlord Age Removed) -->
+        <!-- Front Page Document Shell -->
         <div id="contract-front-view" class="contract-paper front-page">
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
             หนังสือสัญญาเช่าห้องแถว
           </div>
           <div style="text-align:right; margin-bottom:1rem; font-size:0.95rem;">
-            เขียนที่ ๔๕/๓ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ๑๑๑๕๐ โทร. ๐๒-๐๕๓๔๓๑๑,๐๘๐-๕๙๙๑๖๙๑
+            เขียนที่ ๔๕/๓ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ๑๑๑๕0 โทร. ๐๒-๐๕๓๔๓๑๑,๐๘๐-๕๙๙๑๖๙๑
           </div>
           <div style="text-align:right; margin-bottom:1.5rem; font-size:0.95rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
@@ -1358,10 +1372,16 @@ class App {
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem; margin-top:2.5rem; text-align:center;">
-            <div>ลงชื่อ....................................................ผู้เช่า<br>(<span class="dotted-fill">${d.tenantName}</span>)</div>
+            <div>ลงชื่อ....................................................ผู้เช่า<br>( <span class="dotted-fill">${d.tenantName}</span> )</div>
             <div>ลงชื่อ....................................................ผู้ให้เช่า<br>( นายสมบัติ น้ำวน )</div>
-            <div style="margin-top:1.5rem;">ลงชื่อ....................................................พยาน<br>(<span class="dotted-fill">${d.witness1}</span>)</div>
-            <div style="margin-top:1.5rem;">ลงชื่อ....................................................พยาน<br>(<span class="dotted-fill">${d.witness2}</span>)</div>
+            <div style="margin-top:1.5rem;">
+              ลงชื่อ....................................................พยาน<br>
+              ( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '....................................................'} )
+            </div>
+            <div style="margin-top:1.5rem;">
+              ลงชื่อ....................................................พยาน<br>
+              ( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '....................................................'} )
+            </div>
           </div>
         </div>
 
