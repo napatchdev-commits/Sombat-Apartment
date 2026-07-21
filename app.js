@@ -1,7 +1,7 @@
 // ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - FULLY INTERACTIVE APP CONTROLLER
 // 100% Compatible with Vercel, GitHub Pages, Local file:// & Google Sheets Sync
-// Official Front & Back Page Rental Contracts (Clean Print Renderer to #print-receipt-area)
+// Official Front & Back Page Rental Contracts + Full Tenants CRUD (Add, Edit, Delete)
 // ==========================================================================
 
 /* ==========================================================================
@@ -724,7 +724,7 @@ class TenantsComponent {
         <div class="view-header">
           <div>
             <h2><i class="fa-solid fa-users text-primary"></i> จัดการข้อมูลผู้เช่าและเอกสารสัญญา</h2>
-            <p>บันทึกทะเบียนผู้เช่า อัปโหลดเอกสารแนบ (PDF/JPG/PNG/DOCX/ZIP) และพิมพ์สัญญาเช่าอัตโนมัติ</p>
+            <p>บันทึกทะเบียนผู้เช่า เพิ่มผู้เช่าใหม่ แก้ไขข้อมูล และลบรายการผู้เช่า</p>
           </div>
           <div class="header-actions">
             <button id="btn-export-tenants-excel" class="btn btn-secondary"><i class="fa-solid fa-file-excel text-success"></i> Export Excel</button>
@@ -747,7 +747,9 @@ class TenantsComponent {
                 </tr>
               </thead>
               <tbody>
-                ${tenants.map(t => {
+                ${tenants.length === 0 ? `
+                  <tr><td colspan="7" class="text-center text-muted" style="padding:2rem;">ยังไม่มีข้อมูลผู้เช่าในระบบ กดปุ่ม "เพิ่มผู้เช่าใหม่" ด้านบนเพื่อเพิ่มข้อมูล</td></tr>
+                ` : tenants.map(t => {
                   const room = state.rooms.find(r => r.id === t.assignedRoomId);
                   const roomBadge = room ? `<span class="badge-pill badge-primary">ห้อง ${room.name}</span>` : `<span class="badge-pill badge-gray">ยังไม่ระบุ</span>`;
                   return `
@@ -761,8 +763,8 @@ class TenantsComponent {
                       <td>
                         <div class="action-buttons">
                           <button class="btn btn-secondary btn-xs btn-gen-contract" data-id="${t.id}"><i class="fa-solid fa-file-contract text-warning"></i> สัญญา</button>
-                          <button class="btn btn-secondary btn-xs btn-edit-tenant" data-id="${t.id}"><i class="fa-solid fa-pen text-info"></i></button>
-                          <button class="btn btn-danger btn-xs btn-delete-tenant" data-id="${t.id}"><i class="fa-solid fa-trash"></i></button>
+                          <button class="btn btn-secondary btn-xs btn-edit-tenant" data-id="${t.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
+                          <button class="btn btn-danger btn-xs btn-delete-tenant" data-id="${t.id}" data-name="${t.name}"><i class="fa-solid fa-trash"></i> ลบ</button>
                         </div>
                       </td>
                     </tr>
@@ -1093,6 +1095,212 @@ class App {
     }
   }
 
+  static bindTenantsEvents() {
+    // 1. Export Excel
+    const exportExcel = document.getElementById('btn-export-tenants-excel');
+    if (exportExcel) {
+      exportExcel.addEventListener('click', () => {
+        const headers = ['ชื่อ-นามสกุล', 'เลขบัตรประชาชน', 'เบอร์โทร', 'วันเริ่มสัญญา', 'วันหมดสัญญา'];
+        const rows = this.state.tenants.map(t => [t.name, t.idCard, t.tel, t.startDate, t.endDate]);
+        ExportService.exportToCSV('ทะเบียนผู้เช่า_Sombat.csv', headers, rows);
+      });
+    }
+
+    // 2. Add New Tenant (เพิ่มผู้เช่าใหม่)
+    const addBtn = document.getElementById('btn-add-tenant');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this.openTenantModal());
+    }
+
+    // 3. Edit Tenant (แก้ไขผู้เช่า)
+    document.querySelectorAll('.btn-edit-tenant').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tenantId = e.currentTarget.getAttribute('data-id');
+        const tenant = this.state.tenants.find(t => t.id === tenantId);
+        if (tenant) this.openTenantModal(tenant);
+      });
+    });
+
+    // 4. Delete Tenant (ลบผู้เช่า)
+    document.querySelectorAll('.btn-delete-tenant').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tenantId = e.currentTarget.getAttribute('data-id');
+        const tenantName = e.currentTarget.getAttribute('data-name');
+        if (confirm(`คุณต้องการลบข้อมูลผู้เช่า "${tenantName}" ออกจากระบบใช่หรือไม่?`)) {
+          this.deleteTenant(tenantId);
+        }
+      });
+    });
+
+    // 5. Generate Contract
+    document.querySelectorAll('.btn-gen-contract').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const tenant = this.state.tenants.find(t => t.id === id);
+        if (tenant) this.openOfficialContractModal(tenant);
+      });
+    });
+  }
+
+  // Interactive Modal for Adding / Editing Tenant (เพิ่ม - แก้ไข ผู้เช่า)
+  static openTenantModal(tenantToEdit = null) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const isEdit = !!tenantToEdit;
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid ${isEdit ? 'fa-user-pen text-info' : 'fa-user-plus text-primary'}"></i> ${isEdit ? 'แก้ไขข้อมูลผู้เช่า' : 'เพิ่มผู้เช่าใหม่เข้าพัก'}</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="tenant-form">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ชื่อ - นามสกุล *</label>
+              <input type="text" id="tn-name" class="form-control" value="${tenantToEdit ? tenantToEdit.name : ''}" placeholder="น.ส.กันญา บัวแดง" required>
+            </div>
+            <div class="form-group">
+              <label>เลขบัตรประชาชน (13 หลัก) *</label>
+              <input type="text" id="tn-idcard" class="form-control" value="${tenantToEdit ? tenantToEdit.idCard : ''}" placeholder="3451200115491" required>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>เบอร์โทรศัพท์ *</label>
+              <input type="text" id="tn-tel" class="form-control" value="${tenantToEdit ? tenantToEdit.tel : ''}" placeholder="081-2345678" required>
+            </div>
+            <div class="form-group">
+              <label>Line ID (ถ้ามี):</label>
+              <input type="text" id="tn-line" class="form-control" value="${tenantToEdit ? (tenantToEdit.lineId || '') : ''}" placeholder="kanya_b">
+            </div>
+            <div class="form-group">
+              <label>อีเมล (ถ้ามี):</label>
+              <input type="email" id="tn-email" class="form-control" value="${tenantToEdit ? (tenantToEdit.email || '') : ''}" placeholder="kanya@gmail.com">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>ที่อยู่ตามภูมิลำเนาผู้เช่า:</label>
+            <input type="text" id="tn-address" class="form-control" value="${tenantToEdit ? (tenantToEdit.address || '') : ''}" placeholder="12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี">
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>จัดเข้าห้องพัก *</label>
+              <select id="tn-room-select" class="form-control" required>
+                <option value="">-- เลือกห้องพัก --</option>
+                ${this.state.rooms.map(r => `
+                  <option value="${r.id}" ${tenantToEdit && tenantToEdit.assignedRoomId === r.id ? 'selected' : ''}>
+                    ห้อง ${r.name} (${r.status === 'vacant' ? 'ว่าง' : r.id === (tenantToEdit ? tenantToEdit.assignedRoomId : '') ? 'ห้องเดิม' : 'มีผู้เช่า'})
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>วันเริ่มสัญญา *</label>
+              <input type="date" id="tn-start-date" class="form-control" value="${tenantToEdit ? tenantToEdit.startDate : new Date().toISOString().slice(0,10)}" required>
+            </div>
+            <div class="form-group">
+              <label>วันหมดสัญญา *</label>
+              <input type="date" id="tn-end-date" class="form-control" value="${tenantToEdit ? tenantToEdit.endDate : '2027-07-31'}" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>เงินประกันมัดจำ (บาท) *</label>
+            <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;">
+            <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'บันทึกการแก้ไขข้อมูลผู้เช่า' : 'บันทึกเพิ่มผู้เช่าใหม่เข้าระบบ'}
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('tenant-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = AuthService.getCurrentUser();
+
+      const name = document.getElementById('tn-name').value.trim();
+      const idCard = document.getElementById('tn-idcard').value.trim();
+      const tel = document.getElementById('tn-tel').value.trim();
+      const lineId = document.getElementById('tn-line').value.trim();
+      const email = document.getElementById('tn-email').value.trim();
+      const address = document.getElementById('tn-address').value.trim();
+      const roomId = document.getElementById('tn-room-select').value;
+      const startDate = document.getElementById('tn-start-date').value;
+      const endDate = document.getElementById('tn-end-date').value;
+      const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
+
+      if (isEdit) {
+        tenantToEdit.name = name;
+        tenantToEdit.idCard = idCard;
+        tenantToEdit.tel = tel;
+        tenantToEdit.lineId = lineId;
+        tenantToEdit.email = email;
+        tenantToEdit.address = address;
+        tenantToEdit.assignedRoomId = roomId;
+        tenantToEdit.startDate = startDate;
+        tenantToEdit.endDate = endDate;
+        if (tenantToEdit.deposit) tenantToEdit.deposit.initialBail = bail;
+
+        LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'UPDATE', 'TENANTS', `แก้ไขข้อมูลผู้เช่า ${name}`);
+      } else {
+        const newTenant = {
+          id: 't_' + Date.now(),
+          name, idCard, tel, lineId, email, address,
+          startDate, endDate, assignedRoomId: roomId,
+          deposit: { initialBail: bail, deductions: [], status: 'active' },
+          documents: []
+        };
+        this.state.tenants.push(newTenant);
+        LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'CREATE', 'TENANTS', `เพิ่มผู้เช่าใหม่ ${name}`);
+      }
+
+      // Update room status
+      const room = this.state.rooms.find(r => r.id === roomId);
+      if (room) {
+        room.status = 'occupied';
+        room.currentTenantId = isEdit ? tenantToEdit.id : this.state.tenants[this.state.tenants.length - 1].id;
+        room.currentTenantName = name;
+        room.entryDate = startDate;
+      }
+
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('tenants');
+    });
+  }
+
+  // Delete Tenant Function (ลบข้อมูลผู้เช่า)
+  static deleteTenant(tenantId) {
+    const user = AuthService.getCurrentUser();
+    const idx = this.state.tenants.findIndex(t => t.id === tenantId);
+    if (idx !== -1) {
+      const deletedName = this.state.tenants[idx].name;
+      const assignedRoomId = this.state.tenants[idx].assignedRoomId;
+
+      // Free up room
+      const room = this.state.rooms.find(r => r.id === assignedRoomId);
+      if (room) {
+        room.status = 'vacant';
+        room.currentTenantId = null;
+        room.currentTenantName = null;
+      }
+
+      this.state.tenants.splice(idx, 1);
+      DBService.saveState(this.state);
+      LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'DELETE', 'TENANTS', `ลบผู้เช่า ${deletedName}`);
+      this.switchTab('tenants');
+    }
+  }
+
   static bindContractsEvents() {
     document.querySelectorAll('.contract-filter-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1111,13 +1319,11 @@ class App {
       });
     });
 
-    // Create New Contract Button Event
     const createContractBtn = document.getElementById('btn-create-contract');
     if (createContractBtn) {
       createContractBtn.addEventListener('click', () => this.openCreateNewContractModal());
     }
 
-    // Print Contract PDF Event
     document.querySelectorAll('.btn-print-contract-pdf, .btn-gen-contract').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const tenantId = e.currentTarget.getAttribute('data-tenant-id') || e.currentTarget.getAttribute('data-id');
@@ -1136,7 +1342,6 @@ class App {
     }
   }
 
-  // Interactive Modal: Create New Contract (ออกสัญญาเช่าใหม่)
   static openCreateNewContractModal() {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
@@ -1296,7 +1501,6 @@ class App {
     });
   }
 
-  // Official Front & Back Contract Modal with Clean 2-Page Print Renderer
   static openOfficialContractModal(tenant, witness1Input = '', witness2Input = '') {
     const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
 
@@ -1324,7 +1528,6 @@ class App {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
 
-    // On-screen preview HTML
     dialog.innerHTML = `
       <div class="modal-header">
         <h3><i class="fa-solid fa-file-contract text-warning"></i> หนังสือสัญญาเช่าห้องแถว (หอพักสมบัติ.คอม)</h3>
@@ -1400,7 +1603,7 @@ class App {
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
-            <li>ห้ามตอกตะปู หรือใช้วัสดุใดที่ทำให้ผนังเป็นรูเด็ดขาด หากจำเป็นควรใช้ที่แขวนติดแทน ปปรับจุดละ 200 บาท</li>
+            <li>ห้ามตอกตะปู หรือใช้วัสดุใดที่ทำให้ผนังเป็นรูเด็ดขาด หากจำเป็นควรใช้ที่แขวนติดแทน ปรับจุดละ 200 บาท</li>
             <li>ห้ามเสพสิ่งเสพติดทุกชนิด/มั่วสุม ถ้าผู้ให้เช่าทราบจะดำเนินการทางกฎหมายและเชิญออกทันที</li>
             <li>ถ้ามีการดื่มสุรา/หรือจัดงานใด ๆ ไม่เกินเวลา 22.00 น.</li>
             <li>ห้ามเลี้ยงสัตว์เลี้ยงที่ก่อให้เกิดความเสียหายกับห้องและรบกวนห้องข้างทุกชนิด หากเกิดความเสียหายชดใช้ทั้งหมดทุกกรณี</li>
@@ -1449,10 +1652,8 @@ class App {
     });
 
     document.getElementById('btn-do-print-official-contract').addEventListener('click', () => {
-      // Render 100% Clean Printable Pages into #print-receipt-area
       const printArea = document.getElementById('print-receipt-area');
       printArea.innerHTML = `
-        <!-- Page 1: Front Document -->
         <div class="contract-print-page front-page">
           <div style="text-align:center; font-weight:bold; font-size:1.5rem; margin-bottom:1.2rem;">
             หนังสือสัญญาเช่าห้องแถว
@@ -1505,7 +1706,6 @@ class App {
           </div>
         </div>
 
-        <!-- Page 2: Back Rules Document -->
         <div class="contract-print-page back-page">
           <div style="text-align:center; font-weight:bold; font-size:1.5rem; margin-bottom:1.5rem;">
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
@@ -1541,25 +1741,6 @@ class App {
       `;
 
       window.print();
-    });
-  }
-
-  static bindTenantsEvents() {
-    const exportExcel = document.getElementById('btn-export-tenants-excel');
-    if (exportExcel) {
-      exportExcel.addEventListener('click', () => {
-        const headers = ['ชื่อ-นามสกุล', 'เลขบัตรประชาชน', 'เบอร์โทร', 'วันเริ่มสัญญา', 'วันหมดสัญญา'];
-        const rows = this.state.tenants.map(t => [t.name, t.idCard, t.tel, t.startDate, t.endDate]);
-        ExportService.exportToCSV('ทะเบียนผู้เช่า_Sombat.csv', headers, rows);
-      });
-    }
-
-    document.querySelectorAll('.btn-gen-contract').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        const tenant = this.state.tenants.find(t => t.id === id);
-        if (tenant) this.openOfficialContractModal(tenant);
-      });
     });
   }
 
