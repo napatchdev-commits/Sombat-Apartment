@@ -1134,16 +1134,26 @@ class SettingsComponent {
         </div>
 
         <div class="glass-card">
-          <h3><i class="fa-solid fa-users-gear text-primary"></i> จัดการผู้ใช้งานระบบ (User Roles Management)</h3>
-          <div class="table-responsive" style="margin-top:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <h3><i class="fa-solid fa-users-gear text-primary"></i> จัดการผู้ใช้งานระบบ (User Roles Management)</h3>
+            <button id="btn-add-user" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> เพิ่มแอดมิน / ผู้ใช้งานใหม่</button>
+          </div>
+          <div class="table-responsive">
             <table class="custom-table">
-              <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>บทบาทสิทธิ์ใช้งาน</th></tr></thead>
+              <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>บทบาทสิทธิ์ใช้งาน</th><th>การจัดการ</th></tr></thead>
               <tbody>
                 ${users.map(u => `
                   <tr>
                     <td><strong>${u.username}</strong></td>
                     <td>${u.displayName}</td>
-                    <td><span class="role-pill role-${u.role}">${u.role}</span></td>
+                    <td><span class="role-pill role-${u.role}">${u.role === 'super_admin' ? '👑 Super Admin' : (u.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}</span></td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-edit-user" data-id="${u.id}"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                        <button class="btn btn-primary btn-xs btn-switch-user" data-id="${u.id}"><i class="fa-solid fa-right-to-bracket"></i> สลับใช้งาน</button>
+                        ${users.length > 1 ? `<button class="btn btn-danger btn-xs btn-delete-user" data-id="${u.id}"><i class="fa-solid fa-trash"></i> ลบ</button>` : ''}
+                      </div>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -2022,6 +2032,26 @@ class App {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
 
+    const getRoomPrevMeters = (room) => {
+      if (!room) return { elecPrev: 1000, waterPrev: 100 };
+      let elecPrev = room.lastElecMeter;
+      let waterPrev = room.lastWaterMeter;
+      if (elecPrev === undefined || waterPrev === undefined || elecPrev === null || waterPrev === null) {
+        const roomInvoices = (this.state.invoices || []).filter(i => i.roomId === room.id);
+        if (roomInvoices.length > 0) {
+          elecPrev = roomInvoices[0].elecCurr || 1000;
+          waterPrev = roomInvoices[0].waterCurr || 100;
+        } else {
+          elecPrev = 1000;
+          waterPrev = 100;
+        }
+      }
+      return { elecPrev, waterPrev };
+    };
+
+    const initialRoom = preselectedRoom || (this.state.rooms.length > 0 ? this.state.rooms[0] : null);
+    const initialMeters = getRoomPrevMeters(initialRoom);
+
     dialog.innerHTML = `
       <div class="modal-header">
         <h3><i class="fa-solid fa-calculator text-primary"></i> คำนวณออกบิลแจ้งหนี้ประจำเดือน</h3>
@@ -2033,7 +2063,7 @@ class App {
             <label>เลือกห้องพัก *</label>
             <select id="bill-room-select" class="form-control" required>
               <option value="">-- เลือกห้องพัก --</option>
-              ${this.state.rooms.map(r => `<option value="${r.id}" ${preselectedRoom && preselectedRoom.id === r.id ? 'selected' : ''}>ห้อง ${r.name} (${r.currentTenantName || 'ไม่มีผู้เช่า'})</option>`).join('')}
+              ${this.state.rooms.map(r => `<option value="${r.id}" ${initialRoom && initialRoom.id === r.id ? 'selected' : ''}>ห้อง ${r.name} (${r.currentTenantName || 'ไม่มีผู้เช่า'})</option>`).join('')}
             </select>
           </div>
 
@@ -2051,16 +2081,16 @@ class App {
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> จดเลขมิเตอร์ไฟฟ้า (เรท ฿${this.state.rates.electricityRate}/ยูนิต)</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-              <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="bill-elec-prev" class="form-control" value="1000"></div>
-              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="1050" required></div>
+              <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="bill-elec-prev" class="form-control" value="${initialMeters.elecPrev}"></div>
+              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="${initialMeters.elecPrev + 50}" required></div>
             </div>
           </div>
 
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> จดเลขมิเตอร์น้ำประปา (เรท ฿${this.state.rates.waterRate}/ยูนิต)</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-              <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="bill-water-prev" class="form-control" value="100"></div>
-              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="110" required></div>
+              <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="bill-water-prev" class="form-control" value="${initialMeters.waterPrev}"></div>
+              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="${initialMeters.waterPrev + 10}" required></div>
             </div>
           </div>
 
@@ -2073,6 +2103,20 @@ class App {
 
     modal.classList.add('active');
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    const roomSelect = document.getElementById('bill-room-select');
+    if (roomSelect) {
+      roomSelect.addEventListener('change', (e) => {
+        const selectedRoom = this.state.rooms.find(r => r.id === e.target.value);
+        if (selectedRoom) {
+          const meters = getRoomPrevMeters(selectedRoom);
+          document.getElementById('bill-elec-prev').value = meters.elecPrev;
+          document.getElementById('bill-elec-curr').value = meters.elecPrev + 50;
+          document.getElementById('bill-water-prev').value = meters.waterPrev;
+          document.getElementById('bill-water-curr').value = meters.waterPrev + 10;
+        }
+      });
+    }
 
     document.getElementById('bill-form').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -2087,12 +2131,17 @@ class App {
       const waterPrev = parseFloat(document.getElementById('bill-water-prev').value) || 0;
       const waterCurr = parseFloat(document.getElementById('bill-water-curr').value) || 0;
 
+      // Save latest meter readings to room object for automatic autofill next month
+      room.lastElecMeter = elecCurr;
+      room.lastWaterMeter = waterCurr;
+
       const elecUnits = Math.max(0, elecCurr - elecPrev);
       const waterUnits = Math.max(0, waterCurr - waterPrev);
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
       const rentAmt = room.baseRent || 3500;
-      const total = rentAmt + elecAmt + waterAmt;
+      const trashFee = 20;
+      const total = rentAmt + elecAmt + waterAmt + trashFee;
 
       const newInv = {
         id: 'inv_' + Date.now(),
@@ -2103,7 +2152,7 @@ class App {
         issueDate: new Date().toISOString().slice(0, 10),
         dueDate,
         waterPrev, waterCurr, elecPrev, elecCurr,
-        rentAmount: rentAmt, waterAmount: waterAmt, elecAmount: elecAmt,
+        rentAmount: rentAmt, waterAmount: waterAmt, elecAmount: elecAmt, trashFee: trashFee,
         totalAmount: total, paidAmount: 0, outstandingAmount: total,
         status: 'unpaid'
       };
@@ -2472,6 +2521,120 @@ class App {
         alert('ปรับปรุงเรทค่าน้ำ-ค่าไฟ เรียบร้อยแล้ว!');
       });
     }
+
+    const addUserBtn = document.getElementById('btn-add-user');
+    if (addUserBtn) {
+      addUserBtn.addEventListener('click', () => this.openUserModal());
+    }
+
+    document.querySelectorAll('.btn-edit-user').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const user = this.state.users.find(u => u.id === id);
+        if (user) this.openUserModal(user);
+      });
+    });
+
+    document.querySelectorAll('.btn-switch-user').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const user = this.state.users.find(u => u.id === id);
+        if (user) {
+          AuthService.setCurrentUser(user);
+          alert(`✅ สลับสิทธิ์ผู้ใช้งานเป็น: ${user.displayName} (${user.role}) เรียบร้อยแล้ว!`);
+          location.reload();
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-delete-user').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (confirm('คุณต้องการลบผู้ใช้งานนี้ใช่หรือไม่?')) {
+          const idx = this.state.users.findIndex(u => u.id === id);
+          if (idx !== -1) {
+            this.state.users.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('settings');
+          }
+        }
+      });
+    });
+  }
+
+  static openUserModal(userToEdit = null) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const isEdit = !!userToEdit;
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid ${isEdit ? 'fa-user-pen text-info' : 'fa-user-plus text-primary'}"></i> ${isEdit ? 'แก้ไขผู้ใช้งานระบบ' : 'เพิ่มผู้ใช้งานระบบใหม่'}</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="user-form">
+          <div class="form-group">
+            <label>ชื่อผู้ใช้งาน (Username) *</label>
+            <input type="text" id="usr-name" class="form-control" value="${userToEdit ? userToEdit.username : ''}" required ${isEdit ? 'readonly' : ''}>
+          </div>
+          <div class="form-group">
+            <label>ชื่อ-นามสกุลที่แสดง (Display Name) *</label>
+            <input type="text" id="usr-disp" class="form-control" value="${userToEdit ? userToEdit.displayName : ''}" required>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>บทบาทสิทธิ์ (Role) *</label>
+              <select id="usr-role" class="form-control" required>
+                <option value="super_admin" ${userToEdit && userToEdit.role === 'super_admin' ? 'selected' : ''}>👑 ผู้ดูแลระบบสูงสุด (Super Admin)</option>
+                <option value="admin" ${userToEdit && userToEdit.role === 'admin' ? 'selected' : ''}>🛡️ เจ้าของหอพัก / แอดมิน (Admin)</option>
+                <option value="staff" ${userToEdit && userToEdit.role === 'staff' ? 'selected' : ''}>👤 พนักงานต้อนรับ (Staff)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>รหัสผ่าน (Password) *</label>
+              <input type="password" id="usr-pass" class="form-control" value="${userToEdit ? (userToEdit.password || '1234') : '1234'}" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลผู้ใช้งาน
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('user-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const username = document.getElementById('usr-name').value.trim();
+      const displayName = document.getElementById('usr-disp').value.trim();
+      const role = document.getElementById('usr-role').value;
+      const password = document.getElementById('usr-pass').value;
+
+      if (!this.state.users) this.state.users = [];
+
+      if (isEdit) {
+        const idx = this.state.users.findIndex(u => u.id === userToEdit.id);
+        if (idx !== -1) {
+          this.state.users[idx] = { ...this.state.users[idx], displayName, role, password };
+        }
+      } else {
+        if (this.state.users.some(u => u.username === username)) {
+          return alert('Username นี้มีในระบบแล้ว กรุณาใช้ชื่ออื่น');
+        }
+        const newUser = {
+          id: 'usr_' + Date.now(),
+          username, displayName, role, password
+        };
+        this.state.users.push(newUser);
+      }
+
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('settings');
+    });
   }
 
   // --- 9. CONTRACTS EVENTS ---
