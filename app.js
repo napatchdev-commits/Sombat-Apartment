@@ -242,6 +242,52 @@ class ExportService {
 class DBService {
   static STORAGE_KEY = 'SOMBAT_APARTMENT_DB_STATE_V3';
 
+  static getInitialRooms() {
+    const rooms = [];
+    // S101 - S119
+    for (let i = 101; i <= 119; i++) {
+      rooms.push({
+        id: `s${i}`,
+        name: `S${i}`,
+        floor: 1,
+        type: 'rt_fan',
+        baseRent: 2500,
+        status: i % 2 === 0 ? 'occupied' : 'vacant',
+        occupied: i % 2 === 0,
+        currentTenantId: i % 2 === 0 ? `t_${i}` : null,
+        currentTenantName: i % 2 === 0 ? `ผู้เช่าห้อง S${i}` : '',
+        lastElecMeter: 1000 + i * 5,
+        lastWaterMeter: 100 + i * 2
+      });
+    }
+    // Rooms 101 - 110 (Floor 1), 201 - 210 (Floor 2)
+    for (let f = 1; f <= 2; f++) {
+      for (let r = 1; r <= 10; r++) {
+        const num = `${f}0${r}`.slice(-3);
+        const code = `rm_${f}${r}`;
+        rooms.push({
+          id: code,
+          name: `${num}`,
+          floor: f,
+          type: f === 1 ? 'rt_fan' : 'rt_air',
+          baseRent: f === 1 ? 2500 : 3500,
+          status: r % 3 === 0 ? 'occupied' : 'vacant',
+          occupied: r % 3 === 0,
+          currentTenantId: r % 3 === 0 ? `t_${code}` : null,
+          currentTenantName: r % 3 === 0 ? `ผู้เช่าห้อง ${num}` : '',
+          lastElecMeter: 1200 + r * 10,
+          lastWaterMeter: 150 + r * 3
+        });
+      }
+    }
+    // Named houses / commercial rooms
+    rooms.push(
+      { id: 'rm_house1', name: 'บ้านหลัง 1', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'occupied', occupied: true, currentTenantName: 'เพชรน้ำหนึ่ง' },
+      { id: 'rm_house2', name: 'บ้านหลัง 2', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'occupied', occupied: true, currentTenantName: 'แสงเงินแสงทอง' }
+    );
+    return rooms;
+  }
+
   static getInitialState() {
     return {
       settings: {
@@ -266,7 +312,7 @@ class DBService {
         { id: 'rt_air', name: 'ห้องแอร์ปรับอากาศ', description: 'เครื่องปรับอากาศประหยัดไฟเบอร์ 5 พร้อมเฟอร์นิเจอร์', defaultRent: 3500 },
         { id: 'rt_shop', name: 'ห้องพาณิชย์ร้านค้า', description: 'ติดถนนหลัก เหมาะค้าขายหรือทำออฟฟิศ', defaultRent: 5500 }
       ],
-      rooms: [],
+      rooms: this.getInitialRooms(),
       tenants: [],
       invoices: [],
       repairs: [],
@@ -306,6 +352,9 @@ class DBService {
     }
     if (!state) {
       state = this.getInitialState();
+    }
+    if (!state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
+      state.rooms = this.getInitialRooms();
     }
     // Ensure googleSheetUrl is populated from persistent fallback
     const savedUrl = this.getSavedSheetUrl();
