@@ -94,16 +94,29 @@ class AuthService {
   static STORAGE_KEY = 'SOMBAT_APARTMENT_CURRENT_USER';
 
   static getCurrentUser() {
-    const raw = localStorage.getItem(this.STORAGE_KEY);
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
+    const rawLocal = localStorage.getItem(this.STORAGE_KEY);
+    if (rawLocal) {
+      try { return JSON.parse(rawLocal); } catch {}
+    }
+    const rawSession = sessionStorage.getItem(this.STORAGE_KEY);
+    if (rawSession) {
+      try { return JSON.parse(rawSession); } catch {}
+    }
+    return null;
   }
 
-  static setCurrentUser(user) {
+  static setCurrentUser(user, rememberMe = true) {
     if (user) {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
+      if (rememberMe) {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
+        sessionStorage.removeItem(this.STORAGE_KEY);
+      } else {
+        sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
+        localStorage.removeItem(this.STORAGE_KEY);
+      }
     } else {
       localStorage.removeItem(this.STORAGE_KEY);
+      sessionStorage.removeItem(this.STORAGE_KEY);
     }
   }
 
@@ -361,15 +374,22 @@ class LoginComponent {
               <input type="text" id="login-username" class="form-control" value="superadmin" placeholder="ใส่ชื่อผู้ใช้..." required style="padding:0.75rem 1rem; border-radius:8px;">
             </div>
 
-            <div class="form-group" style="margin-bottom:1.5rem;">
+            <div class="form-group" style="margin-bottom:1.25rem;">
               <label style="font-weight:600; color:#334155;">Password (รหัสผ่าน)</label>
               <div style="position:relative;">
-                <input type="password" id="login-password" class="form-control" value="admin" placeholder="ใส่รหัสผ่าน..." required style="padding:0.75rem 1rem; border-radius:8px;">
+                <input type="password" id="login-password" class="form-control" value="admin" placeholder="ใส่รหัสผ่าน..." required style="padding:0.75rem 1rem; border-radius:8px; padding-right:2.5rem;">
                 <button type="button" id="btn-toggle-password" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">
                   <i class="fa-solid fa-eye"></i>
                 </button>
               </div>
               <small class="text-muted" style="font-size:0.8rem; margin-top:0.35rem; display:block;">💡 รหัสผ่านเริ่มต้นคือ: <code>admin</code></small>
+            </div>
+
+            <div class="form-group" style="margin-bottom:1.5rem;">
+              <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; color:#475569; user-select:none;">
+                <input type="checkbox" id="login-remember-me" checked style="width:16px; height:16px; accent-color:#2563eb;">
+                <span>จดจำการเข้าสู่ระบบ (Remember Me)</span>
+              </label>
             </div>
 
             <button type="submit" class="btn btn-primary btn-full" style="padding:0.85rem; font-size:1rem; font-weight:600; border-radius:8px; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
@@ -1383,15 +1403,10 @@ class App {
     }
 
     let currentUser = AuthService.getCurrentUser();
-    if (!currentUser) {
-      // Default to Super Admin (สมบัติ น้ำวน) if not logged in
-      const defaultUser = (this.state.users && this.state.users.find(u => u.username === 'superadmin')) || (this.state.users && this.state.users[0]) || { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin' };
-      AuthService.setCurrentUser(defaultUser);
-      currentUser = defaultUser;
-      LoggerService.log(currentUser.username, currentUser.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบอัตโนมัติ');
-    }
 
     this.renderShell();
+    if (!currentUser) return; // Prompt login screen when not logged in
+
     this.setupGlobalEvents();
     this.switchTab(this.activeTab);
 
@@ -1454,12 +1469,14 @@ class App {
         e.preventDefault();
         const usernameInput = document.getElementById('login-username').value.trim();
         const passwordInput = document.getElementById('login-password').value;
+        const rememberMeInput = document.getElementById('login-remember-me');
+        const rememberMe = rememberMeInput ? rememberMeInput.checked : true;
 
         const users = this.state.users || [];
-        const user = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase() && (u.passwordHash === passwordInput || passwordInput === 'admin'));
+        const user = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase() && (u.passwordHash === passwordInput || u.password === passwordInput || passwordInput === 'admin'));
 
         if (user) {
-          AuthService.setCurrentUser(user);
+          AuthService.setCurrentUser(user, rememberMe);
           LoggerService.log(user.username, user.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบสำเร็จ');
           this.init();
         } else {
@@ -1483,11 +1500,18 @@ class App {
     document.querySelectorAll('.btn-quick-login').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const username = e.currentTarget.getAttribute('data-username');
+        const rememberMeInput = document.getElementById('login-remember-me');
+        const rememberMe = rememberMeInput ? rememberMeInput.checked : true;
         const users = this.state.users || [];
         const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
         if (user) {
-          AuthService.setCurrentUser(user);
+          AuthService.setCurrentUser(user, rememberMe);
           LoggerService.log(user.username, user.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบ 1-Click');
+          this.init();
+        }
+      });
+    });
+  }
           this.init();
         }
       });
@@ -1607,8 +1631,10 @@ class App {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
-        AuthService.setCurrentUser(null);
-        location.reload();
+        if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
+          AuthService.setCurrentUser(null);
+          this.renderShell();
+        }
       });
     }
   }
@@ -3241,7 +3267,12 @@ class App {
             </div>
             <div class="form-group">
               <label>รหัสผ่าน (Password) *</label>
-              <input type="password" id="usr-pass" class="form-control" value="${userToEdit ? (userToEdit.password || '1234') : '1234'}" required>
+              <div style="position:relative;">
+                <input type="password" id="usr-pass" class="form-control" value="${userToEdit ? (userToEdit.password || userToEdit.passwordHash || 'admin') : 'admin'}" required style="padding-right:2.5rem;">
+                <button type="button" id="btn-toggle-user-password" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
             </div>
           </div>
           <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
@@ -3253,6 +3284,18 @@ class App {
 
     modal.classList.add('active');
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    const toggleUserPassBtn = document.getElementById('btn-toggle-user-password');
+    if (toggleUserPassBtn) {
+      toggleUserPassBtn.addEventListener('click', () => {
+        const passInput = document.getElementById('usr-pass');
+        if (passInput) {
+          const isPass = passInput.type === 'password';
+          passInput.type = isPass ? 'text' : 'password';
+          toggleUserPassBtn.innerHTML = isPass ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+        }
+      });
+    }
 
     document.getElementById('user-form').addEventListener('submit', (e) => {
       e.preventDefault();
