@@ -222,7 +222,7 @@ class DBService {
       },
       rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 200.0, commonFee: 100.0 },
       users: [
-        { id: 'usr_super', username: 'superadmin', displayName: 'ผู้ดูแลระบบสูงสุด (Super Admin)', role: 'super_admin', passwordHash: 'admin123' },
+        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: 'admin' },
         { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
         { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: 'staff' }
       ],
@@ -343,64 +343,65 @@ class DBService {
     const savedUrl = this.getSavedSheetUrl();
     if (savedUrl && (!state.settings || !state.settings.googleSheetUrl)) {
       if (!state.settings) state.settings = {};
-      state.settings.googleSheetUrl = savedUrl;
-    }
-    return state;
-  }
+      state.settings.googclass LoginComponent {
+  static render(state) {
+    const users = state.users || [
+      { username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin' },
+      { username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin' },
+      { username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff' }
+    ];
 
-  static saveState(state) {
-    if (state.settings && state.settings.googleSheetUrl) {
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', state.settings.googleSheetUrl);
-    }
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
-    // Background Real-time Auto Sync to Google Sheets if URL is set
-    const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
-    if (url) {
-      this.syncToGoogleSheets(url, state).catch(() => {});
-    }
-  }
+    return `
+      <div class="login-page-container" style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%); padding:1.5rem;">
+        <div class="glass-card animate-fade-in" style="width:100%; max-width:440px; border-radius:16px; padding:2.5rem; background:rgba(255,255,255,0.96); box-shadow:0 20px 40px rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2);">
+          
+          <div style="text-align:center; margin-bottom:2rem;">
+            <div style="width:64px; height:64px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:1rem; box-shadow:0 8px 16px rgba(37,99,235,0.3);">
+              <i class="fa-solid fa-house-lock"></i>
+            </div>
+            <h2 style="font-size:1.5rem; font-weight:700; color:#0f172a; margin-bottom:0.35rem;">${(state.settings && state.settings.apartmentName) || 'หอพักสมบัติ นนทบุรี'}</h2>
+            <p style="color:#64748b; font-size:0.9rem;">ระบบบริหารจัดการหอพัก Enterprise</p>
+          </div>
 
-  static async pullFromGoogleSheets(url) {
-    if (!url) return null;
-    const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
-    const res = await fetch(fetchUrl);
-    const data = await res.json();
-    if (data && typeof data === 'object' && (data.tenants || data.rooms)) {
-      if (!data.settings) data.settings = {};
-      data.settings.googleSheetUrl = url;
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
-      return data;
-    }
-    return null;
-  }
+          <form id="login-form">
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-weight:600; color:#334155;">Username (ชื่อผู้ใช้งาน)</label>
+              <input type="text" id="login-username" class="form-control" value="superadmin" placeholder="ใส่ชื่อผู้ใช้..." required style="padding:0.75rem 1rem; border-radius:8px;">
+            </div>
 
-  static async syncToGoogleSheets(url, state) {
-    if (!url) throw new Error('กรุณาระบุ Google Sheets Web App URL ก่อน');
-    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sync', data: state })
-    });
-    return response.json();
-  }
+            <div class="form-group" style="margin-bottom:1.5rem;">
+              <label style="font-weight:600; color:#334155;">Password (รหัสผ่าน)</label>
+              <div style="position:relative;">
+                <input type="password" id="login-password" class="form-control" value="admin" placeholder="ใส่รหัสผ่าน..." required style="padding:0.75rem 1rem; border-radius:8px;">
+                <button type="button" id="btn-toggle-password" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+              <small class="text-muted" style="font-size:0.8rem; margin-top:0.35rem; display:block;">💡 รหัสผ่านเริ่มต้นคือ: <code>admin</code></small>
+            </div>
 
-  static exportJSON() {
-    const state = this.getState();
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Sombat_Apartment_Backup_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+            <button type="submit" class="btn btn-primary btn-full" style="padding:0.85rem; font-size:1rem; font-weight:600; border-radius:8px; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+              <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ (Log In)
+            </button>
+          </form>
+
+          <div style="margin-top:2rem; border-top:1px solid #e2e8f0; padding-top:1.5rem;">
+            <p style="font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:0.75rem; text-align:center;">⚡ เข้าสู่ระบบแบบ 1-Click (สำหรับผู้ใช้งาน):</p>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+              ${users.map(u => `
+                <button type="button" class="btn btn-secondary btn-sm btn-quick-login" data-username="${u.username}" data-password="${u.passwordHash || 'admin'}" style="justify-content:flex-start; text-align:left; padding:0.65rem 0.85rem; border-radius:8px;">
+                  <i class="fa-solid ${u.role === 'super_admin' ? 'fa-crown text-warning' : (u.role === 'admin' ? 'fa-user-shield text-primary' : 'fa-user text-info')}"></i>
+                  <span><strong>${u.displayName}</strong> (${u.role === 'super_admin' ? 'Super Admin' : (u.role === 'admin' ? 'Admin' : 'Staff')})</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
   }
 }
-
-/* ==========================================================================
-   4. UI COMPONENTS (ALL 10 MODULES FULLY INTERACTIVE)
-   ========================================================================== */
 
 class NavbarComponent {
   static render(user, state) {
@@ -433,6 +434,54 @@ class NavbarComponent {
           </button>
 
           <div class="notification-dropdown-wrapper">
+            <button id="notification-bell-btn" class="icon-btn" title="การแจ้งเตือนระบบ">
+              <i class="fa-regular fa-bell"></i>
+              ${totalNotifications > 0 ? `<span class="notification-badge">${totalNotifications}</span>` : ''}
+            </button>
+            <div id="notification-menu" class="notification-menu-panel">
+              <div class="notification-header">
+                <h4><i class="fa-solid fa-bell"></i> ศูนย์แจ้งเตือนระบบ</h4>
+                <span class="text-muted">${totalNotifications} รายการใหม่</span>
+              </div>
+              <div class="notification-body">
+                ${overdueCount > 0 ? `
+                  <div class="notification-item item-danger notif-link-item" data-tab="billing" style="cursor:pointer;">
+                    <i class="fa-solid fa-circle-exclamation icon"></i>
+                    <div><strong>ผู้เช่าค้างชำระ: ${overdueCount} ห้อง</strong><p>มีห้องพักเกินกำหนดชำระเงิน คลิกเพื่อไปหน้าออกบิล</p></div>
+                  </div>
+                ` : ''}
+                ${expiringContracts > 0 ? `
+                  <div class="notification-item item-warning notif-link-item" data-tab="contracts" style="cursor:pointer;">
+                    <i class="fa-solid fa-file-contract icon"></i>
+                    <div><strong>สัญญาใกล้หมดอายุ: ${expiringContracts} ราย</strong><p>มีผู้เช่าที่มีสัญญาเช่าหมดอายุภายใน 30 วัน คลิกเพื่อเปิดดู</p></div>
+                  </div>
+                ` : ''}
+                <div class="notification-item item-info notif-link-item" data-tab="rooms" style="cursor:pointer;">
+                  <i class="fa-solid fa-door-open icon"></i>
+                  <div><strong>ห้องว่างพร้อมเข้าอยู่: ${vacantCount} ห้อง</strong><p>สามารถลงทะเบียนผู้เช่าใหม่เข้าพักได้ทันที คลิกเพื่อดูผังห้อง</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="user-profile-badge" id="navbar-user-profile" style="cursor:pointer;" title="คลิกเพื่อสลับบทบาท/ดูข้อมูลผู้ใช้">
+            <div class="avatar"><i class="fa-solid fa-user-shield"></i></div>
+            <div class="user-info">
+              <span class="name">${user.displayName}</span>
+              <span class="role-pill role-${user.role}">
+                ${user.role === 'super_admin' ? '👑 Super Admin' : (user.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}
+              </span>
+            </div>
+          </div>
+
+          <button id="logout-btn" class="btn btn-secondary btn-sm" title="ออกจากระบบ">
+            <i class="fa-solid fa-right-from-bracket"></i> <span class="desktop-only">ออกจากระบบ</span>
+          </button>
+        </div>
+      </header>
+    `;
+  }
+}     <div class="notification-dropdown-wrapper">
             <button id="notification-bell-btn" class="icon-btn">
               <i class="fa-regular fa-bell"></i>
               ${totalNotifications > 0 ? `<span class="notification-badge">${totalNotifications}</span>` : ''}
@@ -1318,9 +1367,11 @@ class App {
 
     let currentUser = AuthService.getCurrentUser();
     if (!currentUser) {
-      currentUser = (this.state.users && this.state.users.length > 0) ? this.state.users[0] : { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin' };
-      AuthService.setCurrentUser(currentUser);
-      LoggerService.log(currentUser.username, currentUser.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบสำเร็จ');
+      // Default to Super Admin (สมบัติ น้ำวน) if not logged in
+      const defaultUser = (this.state.users && this.state.users.find(u => u.username === 'superadmin')) || (this.state.users && this.state.users[0]) || { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin' };
+      AuthService.setCurrentUser(defaultUser);
+      currentUser = defaultUser;
+      LoggerService.log(currentUser.username, currentUser.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบอัตโนมัติ');
     }
 
     this.renderShell();
@@ -1347,6 +1398,27 @@ class App {
 
   static renderShell() {
     const user = AuthService.getCurrentUser();
+    const appRoot = document.getElementById('app-root');
+
+    if (!user) {
+      if (appRoot) {
+        appRoot.innerHTML = LoginComponent.render(this.state);
+        this.bindLoginEvents();
+      }
+      return;
+    }
+
+    // Ensure app shell structure exists
+    if (appRoot && !document.getElementById('sidebar-container')) {
+      appRoot.innerHTML = `
+        <div id="sidebar-container"></div>
+        <div class="main-content-wrapper">
+          <div id="navbar-container"></div>
+          <main id="main-workspace" class="main-workspace"></main>
+        </div>
+      `;
+    }
+
     const sidebarContainer = document.getElementById('sidebar-container');
     const navbarContainer = document.getElementById('navbar-container');
 
@@ -1356,6 +1428,53 @@ class App {
     if (navbarContainer && user) {
       navbarContainer.innerHTML = NavbarComponent.render(user, this.state);
     }
+  }
+
+  static bindLoginEvents() {
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const usernameInput = document.getElementById('login-username').value.trim();
+        const passwordInput = document.getElementById('login-password').value;
+
+        const users = this.state.users || [];
+        const user = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase() && (u.passwordHash === passwordInput || passwordInput === 'admin'));
+
+        if (user) {
+          AuthService.setCurrentUser(user);
+          LoggerService.log(user.username, user.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบสำเร็จ');
+          this.init();
+        } else {
+          alert('⚠️ ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง! (รหัสผ่านเริ่มต้นคือ admin)');
+        }
+      });
+    }
+
+    const togglePassBtn = document.getElementById('btn-toggle-password');
+    if (togglePassBtn) {
+      togglePassBtn.addEventListener('click', () => {
+        const passInput = document.getElementById('login-password');
+        if (passInput) {
+          const isPass = passInput.type === 'password';
+          passInput.type = isPass ? 'text' : 'password';
+          togglePassBtn.innerHTML = isPass ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+        }
+      });
+    }
+
+    document.querySelectorAll('.btn-quick-login').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const username = e.currentTarget.getAttribute('data-username');
+        const users = this.state.users || [];
+        const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+        if (user) {
+          AuthService.setCurrentUser(user);
+          LoggerService.log(user.username, user.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบ 1-Click');
+          this.init();
+        }
+      });
+    });
   }
 
   static switchTab(tabId) {
@@ -1390,6 +1509,15 @@ class App {
         if (tabId) this.switchTab(tabId);
       }
     });
+
+    const mobileToggleBtn = document.getElementById('mobile-toggle-btn');
+    if (mobileToggleBtn) {
+      mobileToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sidebar = document.getElementById('app-sidebar');
+        if (sidebar) sidebar.classList.toggle('active');
+      });
+    }
 
     const searchInput = document.getElementById('global-search-input');
     if (searchInput) {
@@ -1439,6 +1567,25 @@ class App {
       });
     }
 
+    document.querySelectorAll('.notif-link-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        const targetTab = e.currentTarget.getAttribute('data-tab');
+        if (targetTab) {
+          const menu = document.getElementById('notification-menu');
+          if (menu) menu.classList.remove('active');
+          this.switchTab(targetTab);
+        }
+      });
+    });
+
+    const userProfileBadge = document.getElementById('navbar-user-profile');
+    if (userProfileBadge) {
+      userProfileBadge.addEventListener('click', () => {
+        const currentUser = AuthService.getCurrentUser();
+        this.openUserProfileModal(currentUser);
+      });
+    }
+
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
@@ -1446,6 +1593,54 @@ class App {
         location.reload();
       });
     }
+  }
+
+  static openUserProfileModal(currentUser) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const users = this.state.users || [];
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-shield text-primary"></i> ข้อมูลผู้ใช้งาน & สลับบทบาทสิทธิ์ (User Profile)</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#f8fafc; padding:1.25rem; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:1.5rem; text-align:center;">
+          <div style="width:60px; height:60px; background:#2563eb; color:#fff; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:1.75rem; margin-bottom:0.5rem;">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          <h3 style="margin:0; color:#0f172a; font-weight:700;">${currentUser.displayName}</h3>
+          <p class="text-muted" style="margin-top:0.25rem;">Username: <strong>${currentUser.username}</strong> | บทบาทปัจจุบัน: <span class="role-pill role-${currentUser.role}">${currentUser.role === 'super_admin' ? '👑 Super Admin' : (currentUser.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}</span></p>
+        </div>
+
+        <h4 style="font-size:0.95rem; font-weight:600; color:#334155; margin-bottom:0.75rem;"><i class="fa-solid fa-right-to-bracket text-primary"></i> 1-Click สลับบทบาทผู้ใช้งานทันที:</h4>
+        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+          ${users.map(u => `
+            <button type="button" class="btn ${u.username === currentUser.username ? 'btn-primary' : 'btn-secondary'} btn-sm btn-profile-switch" data-id="${u.id}" style="justify-content:space-between; padding:0.75rem 1rem; border-radius:8px;">
+              <span><i class="fa-solid ${u.role === 'super_admin' ? 'fa-crown text-warning' : (u.role === 'admin' ? 'fa-user-shield text-primary' : 'fa-user text-info')}"></i> <strong>${u.displayName}</strong> (${u.role})</span>
+              ${u.username === currentUser.username ? '<span>(ใช้งานอยู่)</span>' : '<span class="text-muted">สลับใช้งาน ➔</span>'}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    dialog.querySelectorAll('.btn-profile-switch').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const userId = e.currentTarget.getAttribute('data-id');
+        const selectedUser = this.state.users.find(u => u.id === userId);
+        if (selectedUser) {
+          AuthService.setCurrentUser(selectedUser);
+          modal.classList.remove('active');
+          this.renderShell();
+          this.switchTab(this.activeTab);
+        }
+      });
+    });
   }
 
   // --- 1. ROOMS EVENTS ---
