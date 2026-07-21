@@ -549,6 +549,7 @@ class SidebarComponent {
       { id: 'contracts', label: 'จัดการสัญญาเช่า', icon: 'fa-file-contract', roles: ['super_admin', 'admin'] },
       { id: 'tenants', label: 'ข้อมูลผู้เช่า', icon: 'fa-users', roles: ['super_admin', 'admin'] },
       { id: 'rooms', label: 'ข้อมูลห้องเช่า', icon: 'fa-building-user', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'roomtypes', label: 'ประเภทห้องเช่า', icon: 'fa-layer-group', roles: ['super_admin', 'admin'] },
       { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'repairs', label: 'ระบบแจ้งซ่อม', icon: 'fa-screwdriver-wrench', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', roles: ['super_admin', 'admin'] },
@@ -946,16 +947,81 @@ class RoomsComponent {
                 </div>
                 <div class="room-card-body">
                   <div class="info-row"><span>ชั้น / ประเภท:</span><strong>ชั้น ${room.floor} (${typeName})</strong></div>
-                  <div class="info-row"><span>ค่าเช่า:</span><strong class="text-primary">${Formatters.currency(room.baseRent)}</strong></div>
+                  <div class="info-row"><span>ค่าเช่า:</span><strong class="text-primary">${Formatters.currency(room.baseRent)} ${type && type.rentalType === 'daily' ? '/ วัน' : '/ เดือน'}</strong></div>
                   <div class="info-row"><span>ผู้เช่าปัจจุบัน:</span><strong>${room.currentTenantName || 'ไม่มีผู้เข้าเช่า'}</strong></div>
                 </div>
                 <div class="room-card-footer">
-                  <button class="btn btn-secondary btn-xs btn-edit-room" data-id="${room.id}">แก้ไขห้อง</button>
-                  <button class="btn btn-primary btn-xs btn-action-bill" data-id="${room.id}">ออกบิล</button>
+                  <button class="btn btn-secondary btn-xs btn-edit-room" data-id="${room.id}"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                  <button class="btn btn-primary btn-xs btn-action-bill" data-id="${room.id}"><i class="fa-solid fa-calculator"></i> ออกบิล</button>
+                  <button class="btn btn-danger btn-xs btn-delete-room" data-id="${room.id}" data-name="${room.name}"><i class="fa-solid fa-trash"></i> ลบห้อง</button>
                 </div>
               </div>
             `;
           }).join('')}
+        </div>
+      </div>
+    `;
+  }
+}
+
+class RoomTypesComponent {
+  static render(state) {
+    const roomTypes = state.roomTypes || [];
+
+    return `
+      <div class="view-container animate-fade-in">
+        <div class="view-header">
+          <div>
+            <h2><i class="fa-solid fa-layer-group text-primary"></i> จัดการประเภทห้องเช่า (รายวัน & รายเดือน)</h2>
+            <p>กำหนดประเภทห้องเช่า เช่น ห้องพัดลม, ห้องแอร์, ห้องรายวัน (Daily), ห้องพาณิชย์ และเรทราคาค่าเช่า</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-add-roomtype" class="btn btn-primary"><i class="fa-solid fa-plus"></i> เพิ่มประเภทห้องเช่าใหม่</button>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ชื่อประเภทห้องเช่า</th>
+                  <th>รูปแบบสัญญาเช่า</th>
+                  <th>อัตราค่าเช่า (บาท)</th>
+                  <th>รายละเอียดห้อง</th>
+                  <th>จำนวนห้องในระบบ</th>
+                  <th>การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${roomTypes.length === 0 ? `
+                  <tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">ยังไม่มีประเภทห้องเช่า กดปุ่ม "เพิ่มประเภทห้องเช่าใหม่" ด้านบนเพื่อเริ่มสร้าง</td></tr>
+                ` : roomTypes.map(rt => {
+                  const isDaily = rt.rentalType === 'daily';
+                  const roomCount = (state.rooms || []).filter(r => r.typeId === rt.id).length;
+                  return `
+                    <tr>
+                      <td><strong>${rt.name}</strong></td>
+                      <td>
+                        <span class="badge-pill ${isDaily ? 'badge-warning' : 'badge-info'}">
+                          ${isDaily ? '🌞 สัญญารายวัน (Daily)' : '📅 สัญญารายเดือน (Monthly)'}
+                        </span>
+                      </td>
+                      <td><strong class="text-primary">${Formatters.currency(rt.defaultRent)} ${isDaily ? '/ วัน' : '/ เดือน'}</strong></td>
+                      <td><span class="text-muted text-sm">${rt.description || '-'}</span></td>
+                      <td><span class="badge-pill badge-gray">${roomCount} ห้อง</span></td>
+                      <td>
+                        <div class="action-buttons">
+                          <button class="btn btn-secondary btn-xs btn-edit-roomtype" data-id="${rt.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
+                          <button class="btn btn-danger btn-xs btn-delete-roomtype" data-id="${rt.id}" data-name="${rt.name}"><i class="fa-solid fa-trash"></i> ลบ</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
@@ -1500,6 +1566,7 @@ class App {
       case 'contracts': workspace.innerHTML = ContractsComponent.render(this.state); this.bindContractsEvents(); break;
       case 'tenants': workspace.innerHTML = TenantsComponent.render(this.state); this.bindTenantsEvents(); break;
       case 'rooms': workspace.innerHTML = RoomsComponent.render(this.state); this.bindRoomsEvents(); break;
+      case 'roomtypes': workspace.innerHTML = RoomTypesComponent.render(this.state); this.bindRoomTypesEvents(); break;
       case 'billing': workspace.innerHTML = BillingComponent.render(this.state); this.bindBillingEvents(); break;
       case 'repairs': workspace.innerHTML = RepairsComponent.render(this.state); this.bindRepairsEvents(); break;
       case 'accounting': workspace.innerHTML = AccountingComponent.render(this.state); this.bindAccountingEvents(); break;
@@ -1678,6 +1745,130 @@ class App {
           this.openCreateBillModal(room);
         }
       });
+    });
+
+    document.querySelectorAll('.btn-delete-room').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const name = e.currentTarget.getAttribute('data-name');
+        if (confirm(`คุณต้องการลบห้องพัก "${name}" ออกจากระบบใช่หรือไม่?\n\n(ระบบจะทำการซิงค์ลบข้อมูลลง Google Sheets อัตโนมัติ)`)) {
+          const idx = this.state.rooms.findIndex(r => r.id === id);
+          if (idx !== -1) {
+            this.state.rooms.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('rooms');
+          }
+        }
+      });
+    });
+  }
+
+  // --- 1.1 ROOM TYPES EVENTS ---
+  static bindRoomTypesEvents() {
+    const addTypeBtn = document.getElementById('btn-add-roomtype');
+    if (addTypeBtn) {
+      addTypeBtn.addEventListener('click', () => this.openRoomTypeModal());
+    }
+
+    document.querySelectorAll('.btn-edit-roomtype').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const rt = (this.state.roomTypes || []).find(t => t.id === id);
+        if (rt) this.openRoomTypeModal(rt);
+      });
+    });
+
+    document.querySelectorAll('.btn-delete-roomtype').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const name = e.currentTarget.getAttribute('data-name');
+        const roomsUsing = (this.state.rooms || []).filter(r => r.typeId === id);
+        if (roomsUsing.length > 0) {
+          alert(`⚠️ ไม่สามารถลบประเภทห้อง "${name}" ได้ เนื่องจากยังมีห้องพักที่ใช้งานประเภทนี้อยู่จำนวน ${roomsUsing.length} ห้อง`);
+          return;
+        }
+
+        if (confirm(`คุณต้องการลบประเภทห้องเช่า "${name}" ออกจากระบบใช่หรือไม่?`)) {
+          const types = this.state.roomTypes || [];
+          const idx = types.findIndex(t => t.id === id);
+          if (idx !== -1) {
+            types.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('roomtypes');
+          }
+        }
+      });
+    });
+  }
+
+  static openRoomTypeModal(typeToEdit = null) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const isEdit = !!typeToEdit;
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid ${isEdit ? 'fa-pen text-info' : 'fa-plus text-primary'}"></i> ${isEdit ? 'แก้ไขประเภทห้องเช่า' : 'เพิ่มประเภทห้องเช่าใหม่'}</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="roomtype-form">
+          <div class="form-group">
+            <label>ชื่อประเภทห้องเช่า *</label>
+            <input type="text" id="rt-name" class="form-control" value="${typeToEdit ? typeToEdit.name : ''}" placeholder="เช่น ห้องแอร์รายวัน VIP, ห้องพัดลมมาตรฐาน" required>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>รูปแบบสัญญาเช่า *</label>
+              <select id="rt-rentaltype" class="form-control" required>
+                <option value="monthly" ${typeToEdit && typeToEdit.rentalType === 'monthly' ? 'selected' : ''}>📅 สัญญารายเดือน (Monthly)</option>
+                <option value="daily" ${typeToEdit && typeToEdit.rentalType === 'daily' ? 'selected' : ''}>🌞 สัญญารายวัน (Daily)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>อัตราค่าเช่ามาตรฐาน (บาท) *</label>
+              <input type="number" id="rt-rent" class="form-control" value="${typeToEdit ? typeToEdit.defaultRent : 3500}" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>รายละเอียดคำอธิบายห้องเพิ่มเติม</label>
+            <input type="text" id="rt-desc" class="form-control" value="${typeToEdit ? (typeToEdit.description || '') : ''}" placeholder="ระบุเครื่องใช้ไฟฟ้า เฟอร์นิเจอร์ สิ่งอำนวยความสะดวก...">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกประเภทห้องเช่า
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('roomtype-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('rt-name').value.trim();
+      const rentalType = document.getElementById('rt-rentaltype').value;
+      const defaultRent = parseFloat(document.getElementById('rt-rent').value) || 0;
+      const description = document.getElementById('rt-desc').value.trim();
+
+      if (!this.state.roomTypes) this.state.roomTypes = [];
+
+      if (isEdit) {
+        const idx = this.state.roomTypes.findIndex(t => t.id === typeToEdit.id);
+        if (idx !== -1) {
+          this.state.roomTypes[idx] = { ...this.state.roomTypes[idx], name, rentalType, defaultRent, description };
+        }
+      } else {
+        const newType = {
+          id: 'rt_' + Date.now(),
+          name, rentalType, defaultRent, description
+        };
+        this.state.roomTypes.push(newType);
+      }
+
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('roomtypes');
     });
   }
 

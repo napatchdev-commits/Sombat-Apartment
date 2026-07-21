@@ -64,9 +64,29 @@ function readAndMergeSheetTabs(ss, data) {
   if (!data.ledger) data.ledger = [];
   if (!data.events) data.events = [];
   if (!data.users) data.users = [];
+  if (!data.roomTypes) data.roomTypes = [];
   if (!data.rates) data.rates = { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, customFees: [] };
 
-  // A. Read RATES_AND_FEES Tab
+  // A. Read ROOM_TYPES Tab
+  var rtSheet = ss.getSheetByName("ROOM_TYPES");
+  if (rtSheet) {
+    var rtValues = rtSheet.getRange("A2:E100").getValues();
+    rtValues.forEach(function(row) {
+      var id = String(row[0]).trim();
+      var name = String(row[1]).trim();
+      if (id || name) {
+        var rt = data.roomTypes.find(function(t) { return t.id === id || t.name === name; });
+        if (rt) {
+          if (row[1]) rt.name = String(row[1]);
+          if (row[2]) rt.rentalType = (String(row[2]).indexOf('รายวัน') !== -1 || String(row[2]).indexOf('daily') !== -1) ? 'daily' : 'monthly';
+          if (row[3] !== "") rt.defaultRent = Number(row[3]);
+          if (row[4]) rt.description = String(row[4]);
+        }
+      }
+    });
+  }
+
+  // B. Read RATES_AND_FEES Tab
   var ratesSheet = ss.getSheetByName("RATES_AND_FEES");
   if (ratesSheet) {
     var rateValues = ratesSheet.getRange("A2:E100").getValues();
@@ -88,7 +108,7 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // B. Read ROOMS Tab
+  // C. Read ROOMS Tab
   var rSheet = ss.getSheetByName("ROOMS");
   if (rSheet) {
     var rValues = rSheet.getRange("A2:H100").getValues();
@@ -109,7 +129,7 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // C. Read TENANTS Tab
+  // D. Read TENANTS Tab
   var tSheet = ss.getSheetByName("TENANTS");
   if (tSheet) {
     var tValues = tSheet.getRange("A2:J200").getValues();
@@ -129,7 +149,7 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // D. Read INVOICES Tab
+  // E. Read INVOICES Tab
   var invSheet = ss.getSheetByName("INVOICES");
   if (invSheet) {
     var invValues = invSheet.getRange("A2:P300").getValues();
@@ -164,29 +184,6 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // E. Read REPAIRS Tab
-  var repSheet = ss.getSheetByName("REPAIRS");
-  if (repSheet) {
-    var repValues = repSheet.getRange("A2:I200").getValues();
-    repValues.forEach(function(row) {
-      var ticketNum = String(row[0]).trim();
-      if (ticketNum) {
-        var rep = data.repairs.find(function(r) { return r.ticketNumber === ticketNum; });
-        if (rep) {
-          if (row[3]) rep.title = String(row[3]);
-          if (row[4]) rep.description = String(row[4]);
-          if (row[5] !== "") rep.expenseAmount = Number(row[5]);
-          if (row[6]) rep.assignedTechnician = String(row[6]);
-          if (row[8]) {
-            var st = String(row[8]).trim().toLowerCase();
-            if (st === 'completed' || st === 'เสร็จสิ้น') rep.status = 'completed';
-            else rep.status = 'pending';
-          }
-        }
-      }
-    });
-  }
-
   return data;
 }
 
@@ -203,6 +200,7 @@ function formatDateString(val) {
 // ==========================================================================
 function writeAllStructuredSheets(ss, data) {
   writeDashboardSheet(ss, data);
+  writeRoomTypesSheet(ss, data.roomTypes || []);
   writeRoomsSheet(ss, data.rooms || []);
   writeTenantsSheet(ss, data.tenants || [], data.rooms || []);
   writeContractsSheet(ss, data.tenants || [], data.rooms || []);
@@ -212,6 +210,19 @@ function writeAllStructuredSheets(ss, data) {
   writeEventsSheet(ss, data.events || []);
   writeUsersSheet(ss, data.users || []);
   writeRatesSheet(ss, data.rates || {});
+}
+
+function writeRoomTypesSheet(ss, roomTypes) {
+  var sheet = ss.getSheetByName("ROOM_TYPES");
+  if (!sheet) {
+    sheet = ss.insertSheet("ROOM_TYPES");
+    sheet.appendRow(["ID ประเภท", "ชื่อประเภทห้องเช่า", "รูปแบบสัญญา", "อัตราค่าเช่า (บาท)", "รายละเอียด"]);
+  }
+  sheet.getRange("A2:E100").clearContent();
+  roomTypes.forEach(function(rt) {
+    var typeStr = rt.rentalType === 'daily' ? "สัญญารายวัน (Daily)" : "สัญญารายเดือน (Monthly)";
+    sheet.appendRow([rt.id, rt.name, typeStr, rt.defaultRent, rt.description || ""]);
+  });
 }
 
 function writeRatesSheet(ss, rates) {
@@ -267,7 +278,7 @@ function writeRoomsSheet(ss, rooms) {
   var sheet = ss.getSheetByName("ROOMS");
   if (!sheet) {
     sheet = ss.insertSheet("ROOMS");
-    sheet.appendRow(["ID ห้อง", "เลขห้อง/ชื่อห้อง", "ชั้นที่", "ค่าเช่า (บาท/เดือน)", "ผู้เช่าปัจจุบัน", "มิเตอร์ไฟล่าสุด", "มิเตอร์น้ำล่าสุด", "สถานะ"]);
+    sheet.appendRow(["ID ห้อง", "เลขห้อง/ชื่อห้อง", "ชั้นที่", "ค่าเช่า (บาท)", "ผู้เช่าปัจจุบัน", "มิเตอร์ไฟล่าสุด", "มิเตอร์น้ำล่าสุด", "สถานะ"]);
   }
   sheet.getRange("A2:H100").clearContent();
   rooms.forEach(function(r) {
