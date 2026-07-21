@@ -1538,99 +1538,113 @@ class App {
   }
 
   static setupGlobalEvents() {
+    // Global delegated click handler for dynamic elements (Links, Logout, User Profile, Notifications)
     document.addEventListener('click', (e) => {
+      // 1. Sidebar Nav Links
       const link = e.target.closest('a[data-tab]');
       if (link) {
         e.preventDefault();
         const tabId = link.getAttribute('data-tab');
         if (tabId) this.switchTab(tabId);
+        return;
       }
-    });
 
-    const mobileToggleBtn = document.getElementById('mobile-toggle-btn');
-    if (mobileToggleBtn) {
-      mobileToggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const sidebar = document.getElementById('app-sidebar');
-        if (sidebar) sidebar.classList.toggle('active');
-      });
-    }
-
-    const searchInput = document.getElementById('global-search-input');
-    if (searchInput) {
-      searchInput.addEventListener('input', () => {
-        const query = searchInput.value.toLowerCase().trim();
-        const rows = document.querySelectorAll('.custom-table tbody tr, .room-card');
-        rows.forEach((row) => {
-          row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
-        });
-      });
-    }
-
-    const syncBtn = document.getElementById('btn-manual-sync-sheets');
-    if (syncBtn) {
-      syncBtn.addEventListener('click', async () => {
-        const url = DBService.getSavedSheetUrl();
-        if (!url) {
-          alert('กรุณาตั้งค่า Google Sheets Web App URL ก่อนกดดึงข้อมูล');
-          return;
+      // 2. Logout Button
+      const logoutBtn = e.target.closest('#logout-btn');
+      if (logoutBtn) {
+        e.preventDefault();
+        if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
+          AuthService.setCurrentUser(null);
+          this.renderShell();
         }
-        syncBtn.disabled = true;
-        syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary"></i> <span class="desktop-only">กำลังดึงข้อมูล...</span>';
-        try {
-          const cloudState = await DBService.pullFromGoogleSheets(url);
-          if (cloudState) {
-            this.state = cloudState;
-            this.switchTab(this.activeTab);
-            alert('✅ ดึงข้อมูลล่าสุดที่แก้ไขใน Google Sheets เรียบร้อยแล้ว!');
-          } else {
-            alert('ไม่พบข้อมูลใหม่จาก Google Sheets');
-          }
-        } catch (err) {
-          alert('เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets: ' + err.message);
-        } finally {
-          syncBtn.disabled = false;
-          syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>';
-        }
-      });
-    }
+        return;
+      }
 
-    const bellBtn = document.getElementById('notification-bell-btn');
-    if (bellBtn) {
-      bellBtn.addEventListener('click', (e) => {
+      // 3. User Profile Badge Click
+      const profileBadge = e.target.closest('#navbar-user-profile');
+      if (profileBadge) {
+        e.preventDefault();
+        const currentUser = AuthService.getCurrentUser();
+        if (currentUser) this.openUserProfileModal(currentUser);
+        return;
+      }
+
+      // 4. Notification Bell Dropdown Toggle
+      const bellBtn = e.target.closest('#notification-bell-btn');
+      if (bellBtn) {
+        e.preventDefault();
         e.stopPropagation();
         const menu = document.getElementById('notification-menu');
         if (menu) menu.classList.toggle('active');
-      });
-    }
+        return;
+      }
 
-    document.querySelectorAll('.notif-link-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        const targetTab = e.currentTarget.getAttribute('data-tab');
+      // 5. Notification Link Item Click
+      const notifItem = e.target.closest('.notif-link-item');
+      if (notifItem) {
+        e.preventDefault();
+        const targetTab = notifItem.getAttribute('data-tab');
         if (targetTab) {
           const menu = document.getElementById('notification-menu');
           if (menu) menu.classList.remove('active');
           this.switchTab(targetTab);
         }
-      });
+        return;
+      }
+
+      // 6. Mobile Toggle Button
+      const mobileToggle = e.target.closest('#mobile-toggle-btn');
+      if (mobileToggle) {
+        e.preventDefault();
+        e.stopPropagation();
+        const sidebar = document.getElementById('app-sidebar');
+        if (sidebar) sidebar.classList.toggle('active');
+        return;
+      }
+
+      // 7. Manual Sync Sheets Button
+      const syncBtn = e.target.closest('#btn-manual-sync-sheets');
+      if (syncBtn) {
+        e.preventDefault();
+        this.handleManualSyncSheets(syncBtn);
+        return;
+      }
     });
 
-    const userProfileBadge = document.getElementById('navbar-user-profile');
-    if (userProfileBadge) {
-      userProfileBadge.addEventListener('click', () => {
-        const currentUser = AuthService.getCurrentUser();
-        this.openUserProfileModal(currentUser);
-      });
-    }
+    // Delegated input handler for global search input
+    document.addEventListener('input', (e) => {
+      if (e.target && e.target.id === 'global-search-input') {
+        const query = e.target.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('.custom-table tbody tr, .room-card');
+        rows.forEach((row) => {
+          row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
+        });
+      }
+    });
+  }
 
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', () => {
-        if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
-          AuthService.setCurrentUser(null);
-          this.renderShell();
-        }
-      });
+  static async handleManualSyncSheets(syncBtn) {
+    const url = DBService.getSavedSheetUrl();
+    if (!url) {
+      alert('กรุณาตั้งค่า Google Sheets Web App URL ก่อนกดดึงข้อมูล');
+      return;
+    }
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary"></i> <span class="desktop-only">กำลังดึงข้อมูล...</span>';
+    try {
+      const cloudState = await DBService.pullFromGoogleSheets(url);
+      if (cloudState) {
+        this.state = cloudState;
+        this.switchTab(this.activeTab);
+        alert('✅ ดึงข้อมูลล่าสุดที่แก้ไขใน Google Sheets เรียบร้อยแล้ว!');
+      } else {
+        alert('ไม่พบข้อมูลใหม่จาก Google Sheets');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets: ' + err.message);
+    } finally {
+      syncBtn.disabled = false;
+      syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>';
     }
   }
 
