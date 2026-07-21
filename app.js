@@ -616,11 +616,7 @@ class DashboardComponent {
           <div class="kpi-card card-white"><div class="kpi-icon text-warning"><i class="fa-solid fa-file-contract"></i></div><div class="kpi-content"><span class="label">สัญญาใกล้หมดอายุ</span><h3 class="value text-warning">${expiringTenants.length} <small>ราย</small></h3></div></div>
         </div>
 
-        <div class="charts-grid-container" style="margin-top: 2rem;">
-          <div class="glass-card chart-card">
-            <div class="card-header"><h3><i class="fa-solid fa-chart-area text-primary"></i> แนวโน้มรายได้รายเดือน (Monthly Revenue)</h3></div>
-            <div class="chart-wrapper">${this.renderLineChart(state)}</div>
-          </div>
+        <div class="charts-grid-container" style="margin-top: 1.5rem; display:grid; grid-template-columns: 1fr;">
           <div class="glass-card chart-card">
             <div class="card-header"><h3><i class="fa-solid fa-chart-pie text-success"></i> สัดส่วนสถานะห้องพัก (Occupancy)</h3></div>
             <div class="chart-wrapper">${this.renderDonutChart(occupiedRooms, vacantRooms, overdueRooms, reservedRooms)}</div>
@@ -894,10 +890,10 @@ class RoomsComponent {
             const type = roomTypes.find(t => t.id === room.typeId);
             const typeName = type ? type.name : 'มาตรฐาน';
 
-            let statusClass = 'status-vacant'; let statusText = '⚪ ว่าง'; let statusBadgeClass = 'badge-gray';
-            if (room.status === 'occupied') { statusClass = 'status-occupied'; statusText = '🟢 มีผู้เช่า'; statusBadgeClass = 'badge-success'; }
-            else if (room.status === 'overdue') { statusClass = 'status-overdue'; statusText = '🔴 ค้างชำระ'; statusBadgeClass = 'badge-danger'; }
-            else if (room.status === 'reserved') { statusClass = 'status-reserved'; statusText = '🟡 จองแล้ว'; statusBadgeClass = 'badge-warning'; }
+            const isVacant = room.status === 'vacant' && (!room.currentTenantName || room.currentTenantName === 'ไม่มีผู้เข้าเช่า' || room.currentTenantName === '-');
+            const statusClass = isVacant ? 'status-vacant' : 'status-not-vacant';
+            const statusText = isVacant ? '⚪ ว่าง' : '🟢 มีผู้เช่า';
+            const statusBadgeClass = isVacant ? 'badge-gray' : 'badge-success';
 
             return `
               <div class="room-card ${statusClass}">

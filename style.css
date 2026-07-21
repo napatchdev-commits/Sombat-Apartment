@@ -470,15 +470,13 @@ body {
 
 .rooms-cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.65rem;
 }
 
 .room-card {
-    background: #ffffff;
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 1.25rem;
+    border-radius: var(--radius-md);
+    padding: 0.65rem 0.75rem;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -487,26 +485,36 @@ body {
 }
 
 .room-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
 
-.room-card.status-occupied { border-color: var(--success); }
-.room-card.status-vacant { border-color: #cbd5e1; }
-.room-card.status-overdue { border-color: var(--danger); }
-.room-card.status-reserved { border-color: var(--warning); }
+/* ALL NON-VACANT ROOMS -> GREEN SQUARE CARDS */
+.room-card.status-not-vacant,
+.room-card.status-occupied,
+.room-card.status-overdue,
+.room-card.status-reserved {
+    border: 2px solid #10b981;
+    background: #ecfdf5;
+}
+
+/* VACANT ROOMS -> GRAY SQUARE CARDS */
+.room-card.status-vacant {
+    border: 2px solid #cbd5e1;
+    background: #f8fafc;
+}
 
 .room-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px dashed var(--border-color);
-    padding-bottom: 0.75rem;
-    margin-bottom: 0.85rem;
+    border-bottom: 1px dashed rgba(0,0,0,0.12);
+    padding-bottom: 0.35rem;
+    margin-bottom: 0.45rem;
 }
 
 .room-card-header .room-number {
-    font-size: 1.3rem;
+    font-size: 1.05rem;
     font-weight: 800;
     color: var(--text-main);
 }
@@ -514,16 +522,23 @@ body {
 .room-card-body .info-row {
     display: flex;
     justify-content: space-between;
-    font-size: 0.85rem;
-    margin-bottom: 0.5rem;
+    font-size: 0.76rem;
+    margin-bottom: 0.25rem;
+    line-height: 1.35;
 }
 
 .room-card-footer {
     display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border-color);
+    gap: 0.25rem;
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid rgba(0,0,0,0.08);
+}
+
+.room-card-footer .btn {
+    padding: 0.22rem 0.4rem;
+    font-size: 0.72rem;
+    border-radius: var(--radius-sm);
 }
 
 /* Custom Styled Data Tables */
