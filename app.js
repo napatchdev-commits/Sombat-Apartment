@@ -1,13 +1,12 @@
 // ==========================================================================
-// SOMBAT APARTMENT (ENTERPRISE EDITION) - SELF-CONTAINED APP CONTROLLER
-// 100% Compatible with Vercel, GitHub Pages, Local file:// & Modern Browsers
+// SOMBAT APARTMENT (ENTERPRISE EDITION) - FULLY INTERACTIVE APP CONTROLLER
+// 100% Compatible with Vercel, GitHub Pages, Local file:// & Google Sheets Sync
 // ==========================================================================
 
 /* ==========================================================================
-   1. TYPES & INTERFACES (JS RUNTIME DEFINITIONS)
+   1. USER PERMISSIONS & DEFINITIONS
    ========================================================================== */
 
-// Role & Permission Definitions
 const USER_PERMISSIONS = {
   super_admin: {
     canManageAdmins: true, canManageRooms: true, canManageTenants: true,
@@ -64,7 +63,7 @@ class Formatters {
 }
 
 /* ==========================================================================
-   3. SERVICES (AUTH, LOGGER, PROMPTPAY, LINE, EXPORT, DB)
+   3. SERVICES (AUTH, LOGGER, PROMPTPAY, LINE, EXPORT, DB, SHEETS)
    ========================================================================== */
 
 class AuthService {
@@ -199,6 +198,7 @@ class DBService {
         bankAccountNo: '080-2-59916-1',
         bankAccountName: 'นายสมบัติ น้ำวน',
         promptPayId: '0805991691',
+        googleSheetUrl: ''
       },
       rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 200.0, commonFee: 100.0 },
       rateHistory: [
@@ -284,6 +284,16 @@ class DBService {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
   }
 
+  static async syncToGoogleSheets(url, state) {
+    if (!url) throw new Error('กรุณาระบุ Google Sheets Web App URL ก่อน');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'sync', data: state })
+    });
+    return response.json();
+  }
+
   static exportJSON() {
     const state = this.getState();
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -308,7 +318,7 @@ class DBService {
 }
 
 /* ==========================================================================
-   4. UI COMPONENTS (NAVBAR, SIDEBAR, DASHBOARD, TENANTS, ROOMS, ETC.)
+   4. UI COMPONENTS (NAVBAR, SIDEBAR, DASHBOARD, CONTRACTS, TENANTS, ETC.)
    ========================================================================== */
 
 class NavbarComponent {
@@ -393,6 +403,7 @@ class SidebarComponent {
   static getMenuItems() {
     return [
       { id: 'dashboard', label: 'หน้าหลัก (Dashboard)', icon: 'fa-chart-pie', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'contracts', label: 'จัดการสัญญาเช่า', icon: 'fa-file-contract', roles: ['super_admin', 'admin'] },
       { id: 'tenants', label: 'ข้อมูลผู้เช่า', icon: 'fa-users', roles: ['super_admin', 'admin'] },
       { id: 'rooms', label: 'ข้อมูลห้องเช่า', icon: 'fa-building-user', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', roles: ['super_admin', 'admin', 'staff'] },
@@ -400,7 +411,7 @@ class SidebarComponent {
       { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', roles: ['super_admin', 'admin'] },
       { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'reports', label: 'ระบบรายงาน', icon: 'fa-chart-line', roles: ['super_admin', 'admin'] },
-      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & แอดมิน', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
+      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & Google Sheets', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
     ];
   }
 
@@ -432,7 +443,7 @@ class SidebarComponent {
         </nav>
 
         <div class="sidebar-footer">
-          <p><i class="fa-solid fa-shield-halved"></i> ระบบปลอดภัย 100%</p>
+          <p><i class="fa-solid fa-cloud"></i> บันทึกซิงค์ Google Sheets</p>
           <span class="version">v3.5 Enterprise Edition</span>
         </div>
       </aside>
@@ -452,10 +463,7 @@ class DashboardComponent {
     const monthKeyCurrent = todayStr.slice(0, 7);
     const yearCurrent = todayStr.slice(0, 4);
 
-    let todayIncome = 0;
-    let monthIncome = 0;
-    let yearIncome = 0;
-    let totalOutstanding = 0;
+    let todayIncome = 0; let monthIncome = 0; let yearIncome = 0; let totalOutstanding = 0;
 
     state.invoices.forEach(inv => {
       if (inv.paymentDate === todayStr) todayIncome += inv.paidAmount;
@@ -580,6 +588,113 @@ class DashboardComponent {
           <div class="legend-item">🔴 ค้างชำระ: <strong>${overdue}</strong></div>
           <div class="legend-item">⚪ ห้องว่าง: <strong>${vacant}</strong></div>
           <div class="legend-item">🟡 จองแล้ว: <strong>${reserved}</strong></div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+class ContractsComponent {
+  static render(state) {
+    const tenants = state.tenants;
+    const rooms = state.rooms;
+
+    const contracts = tenants.map(t => {
+      const room = rooms.find(r => r.id === t.assignedRoomId);
+      const today = new Date();
+      const end = t.endDate ? new Date(t.endDate) : new Date();
+      const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 3600 * 24));
+      
+      let status = 'active'; let statusText = '🟢 มีผลบังคับใช้'; let statusBadge = 'badge-success';
+
+      if (diffDays < 0) { status = 'expired'; statusText = '🔴 หมดอายุสัญญา'; statusBadge = 'badge-danger'; }
+      else if (diffDays <= 30) { status = 'expiring'; statusText = '🟡 ใกล้หมดสัญญา'; statusBadge = 'badge-warning'; }
+
+      return {
+        id: 'ctr_' + t.id,
+        contractNumber: `CTR-2026-${t.id.substring(0, 4).toUpperCase()}`,
+        tenantId: t.id,
+        tenantName: t.name,
+        idCard: t.idCard,
+        tel: t.tel,
+        roomId: t.assignedRoomId,
+        roomName: room ? room.name : 'ยังไม่จัดห้อง',
+        startDate: t.startDate,
+        endDate: t.endDate,
+        monthlyRent: room ? room.baseRent : 3500,
+        depositAmount: t.deposit ? t.deposit.initialBail : 7000,
+        status, statusText, statusBadge, diffDays
+      };
+    });
+
+    return `
+      <div class="view-container animate-fade-in">
+        <div class="view-header">
+          <div>
+            <h2><i class="fa-solid fa-file-contract text-primary"></i> จัดการสัญญาเช่า (Rental Contracts Management)</h2>
+            <p>ออกหนังสือสัญญาเช่า พิมพ์เอกสาร PDF บันทึกย้ายเข้า-ย้ายออก และติดตามวันหมดอายุสัญญา</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-export-contracts-excel" class="btn btn-secondary"><i class="fa-solid fa-file-excel text-success"></i> Export Excel</button>
+            <button id="btn-create-contract" class="btn btn-primary"><i class="fa-solid fa-file-circle-plus"></i> ออกสัญญาเช่าใหม่</button>
+          </div>
+        </div>
+
+        <div class="room-status-filter-bar">
+          <button class="contract-filter-btn active" data-filter="all">สัญญาทั้งหมด (${contracts.length})</button>
+          <button class="contract-filter-btn" data-filter="active">🟢 มีผลบังคับใช้ (${contracts.filter(c => c.status === 'active').length})</button>
+          <button class="contract-filter-btn" data-filter="expiring">🟡 ใกล้หมดอายุ 30 วัน (${contracts.filter(c => c.status === 'expiring').length})</button>
+          <button class="contract-filter-btn" data-filter="expired">🔴 หมดอายุสัญญา (${contracts.filter(c => c.status === 'expired').length})</button>
+        </div>
+
+        <div class="glass-card style-table-card">
+          <div class="table-responsive">
+            <table class="custom-table" id="contracts-table">
+              <thead>
+                <tr>
+                  <th>เลขที่สัญญา</th>
+                  <th>ห้องพัก</th>
+                  <th>ผู้เช่าหลัก</th>
+                  <th>เลขบัตรประชาชน</th>
+                  <th>วันเริ่มสัญญา - วันหมดอายุ</th>
+                  <th>ค่าเช่า / เงินมัดจำ</th>
+                  <th>สถานะสัญญา</th>
+                  <th>การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${contracts.map(c => `
+                  <tr class="contract-row" data-status="${c.status}">
+                    <td><strong>${c.contractNumber}</strong></td>
+                    <td><span class="badge-pill badge-primary">ห้อง ${c.roomName}</span></td>
+                    <td><strong>${c.tenantName}</strong><div class="text-muted text-sm">${c.tel}</div></td>
+                    <td><code>${Formatters.formatIdCard(c.idCard)}</code></td>
+                    <td>
+                      <div>${Formatters.thaiDate(c.startDate)} ➔</div>
+                      <div class="${c.status === 'expiring' ? 'text-warning' : c.status === 'expired' ? 'text-danger' : 'text-main'}">
+                        <strong>${Formatters.thaiDate(c.endDate)}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      <div>ค่าเช่า: <strong>${Formatters.currency(c.monthlyRent)}</strong></div>
+                      <div class="text-success text-sm">มัดจำ: ${Formatters.currency(c.depositAmount)}</div>
+                    </td>
+                    <td><span class="badge-pill ${c.statusBadge}">${c.statusText}</span></td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-print-contract-pdf" data-tenant-id="${c.tenantId}" title="พิมพ์สัญญา PDF">
+                          <i class="fa-solid fa-print text-warning"></i> พิมพ์สัญญา
+                        </button>
+                        <button class="btn btn-secondary btn-xs btn-edit-contract" data-tenant-id="${c.tenantId}">
+                          <i class="fa-solid fa-pen text-info"></i> แก้ไข
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
@@ -841,13 +956,25 @@ class ReportsComponent {
 class SettingsComponent {
   static render(state) {
     const logs = LoggerService.getLogs();
+    const settings = state.settings;
 
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
-          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าระบบและจัดการแอดมิน (Settings & Admin)</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท), ดู Activity Logs, และสำรองข้อมูล</p></div>
+          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท), บันทึกข้อมูลซิงค์คลาวด์ Google Sheets และ Activity Logs</p></div>
         </div>
         <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-cloud text-primary"></i> ซิงค์ข้อมูลลง Google Sheets</h3>
+          <div class="form-group" style="margin-top:1rem;">
+            <label>Google Apps Script Web App URL:</label>
+            <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
+          </div>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+            <button class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-save"></i> บันทึก URL</button>
+            <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้</button>
+          </div>
+        </div>
+        <div class="glass-card">
           <h3><i class="fa-solid fa-download text-success"></i> สำรอง & กู้คืนข้อมูล (Backup JSON)</h3>
           <button id="btn-backup-export" class="btn btn-success" style="margin-top:1rem;"><i class="fa-solid fa-file-export"></i> ดาวน์โหลดไฟล์สำรองข้อมูล JSON</button>
         </div>
@@ -901,6 +1028,7 @@ class App {
 
     switch (tabId) {
       case 'dashboard': workspace.innerHTML = DashboardComponent.render(this.state); break;
+      case 'contracts': workspace.innerHTML = ContractsComponent.render(this.state); this.bindContractsEvents(); break;
       case 'tenants': workspace.innerHTML = TenantsComponent.render(this.state); this.bindTenantsEvents(); break;
       case 'rooms': workspace.innerHTML = RoomsComponent.render(this.state); break;
       case 'billing': workspace.innerHTML = BillingComponent.render(this.state); this.bindBillingEvents(); break;
@@ -948,6 +1076,75 @@ class App {
       logoutBtn.addEventListener('click', () => {
         AuthService.setCurrentUser(null);
         location.reload();
+      });
+    }
+  }
+
+  static bindContractsEvents() {
+    document.querySelectorAll('.contract-filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.contract-filter-btn').forEach(b => b.classList.remove('active'));
+        const target = e.currentTarget;
+        target.classList.add('active');
+        const filter = target.getAttribute('data-filter');
+
+        document.querySelectorAll('.contract-row').forEach(row => {
+          if (filter === 'all' || row.getAttribute('data-status') === filter) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    document.querySelectorAll('.btn-print-contract-pdf').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tenantId = e.currentTarget.getAttribute('data-tenant-id');
+        const tenant = this.state.tenants.find(t => t.id === tenantId);
+        if (tenant) {
+          const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
+          const printArea = document.getElementById('print-receipt-area');
+          printArea.innerHTML = `
+            <div style="padding: 2.5rem; font-family: 'Sarabun', sans-serif; background: #fff; max-width: 700px; margin: 0 auto; border: 1px solid #ccc;">
+              <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 1rem; margin-bottom: 1.5rem;">
+                <h2>หนังสือสัญญาเช่าห้องพัก</h2>
+                <h4>${this.state.settings.apartmentName}</h4>
+                <p>${this.state.settings.address} โทร. ${this.state.settings.tel}</p>
+              </div>
+
+              <p style="text-indent: 2rem; margin-bottom: 0.75rem;">
+                สัญญาฉบับนี้ทำขึ้นเมื่อวันที่ <strong>${Formatters.thaiDate(tenant.startDate)}</strong> ระหว่าง <strong>${this.state.settings.apartmentName}</strong> (ผู้ให้เช่า) 
+                และ <strong>คุณ${tenant.name}</strong> ถือบัตรประชาชนเลขที่ <code>${Formatters.formatIdCard(tenant.idCard)}</code> (ผู้เช่า)
+              </p>
+
+              <p style="text-indent: 2rem; margin-bottom: 0.75rem;">
+                ข้อ 1. ผู้ให้เช่าตกลงให้เช่า และผู้เช่าตกลงเช่าห้องพักหมายเลข <strong>${room ? room.name : '-'}</strong> ในอัตราค่าเช่าเดือนละ <strong>${Formatters.currency(room ? room.baseRent : 3500)}</strong> 
+                โดยมีระยะเวลาสัญญาเช่าตั้งแต่ <strong>${Formatters.thaiDate(tenant.startDate)}</strong> ถึง <strong>${Formatters.thaiDate(tenant.endDate)}</strong>
+              </p>
+
+              <p style="text-indent: 2rem; margin-bottom: 1.5rem;">
+                ข้อ 2. ในวันทำสัญญานี้ ผู้เช่าได้วางเงินประกันมัดจำไว้เป็นจำนวนเงิน <strong>${Formatters.currency(tenant.deposit ? tenant.deposit.initialBail : 7000)}</strong> 
+                แก่ผู้ให้เช่าไว้เป็นหลักฐานเรียบร้อยแล้ว
+              </p>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; text-align: center; margin-top: 3rem;">
+                <div><p>(ลงชื่อ).................................................ผู้เช่า</p><p>(${tenant.name})</p></div>
+                <div><p>(ลงชื่อ).................................................ผู้ให้เช่า</p><p>(${this.state.settings.apartmentName})</p></div>
+              </div>
+            </div>
+          `;
+          window.print();
+        }
+      });
+    });
+
+    const exportExcel = document.getElementById('btn-export-contracts-excel');
+    if (exportExcel) {
+      exportExcel.addEventListener('click', () => {
+        const headers = ['ผู้เช่า', 'เลขบัตรประชาชน', 'เบอร์โทร', 'วันเริ่มสัญญา', 'วันหมดสัญญา'];
+        const rows = this.state.tenants.map(t => [t.name, t.idCard, t.tel, t.startDate, t.endDate]);
+        ExportService.exportToCSV('ทะเบียนสัญญาเช่า_Sombat.csv', headers, rows);
       });
     }
   }
@@ -1004,6 +1201,41 @@ class App {
     const backupBtn = document.getElementById('btn-backup-export');
     if (backupBtn) {
       backupBtn.addEventListener('click', () => DBService.exportJSON());
+    }
+
+    const saveUrlBtn = document.getElementById('btn-save-sheets-url');
+    if (saveUrlBtn) {
+      saveUrlBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const urlInput = document.getElementById('sheets-url-input');
+        if (urlInput) {
+          this.state.settings.googleSheetUrl = urlInput.value;
+          DBService.saveState(this.state);
+          alert('บันทึก Google Sheets Web App URL เรียบร้อยแล้ว!');
+        }
+      });
+    }
+
+    const syncSheetsBtn = document.getElementById('btn-sync-to-sheets');
+    if (syncSheetsBtn) {
+      syncSheetsBtn.addEventListener('click', async () => {
+        const url = this.state.settings.googleSheetUrl;
+        if (!url) {
+          alert('กรุณาใส่ Google Sheets Web App URL ในช่องก่อนกดบันทึกซิงค์ข้อมูล');
+          return;
+        }
+        syncSheetsBtn.disabled = true;
+        syncSheetsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งข้อมูลลง Google Sheets...';
+        try {
+          await DBService.syncToGoogleSheets(url, this.state);
+          alert('✅ บันทึกข้อมูลลง Google Sheets สำเร็จเรียบร้อยแล้ว!');
+        } catch (err) {
+          alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: ' + err.message);
+        } finally {
+          syncSheetsBtn.disabled = false;
+          syncSheetsBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้';
+        }
+      });
     }
   }
 }

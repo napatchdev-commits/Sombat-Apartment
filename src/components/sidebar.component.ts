@@ -1,5 +1,5 @@
 // ==========================================================================
-// SIDEBAR COMPONENT (NAVIGATION & BRANDING)
+// SIDEBAR COMPONENT (NAVIGATION WITH CONTRACTS & SHEETS SYNC)
 // ==========================================================================
 
 import { UserRole } from '../types/user.types';
@@ -17,6 +17,7 @@ export class SidebarComponent {
   public static getMenuItems(): SidebarMenuItem[] {
     return [
       { id: 'dashboard', label: 'หน้าหลัก (Dashboard)', icon: 'fa-chart-pie', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'contracts', label: 'จัดการสัญญาเช่า', icon: 'fa-file-contract', roles: ['super_admin', 'admin'] },
       { id: 'tenants', label: 'ข้อมูลผู้เช่า', icon: 'fa-users', roles: ['super_admin', 'admin'] },
       { id: 'rooms', label: 'ข้อมูลห้องเช่า', icon: 'fa-building-user', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', roles: ['super_admin', 'admin', 'staff'] },
@@ -24,7 +25,7 @@ export class SidebarComponent {
       { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', roles: ['super_admin', 'admin'] },
       { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'reports', label: 'ระบบรายงาน', icon: 'fa-chart-line', roles: ['super_admin', 'admin'] },
-      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & แอดมิน', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
+      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & Google Sheets', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
     ];
   }
 
@@ -62,7 +63,7 @@ export class SidebarComponent {
 
         <!-- Sidebar Footer -->
         <div class="sidebar-footer">
-          <p><i class="fa-solid fa-shield-halved"></i> ระบบปลอดภัย 100%</p>
+          <p><i class="fa-solid fa-cloud"></i> บันทึกซิงค์ Google Sheets</p>
           <span class="version">v3.5 Enterprise Edition</span>
         </div>
       </aside>

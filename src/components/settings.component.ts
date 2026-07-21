@@ -1,10 +1,9 @@
 // ==========================================================================
-// SETTINGS COMPONENT (ADMIN ROLES, ACTIVITY LOGS, RATES & BACKUP)
+// SETTINGS COMPONENT (ADMIN ROLES, LOGS, RATES, GOOGLE SHEETS & BACKUP)
 // ==========================================================================
 
 import { DatabaseState } from '../services/db.service';
 import { LoggerService } from '../services/logger.service';
-import { Formatters } from '../utils/formatters';
 
 export class SettingsComponent {
   public static render(state: DatabaseState): string {
@@ -17,22 +16,59 @@ export class SettingsComponent {
       <div class="view-container animate-fade-in">
         <div class="view-header">
           <div>
-            <h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าระบบและจัดการแอดมิน (Settings & Admin)</h2>
-            <p>จัดการผู้ใช้งานระบบ (3 บทบาท), ดู Activity Logs, ตั้งค่าเรทค่าน้ำไฟ, PromptPay QR และสำรองข้อมูล</p>
+            <h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2>
+            <p>จัดการผู้ใช้งานระบบ (3 บทบาท), บันทึกข้อมูลซิงค์คลาวด์ Google Sheets และ Activity Logs</p>
           </div>
         </div>
 
         <!-- Sub-Tabs Navigation for Settings -->
         <div class="settings-subtabs-bar">
-          <button class="subtab-btn active" data-subtab="users"><i class="fa-solid fa-users-gear"></i> ผู้ใช้งาน & สิทธิ์ (RBAC)</button>
+          <button class="subtab-btn active" data-subtab="sheets"><i class="fa-solid fa-cloud"></i> Google Sheets Cloud Sync</button>
+          <button class="subtab-btn" data-subtab="users"><i class="fa-solid fa-users-gear"></i> ผู้ใช้งาน & สิทธิ์ (RBAC)</button>
           <button class="subtab-btn" data-subtab="logs"><i class="fa-solid fa-clock-rotate-left"></i> Activity Audit Logs</button>
           <button class="subtab-btn" data-subtab="rates"><i class="fa-solid fa-bolt"></i> อัตราเรทค่าน้ำ/ไฟ & ประวัติ</button>
           <button class="subtab-btn" data-subtab="property"><i class="fa-solid fa-building"></i> ข้อมูลหอพัก & PromptPay</button>
           <button class="subtab-btn" data-subtab="backup"><i class="fa-solid fa-database"></i> สำรอง & กู้คืนข้อมูล (Backup/Restore)</button>
         </div>
 
-        <!-- Subtab 1: Admin Users & Roles -->
-        <div class="subtab-content active" id="subtab-users">
+        <!-- Subtab 1: Google Sheets Cloud Sync -->
+        <div class="subtab-content active" id="subtab-sheets">
+          <div class="grid-2-col">
+            <div class="glass-card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-network-wired text-primary"></i> บันทึกซิงค์ข้อมูลกับ Google Sheets</h3>
+              </div>
+              <form id="google-sheets-form" style="margin-top: 1rem;">
+                <div class="form-group">
+                  <label for="sheets-url-input">Google Apps Script Web App URL:</label>
+                  <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                  <button type="submit" class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-link"></i> บันทึก URL</button>
+                  <button type="button" class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="glass-card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-book text-success"></i> วิธีการติดตั้ง Apps Script บน Google Sheets</h3>
+              </div>
+              <ol style="margin-left: 1.25rem; font-size: 0.85rem; line-height: 1.6; color: var(--text-muted);">
+                <li>เปิด Google Sheets ใหม่บน Google Drive ของคุณ</li>
+                <li>ไปที่เมนู <strong>ส่วนขยาย (Extensions)</strong> ➔ เลือก <strong>Apps Script</strong></li>
+                <li>นำสคริปต์ในไฟล์ <strong>Code.gs</strong> ที่สร้างไว้ในโฟลเดอร์โครงการไปวางทับไฟล์เดิม</li>
+                <li>กด <strong>Deploy (ทำให้ใช้งานได้)</strong> ➔ เลือก <strong>New deployment (การทำให้ใช้งานได้ใหม่)</strong></li>
+                <li>เลือกประเภท <strong>Web app (แอปพลิเคชันเว็บ)</strong></li>
+                <li>กำหนด: <strong>Execute as:</strong> "Me" และ <strong>Who has access:</strong> "Anyone"</li>
+                <li>คัดลอกลิงก์ Web App URL นำมาวางในกล่องด้านซ้ายแล้วกดบันทึก</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtab 2: Admin Users & Roles -->
+        <div class="subtab-content" id="subtab-users">
           <div class="glass-card style-table-card">
             <div class="card-header flex-between">
               <h3><i class="fa-solid fa-user-shield text-primary"></i> บัญชีผู้ใช้งานระบบและกำหนดสิทธิ์ (3 Roles)</h3>
@@ -71,7 +107,7 @@ export class SettingsComponent {
           </div>
         </div>
 
-        <!-- Subtab 2: Activity Audit Logs -->
+        <!-- Subtab 3: Activity Audit Logs -->
         <div class="subtab-content" id="subtab-logs">
           <div class="glass-card style-table-card">
             <div class="card-header">
@@ -112,7 +148,7 @@ export class SettingsComponent {
           </div>
         </div>
 
-        <!-- Subtab 3: Utility Rates & History -->
+        <!-- Subtab 4: Utility Rates & History -->
         <div class="subtab-content" id="subtab-rates">
           <div class="grid-2-col">
             <div class="glass-card">
@@ -132,11 +168,7 @@ export class SettingsComponent {
                   <label>ค่าเก็บขยะรายเดือน (บาท / เดือน):</label>
                   <input type="number" id="rate-trash" class="form-control" value="${rates.trashFee}" required>
                 </div>
-                <div class="form-group">
-                  <label>ค่าอินเทอร์เน็ต WiFi (บาท / เดือน):</label>
-                  <input type="number" id="rate-internet" class="form-control" value="${rates.internetFee}" required>
-                </div>
-                <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;"><i class="fa-solid fa-save"></i> บันทึกการเปลี่ยนแปลงอัตราเรท</button>
+                <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;"><i class="fa-solid fa-save"></i> บันทึกอัตราเรท</button>
               </form>
             </div>
 
@@ -168,7 +200,7 @@ export class SettingsComponent {
           </div>
         </div>
 
-        <!-- Subtab 4: Property & PromptPay Settings -->
+        <!-- Subtab 5: Property & PromptPay Settings -->
         <div class="subtab-content" id="subtab-property">
           <div class="glass-card" style="max-width: 650px;">
             <div class="card-header">
@@ -188,11 +220,7 @@ export class SettingsComponent {
                 <input type="text" id="prop-tel" class="form-control" value="${settings.tel}" required>
               </div>
               <div class="form-group">
-                <label>ชื่อธนาคาร & เลขบัญชีโอนเงิน:</label>
-                <input type="text" id="prop-bank" class="form-control" value="${settings.bankName} (${settings.bankAccountNo} - ${settings.bankAccountName})" required>
-              </div>
-              <div class="form-group">
-                <label>หมายเลข PromptPay (เบอร์โทร 10 หลัก หรือ เลขบัตร ปชช. 13 หลัก):</label>
+                <label>หมายเลข PromptPay:</label>
                 <input type="text" id="prop-promptpay" class="form-control" value="${settings.promptPayId}" required placeholder="เช่น 0805991691">
               </div>
               <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลหอพัก</button>
@@ -200,7 +228,7 @@ export class SettingsComponent {
           </div>
         </div>
 
-        <!-- Subtab 5: Backup & Restore -->
+        <!-- Subtab 6: Backup & Restore -->
         <div class="subtab-content" id="subtab-backup">
           <div class="grid-2-col">
             <div class="glass-card">
