@@ -894,3 +894,18 @@ body {
     font-weight: 700;
 }
 
+.login-page-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    padding: 1.5rem;
+    z-index: 99999;
+    overflow-y: auto;
+}
+
