@@ -907,9 +907,9 @@ class RoomsComponent {
                   <div class="info-row"><span>ผู้เช่าปัจจุบัน:</span><strong>${room.currentTenantName || 'ไม่มีผู้เข้าเช่า'}</strong></div>
                 </div>
                 <div class="room-card-footer">
-                  <button class="btn btn-secondary btn-xs btn-edit-room" data-id="${room.id}"><i class="fa-solid fa-pen"></i> แก้ไข</button>
-                  <button class="btn btn-primary btn-xs btn-action-bill" data-id="${room.id}"><i class="fa-solid fa-calculator"></i> ออกบิล</button>
-                  <button class="btn btn-danger btn-xs btn-delete-room" data-id="${room.id}" data-name="${room.name}"><i class="fa-solid fa-trash"></i> ลบห้อง</button>
+                  <button class="btn btn-secondary btn-xs btn-edit-room" data-id="${room.id}" title="แก้ไขห้อง"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                  <button class="btn btn-primary btn-xs btn-action-bill" data-id="${room.id}" title="ออกบิล"><i class="fa-solid fa-calculator"></i> บิล</button>
+                  <button class="btn btn-danger btn-xs btn-delete-room" data-id="${room.id}" data-name="${room.name}" title="ลบห้อง"><i class="fa-solid fa-trash"></i> ลบ</button>
                 </div>
               </div>
             `;
