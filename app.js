@@ -242,6 +242,22 @@ class ExportService {
 class DBService {
   static STORAGE_KEY = 'SOMBAT_APARTMENT_DB_STATE_V3';
 
+  static getUniqueInvoices(invoices) {
+    if (!invoices || !Array.isArray(invoices)) return [];
+    const seen = new Set();
+    const unique = [];
+    // Prioritize paid invoices over unpaid duplicates
+    const sorted = [...invoices].sort((a, b) => (b.status === 'paid' ? 1 : 0) - (a.status === 'paid' ? 1 : 0));
+    for (const inv of sorted) {
+      const key = `${inv.monthKey || ''}_${inv.roomId || inv.roomName || ''}`.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(inv);
+      }
+    }
+    return unique;
+  }
+
   static getInitialRooms() {
     const rooms = [];
     // S101 - S119
@@ -355,6 +371,9 @@ class DBService {
     }
     if (!state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
       state.rooms = this.getInitialRooms();
+    }
+    if (state.invoices && Array.isArray(state.invoices)) {
+      state.invoices = this.getUniqueInvoices(state.invoices);
     }
     // Ensure googleSheetUrl is populated from persistent fallback
     const savedUrl = this.getSavedSheetUrl();
@@ -1111,7 +1130,9 @@ class RoomTypesComponent {
 
 class BillingComponent {
   static render(state) {
-    const invoices = state.invoices;
+    const rawInvoices = state.invoices || [];
+    const invoices = DBService.getUniqueInvoices(rawInvoices);
+    state.invoices = invoices;
 
     return `
       <div class="view-container animate-fade-in">
