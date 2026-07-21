@@ -1512,11 +1512,6 @@ class App {
       });
     });
   }
-          this.init();
-        }
-      });
-    });
-  }
 
   static switchTab(tabId) {
     this.activeTab = tabId;
