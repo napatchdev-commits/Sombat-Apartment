@@ -638,7 +638,7 @@ body {
 /* Dotted Lines Document Formatting (Front & Back Contract Papers) */
 .dotted-fill {
     display: inline-block;
-    min-width: 100px;
+    min-width: 90px;
     border-bottom: 1px dotted #1e40af;
     color: #1e40af;
     font-weight: 700;
@@ -753,7 +753,7 @@ body {
     background: #ffffff;
     border-radius: var(--radius-lg);
     width: 100%;
-    max-width: 750px;
+    max-width: 780px;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
@@ -790,36 +790,61 @@ body {
     padding: 1.5rem;
 }
 
-/* Media Queries & Print Layout */
-@media (max-width: 992px) {
-    .app-sidebar {
-        position: fixed;
-        left: -270px;
-        top: 0;
-        bottom: 0;
-    }
-    .app-sidebar.active {
-        left: 0;
-    }
-    .global-search-container {
-        width: 220px;
-    }
+/* Printable Paper/Slip Area */
+.print-only-area {
+    display: none;
 }
 
+/* Perfect 100% Clean Printable Layout for 2-Page A4 Contracts */
 @media print {
-    body { background: #fff !important; color: #000 !important; }
-    .app-sidebar, .app-header, #toast-container, .header-actions, .contract-tab-switcher { display: none !important; }
-    .main-workspace { padding: 0 !important; }
-    .print-only-area { display: block !important; }
-    .contract-paper {
+    body * {
+        visibility: hidden !important;
+    }
+    
+    #print-receipt-area, #print-receipt-area * {
+        visibility: visible !important;
+    }
+    
+    #print-receipt-area {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+    }
+
+    .contract-print-page {
+        padding: 1.5rem 2rem !important;
         box-shadow: none !important;
         border: none !important;
-        padding: 0 !important;
-        max-width: 100% !important;
+        font-family: 'Sarabun', sans-serif !important;
+        color: #000000 !important;
+        line-height: 2.1 !important;
+        font-size: 0.95rem !important;
         width: 100% !important;
+        max-width: 100% !important;
     }
+
+    .contract-print-page.front-page {
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    .contract-print-page.back-page {
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+
     .dotted-fill {
-        color: #000 !important;
-        border-bottom: 1px dotted #000 !important;
+        color: #000000 !important;
+        border-bottom: 1px dotted #000000 !important;
+        font-weight: 700 !important;
+    }
+
+    .dot-line-180 {
+        border-bottom: 1px dotted #000000 !important;
     }
 }
