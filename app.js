@@ -1871,16 +1871,16 @@ class App {
           </div>
 
           <!-- Signatures -->
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem; margin-top:2rem; text-align:center;">
-            <div>
-              <div style="height:40px;"></div>
-              ลงชื่อ ........................................................... ผู้จ่ายเงิน/ผู้เช่า<br>
-              ( ${inv.tenantName} )
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:2.5rem; text-align:center;">
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <div style="height:35px;"></div>
+              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้จ่ายเงิน/ผู้เช่า</div>
+              <div style="margin-top:0.35rem; width:180px; text-align:center;">( ${inv.tenantName} )</div>
             </div>
-            <div>
-              <div style="height:40px;"></div>
-              ลงชื่อ ........................................................... ผู้รับเงิน/เจ้าของหอพัก<br>
-              ( นางสมผิว น้ำวน )
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <div style="height:35px;"></div>
+              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้รับเงิน/เจ้าของหอพัก</div>
+              <div style="margin-top:0.35rem; width:180px; text-align:center;">( นางสมผิว น้ำวน )</div>
             </div>
           </div>
         </div>
@@ -1985,16 +1985,16 @@ class App {
             📌 <strong>หมายเหตุสำคัญ:</strong> ชำระเงินสดได้ที่ร้าน / หรือโอน <strong>ธ.กรุงศรี 2401346663 นางสมผิว น้ำวน</strong> <span style="font-weight:bold; color:#ef4444;">(ไม่เกินวันที่ 5 ของเดือน)</span>
           </div>
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem; margin-top:2.5rem; text-align:center;">
-            <div>
-              <div style="height:40px;"></div>
-              ลงชื่อ ........................................................... ผู้จ่ายเงิน/ผู้เช่า<br>
-              ( ${inv.tenantName} )
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:2.5rem; text-align:center;">
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <div style="height:35px;"></div>
+              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้จ่ายเงิน/ผู้เช่า</div>
+              <div style="margin-top:0.35rem; width:180px; text-align:center;">( ${inv.tenantName} )</div>
             </div>
-            <div>
-              <div style="height:40px;"></div>
-              ลงชื่อ ........................................................... ผู้รับเงิน/เจ้าของหอพัก<br>
-              ( นางสมผิว น้ำวน )
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <div style="height:35px;"></div>
+              <div>ลงชื่อ <span style="display:inline-block; width:180px; border-bottom:1px dotted #000;"></span> ผู้รับเงิน/เจ้าของหอพัก</div>
+              <div style="margin-top:0.35rem; width:180px; text-align:center;">( นางสมผิว น้ำวน )</div>
             </div>
           </div>
         </div>
