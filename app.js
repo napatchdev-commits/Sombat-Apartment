@@ -428,6 +428,10 @@ class NavbarComponent {
         </div>
 
         <div class="header-right">
+          <button id="btn-manual-sync-sheets" class="btn btn-secondary btn-sm" style="margin-right:0.5rem;" title="ดึงข้อมูลล่าสุดที่แก้ไขใน Google Sheets มาแสดงผลทันที">
+            <i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>
+          </button>
+
           <div class="notification-dropdown-wrapper">
             <button id="notification-bell-btn" class="icon-btn">
               <i class="fa-regular fa-bell"></i>
@@ -1250,6 +1254,23 @@ class App {
     this.renderShell();
     this.setupGlobalEvents();
     this.switchTab(this.activeTab);
+
+    // Auto background poll every 15 seconds for live edits in Google Sheets
+    if (!window.sheetPollInterval) {
+      window.sheetPollInterval = setInterval(async () => {
+        const url = DBService.getSavedSheetUrl();
+        if (url) {
+          try {
+            const cloudState = await DBService.pullFromGoogleSheets(url);
+            if (cloudState && JSON.stringify(cloudState) !== JSON.stringify(this.state)) {
+              this.state = cloudState;
+              this.switchTab(this.activeTab);
+              console.log('⚡ Live 2-way synced edits from Google Sheets');
+            }
+          } catch (e) {}
+        }
+      }, 15000);
+    }
   }
 
   static renderShell() {
@@ -1305,6 +1326,34 @@ class App {
         rows.forEach((row) => {
           row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
         });
+      });
+    }
+
+    const syncBtn = document.getElementById('btn-manual-sync-sheets');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', async () => {
+        const url = DBService.getSavedSheetUrl();
+        if (!url) {
+          alert('กรุณาตั้งค่า Google Sheets Web App URL ก่อนกดดึงข้อมูล');
+          return;
+        }
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary"></i> <span class="desktop-only">กำลังดึงข้อมูล...</span>';
+        try {
+          const cloudState = await DBService.pullFromGoogleSheets(url);
+          if (cloudState) {
+            this.state = cloudState;
+            this.switchTab(this.activeTab);
+            alert('✅ ดึงข้อมูลล่าสุดที่แก้ไขใน Google Sheets เรียบร้อยแล้ว!');
+          } else {
+            alert('ไม่พบข้อมูลใหม่จาก Google Sheets');
+          }
+        } catch (err) {
+          alert('เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets: ' + err.message);
+        } finally {
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>';
+        }
       });
     }
 

@@ -12,8 +12,14 @@ function doGet(e) {
   }
   
   if (action === "get") {
-    var data = sheet.getRange(1, 1).getValue();
-    return ContentService.createTextOutput(data || "{}")
+    var raw = sheet.getRange(1, 1).getValue();
+    var data = {};
+    try { data = JSON.parse(raw || "{}"); } catch(err) { data = {}; }
+
+    // Automatically read and merge any manual edits made directly in Google Sheets tabs!
+    data = readAndMergeSheetTabs(ss, data);
+
+    return ContentService.createTextOutput(JSON.stringify(data))
       .setMimeType(ContentService.MimeType.JSON);
   }
   
@@ -35,10 +41,10 @@ function doPost(e) {
       // Store full database JSON state inside cell A1 for 1-click full restore
       sheet.getRange(1, 1).setValue(JSON.stringify(requestData.data));
       
-      // Write structured rows into explicit Sheet Tabs for all 8 Left-Sidebar Menus
+      // Write structured rows into explicit Sheet Tabs for all Left-Sidebar Menus
       writeAllStructuredSheets(ss, requestData.data);
 
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "All left-sidebar menu data synced to Google Sheets successfully!" }))
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "All data synced to Google Sheets successfully!" }))
         .setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -50,38 +56,144 @@ function doPost(e) {
   }
 }
 
+// ==========================================================================
+// 1. READ & MERGE MANUAL EDITS FROM GOOGLE SHEETS TABS BACK TO JSON
+// ==========================================================================
+function readAndMergeSheetTabs(ss, data) {
+  if (!data.rooms) data.rooms = [];
+  if (!data.tenants) data.tenants = [];
+  if (!data.invoices) data.invoices = [];
+  if (!data.repairs) data.repairs = [];
+  if (!data.ledger) data.ledger = [];
+  if (!data.events) data.events = [];
+  if (!data.users) data.users = [];
+
+  // A. Read ROOMS Tab
+  var rSheet = ss.getSheetByName("ROOMS");
+  if (rSheet) {
+    var rValues = rSheet.getRange("A2:H100").getValues();
+    rValues.forEach(function(row) {
+      var id = String(row[0]).trim();
+      var name = String(row[1]).trim();
+      if (id || name) {
+        var room = data.rooms.find(function(r) { return r.id === id || r.name === name; });
+        if (room) {
+          if (row[2]) room.floor = Number(row[2]);
+          if (row[3]) room.baseRent = Number(row[3]);
+          if (row[4] && row[4] !== "-") room.currentTenantName = String(row[4]);
+          if (row[5] !== "") room.lastElecMeter = Number(row[5]);
+          if (row[6] !== "") room.lastWaterMeter = Number(row[6]);
+          if (row[7]) room.status = String(row[7]).trim();
+        }
+      }
+    });
+  }
+
+  // B. Read TENANTS Tab
+  var tSheet = ss.getSheetByName("TENANTS");
+  if (tSheet) {
+    var tValues = tSheet.getRange("A2:J200").getValues();
+    tValues.forEach(function(row) {
+      var id = String(row[0]).trim();
+      var name = String(row[1]).trim();
+      if (id || name) {
+        var t = data.tenants.find(function(item) { return item.id === id || item.name === name; });
+        if (t) {
+          if (row[1]) t.name = String(row[1]).trim();
+          if (row[2]) t.idCard = String(row[2]).trim();
+          if (row[3]) t.tel = String(row[3]).trim();
+          if (row[5]) t.startDate = formatDateString(row[5]);
+          if (row[6]) t.endDate = formatDateString(row[6]);
+        }
+      }
+    });
+  }
+
+  // C. Read INVOICES Tab
+  var invSheet = ss.getSheetByName("INVOICES");
+  if (invSheet) {
+    var invValues = invSheet.getRange("A2:P300").getValues();
+    invValues.forEach(function(row) {
+      var invNum = String(row[0]).trim();
+      if (invNum) {
+        var inv = data.invoices.find(function(i) { return i.invoiceNumber === invNum; });
+        if (inv) {
+          if (row[6] !== "") inv.elecPrev = Number(row[6]);
+          if (row[7] !== "") inv.elecCurr = Number(row[7]);
+          if (row[8] !== "") inv.elecAmount = Number(row[8]);
+          if (row[9] !== "") inv.waterPrev = Number(row[9]);
+          if (row[10] !== "") inv.waterCurr = Number(row[10]);
+          if (row[11] !== "") inv.waterAmount = Number(row[11]);
+          if (row[12] !== "") inv.rentAmount = Number(row[12]);
+          if (row[13] !== "") inv.trashFee = Number(row[13]);
+          if (row[14] !== "") inv.totalAmount = Number(row[14]);
+          if (row[15]) {
+            var statusStr = String(row[15]).trim().toLowerCase();
+            inv.status = statusStr;
+            if (statusStr === 'paid' || statusStr === 'ชำระแล้ว') {
+              inv.status = 'paid';
+              inv.paidAmount = inv.totalAmount;
+              inv.outstandingAmount = 0;
+            } else if (statusStr === 'unpaid' || statusStr === 'ค้างชำระ') {
+              inv.status = 'unpaid';
+              inv.paidAmount = 0;
+              inv.outstandingAmount = inv.totalAmount;
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // D. Read REPAIRS Tab
+  var repSheet = ss.getSheetByName("REPAIRS");
+  if (repSheet) {
+    var repValues = repSheet.getRange("A2:I200").getValues();
+    repValues.forEach(function(row) {
+      var ticketNum = String(row[0]).trim();
+      if (ticketNum) {
+        var rep = data.repairs.find(function(r) { return r.ticketNumber === ticketNum; });
+        if (rep) {
+          if (row[3]) rep.title = String(row[3]);
+          if (row[4]) rep.description = String(row[4]);
+          if (row[5] !== "") rep.expenseAmount = Number(row[5]);
+          if (row[6]) rep.assignedTechnician = String(row[6]);
+          if (row[8]) {
+            var st = String(row[8]).trim().toLowerCase();
+            if (st === 'completed' || st === 'เสร็จสิ้น') rep.status = 'completed';
+            else rep.status = 'pending';
+          }
+        }
+      }
+    });
+  }
+
+  return data;
+}
+
+function formatDateString(val) {
+  if (!val) return "";
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, "GMT+7", "yyyy-MM-dd");
+  }
+  return String(val).slice(0, 10);
+}
+
+// ==========================================================================
+// 2. WRITE STRUCTURED SHEETS
+// ==========================================================================
 function writeAllStructuredSheets(ss, data) {
-  // 1. DASHBOARD_SUMMARY Tab (หน้าหลัก)
   writeDashboardSheet(ss, data);
-
-  // 2. ROOMS Tab (ข้อมูลห้องเช่า)
   writeRoomsSheet(ss, data.rooms || []);
-
-  // 3. TENANTS Tab (ข้อมูลผู้เช่า + บัตรประชาชน + ทะเบียนบ้าน)
   writeTenantsSheet(ss, data.tenants || [], data.rooms || []);
-
-  // 4. CONTRACTS Tab (จัดการสัญญาเช่า)
   writeContractsSheet(ss, data.tenants || [], data.rooms || []);
-
-  // 5. INVOICES Tab (ระบบออกบิลค่าเช่า)
   writeInvoicesSheet(ss, data.invoices || []);
-
-  // 6. REPAIRS Tab (ระบบแจ้งซ่อม)
   writeRepairsSheet(ss, data.repairs || []);
-
-  // 7. ACCOUNTING_LEDGER Tab (รายรับ - รายจ่าย)
   writeLedgerSheet(ss, data.ledger || []);
-
-  // 8. CALENDAR_EVENTS Tab (ปฏิทินงาน)
   writeEventsSheet(ss, data.events || []);
-
-  // 9. USERS Tab (จัดการผู้ใช้งานระบบ)
   writeUsersSheet(ss, data.users || []);
 }
 
-// --------------------------------------------------------------------------
-// 1. DASHBOARD SUMMARY
-// --------------------------------------------------------------------------
 function writeDashboardSheet(ss, data) {
   var sheet = ss.getSheetByName("DASHBOARD_SUMMARY");
   if (!sheet) {
@@ -112,9 +224,6 @@ function writeDashboardSheet(ss, data) {
   sheet.appendRow(["ยอดค้างชำระรวมคงเหลือ", totalOverdue + " บาท", nowStr]);
 }
 
-// --------------------------------------------------------------------------
-// 2. ROOMS SHEET
-// --------------------------------------------------------------------------
 function writeRoomsSheet(ss, rooms) {
   var sheet = ss.getSheetByName("ROOMS");
   if (!sheet) {
@@ -129,9 +238,6 @@ function writeRoomsSheet(ss, rooms) {
   });
 }
 
-// --------------------------------------------------------------------------
-// 3. TENANTS SHEET (WITH ID CARD & HOUSE REGISTRATION DOCUMENT LINKS)
-// --------------------------------------------------------------------------
 function writeTenantsSheet(ss, tenants, rooms) {
   var sheet = ss.getSheetByName("TENANTS");
   if (!sheet) {
@@ -157,9 +263,6 @@ function writeTenantsSheet(ss, tenants, rooms) {
   });
 }
 
-// --------------------------------------------------------------------------
-// 4. CONTRACTS SHEET
-// --------------------------------------------------------------------------
 function writeContractsSheet(ss, tenants, rooms) {
   var sheet = ss.getSheetByName("CONTRACTS");
   if (!sheet) {
@@ -183,9 +286,6 @@ function writeContractsSheet(ss, tenants, rooms) {
   });
 }
 
-// --------------------------------------------------------------------------
-// 5. INVOICES SHEET
-// --------------------------------------------------------------------------
 function writeInvoicesSheet(ss, invoices) {
   var sheet = ss.getSheetByName("INVOICES");
   if (!sheet) {
@@ -208,9 +308,6 @@ function writeInvoicesSheet(ss, invoices) {
   });
 }
 
-// --------------------------------------------------------------------------
-// 6. REPAIRS SHEET
-// --------------------------------------------------------------------------
 function writeRepairsSheet(ss, repairs) {
   var sheet = ss.getSheetByName("REPAIRS");
   if (!sheet) {
@@ -226,9 +323,6 @@ function writeRepairsSheet(ss, repairs) {
   });
 }
 
-// --------------------------------------------------------------------------
-// 7. ACCOUNTING LEDGER SHEET
-// --------------------------------------------------------------------------
 function writeLedgerSheet(ss, ledger) {
   var sheet = ss.getSheetByName("ACCOUNTING_LEDGER");
   if (!sheet) {
@@ -243,9 +337,6 @@ function writeLedgerSheet(ss, ledger) {
   });
 }
 
-// --------------------------------------------------------------------------
-// 8. CALENDAR EVENTS SHEET
-// --------------------------------------------------------------------------
 function writeEventsSheet(ss, events) {
   var sheet = ss.getSheetByName("CALENDAR_EVENTS");
   if (!sheet) {
@@ -258,9 +349,6 @@ function writeEventsSheet(ss, events) {
   });
 }
 
-// --------------------------------------------------------------------------
-// 9. USERS SHEET
-// --------------------------------------------------------------------------
 function writeUsersSheet(ss, users) {
   var sheet = ss.getSheetByName("USERS");
   if (!sheet) {
