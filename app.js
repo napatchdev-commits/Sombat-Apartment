@@ -1408,22 +1408,7 @@ class App {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', paramUrl);
     }
 
-    // 2. Persistent Google Sheets Web App URL lookup across devices & cleared cache
-    const savedUrl = DBService.getSavedSheetUrl();
-    if (savedUrl) {
-      if (!this.state.settings) this.state.settings = {};
-      this.state.settings.googleSheetUrl = savedUrl;
-      try {
-        const cloudState = await DBService.pullFromGoogleSheets(savedUrl);
-        if (cloudState) {
-          this.state = cloudState;
-          console.log('✅ Real-time Cloud state pulled from Google Sheets successfully');
-        }
-      } catch (err) {
-        console.warn('Could not auto-pull from Google Sheets:', err);
-      }
-    }
-
+    // 2. Render UI INSTANTLY from local storage (0ms delay - no blocking network waiting)
     let currentUser = AuthService.getCurrentUser();
 
     this.renderShell();
@@ -1431,6 +1416,22 @@ class App {
 
     this.setupGlobalEvents();
     this.switchTab(this.activeTab);
+
+    // 3. Asynchronously pull latest cloud state from Google Sheets in background
+    const savedUrl = DBService.getSavedSheetUrl();
+    if (savedUrl) {
+      if (!this.state.settings) this.state.settings = {};
+      this.state.settings.googleSheetUrl = savedUrl;
+      DBService.pullFromGoogleSheets(savedUrl).then(cloudState => {
+        if (cloudState) {
+          this.state = cloudState;
+          if (AuthService.getCurrentUser()) {
+            this.switchTab(this.activeTab);
+          }
+          console.log('✅ Real-time Cloud state synced in background');
+        }
+      }).catch(err => console.warn('Background sync warning:', err));
+    }
 
     // Auto background poll every 15 seconds for live edits in Google Sheets
     if (!window.sheetPollInterval) {
@@ -3340,21 +3341,36 @@ class App {
       if (isEdit) {
         const idx = this.state.users.findIndex(u => u.id === userToEdit.id);
         if (idx !== -1) {
-          this.state.users[idx] = { ...this.state.users[idx], displayName, role, password };
+          this.state.users[idx] = {
+            ...this.state.users[idx],
+            displayName,
+            role,
+            password,
+            passwordHash: password
+          };
+          const current = AuthService.getCurrentUser();
+          if (current && current.id === userToEdit.id) {
+            AuthService.setCurrentUser(this.state.users[idx]);
+          }
         }
       } else {
-        if (this.state.users.some(u => u.username === username)) {
+        if (this.state.users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
           return alert('Username นี้มีในระบบแล้ว กรุณาใช้ชื่ออื่น');
         }
         const newUser = {
           id: 'usr_' + Date.now(),
-          username, displayName, role, password
+          username,
+          displayName,
+          role,
+          password,
+          passwordHash: password
         };
         this.state.users.push(newUser);
       }
 
       DBService.saveState(this.state);
       modal.classList.remove('active');
+      alert('✅ บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว');
       this.switchTab('settings');
     });
   }
