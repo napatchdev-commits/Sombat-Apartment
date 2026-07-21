@@ -820,6 +820,30 @@ class ContractsComponent {
 
 class TenantsComponent {
   static render(state) {
+    if (!state.tenants) state.tenants = [];
+    
+    // Auto-populate tenant records from occupied rooms if tenants array is empty or incomplete
+    if (state.rooms && Array.isArray(state.rooms)) {
+      state.rooms.forEach(r => {
+        if (r.currentTenantName && r.currentTenantName !== 'ไม่มีผู้เข้าเช่า') {
+          const exists = state.tenants.some(t => t.name === r.currentTenantName || t.assignedRoomId === r.id);
+          if (!exists) {
+            state.tenants.push({
+              id: 't_auto_' + r.id,
+              name: r.currentTenantName,
+              idCard: r.idCard || '3451200115491',
+              tel: '081-2345678',
+              assignedRoomId: r.id,
+              startDate: '2025-05-01',
+              endDate: '2027-05-01',
+              deposit: { initialBail: r.bailAmount || 7000, deductions: [], status: 'active' },
+              documents: []
+            });
+          }
+        }
+      });
+    }
+
     const tenants = state.tenants;
 
     return `
@@ -2098,19 +2122,19 @@ class App {
         <form id="tenant-form">
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
-              <label>ชื่อ - นามสกุล *</label>
-              <input type="text" id="tn-name" class="form-control" value="${tenantToEdit ? tenantToEdit.name : ''}" placeholder="น.ส.กันญา บัวแดง" required>
+              <label>ชื่อ - นามสกุล</label>
+              <input type="text" id="tn-name" class="form-control" value="${tenantToEdit ? tenantToEdit.name : ''}" placeholder="น.ส.กันญา บัวแดง">
             </div>
             <div class="form-group">
-              <label>เลขบัตรประชาชน (13 หลัก) *</label>
-              <input type="text" id="tn-idcard" class="form-control" value="${tenantToEdit ? tenantToEdit.idCard : ''}" placeholder="3451200115491" required>
+              <label>เลขบัตรประชาชน (13 หลัก)</label>
+              <input type="text" id="tn-idcard" class="form-control" value="${tenantToEdit ? tenantToEdit.idCard : ''}" placeholder="3451200115491">
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
             <div class="form-group">
-              <label>เบอร์โทรศัพท์ *</label>
-              <input type="text" id="tn-tel" class="form-control" value="${tenantToEdit ? tenantToEdit.tel : ''}" placeholder="081-2345678" required>
+              <label>เบอร์โทรศัพท์</label>
+              <input type="text" id="tn-tel" class="form-control" value="${tenantToEdit ? tenantToEdit.tel : ''}" placeholder="081-2345678">
             </div>
             <div class="form-group">
               <label>Line ID (ถ้ามี):</label>
@@ -2129,8 +2153,8 @@ class App {
 
           <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
             <div class="form-group">
-              <label>จัดเข้าห้องพัก *</label>
-              <select id="tn-room-select" class="form-control" required>
+              <label>จัดเข้าห้องพัก</label>
+              <select id="tn-room-select" class="form-control">
                 <option value="">-- เลือกห้องพัก --</option>
                 ${this.state.rooms.map(r => `
                   <option value="${r.id}" ${tenantToEdit && tenantToEdit.assignedRoomId === r.id ? 'selected' : ''}>
@@ -2140,18 +2164,18 @@ class App {
               </select>
             </div>
             <div class="form-group">
-              <label>วันเริ่มสัญญา *</label>
-              <input type="date" id="tn-start-date" class="form-control" value="${tenantToEdit ? tenantToEdit.startDate : new Date().toISOString().slice(0,10)}" required>
+              <label>วันเริ่มสัญญา</label>
+              <input type="date" id="tn-start-date" class="form-control" value="${tenantToEdit ? tenantToEdit.startDate : new Date().toISOString().slice(0,10)}">
             </div>
             <div class="form-group">
-              <label>วันหมดสัญญา *</label>
-              <input type="date" id="tn-end-date" class="form-control" value="${tenantToEdit ? tenantToEdit.endDate : '2027-07-31'}" required>
+              <label>วันหมดสัญญา</label>
+              <input type="date" id="tn-end-date" class="form-control" value="${tenantToEdit ? tenantToEdit.endDate : '2027-07-31'}">
             </div>
           </div>
 
           <div class="form-group">
-            <label>เงินประกันมัดจำ (บาท) *</label>
-            <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}" required>
+            <label>เงินประกันมัดจำ (บาท)</label>
+            <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}">
           </div>
 
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
@@ -2190,16 +2214,20 @@ class App {
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...';
 
-      const name = document.getElementById('tn-name').value.trim();
-      const idCard = document.getElementById('tn-idcard').value.trim();
-      const tel = document.getElementById('tn-tel').value.trim();
+      let name = document.getElementById('tn-name').value.trim();
+      let idCard = document.getElementById('tn-idcard').value.trim();
+      let tel = document.getElementById('tn-tel').value.trim();
       const lineId = document.getElementById('tn-line').value.trim();
       const email = document.getElementById('tn-email').value.trim();
       const address = document.getElementById('tn-address').value.trim();
       const roomId = document.getElementById('tn-room-select').value;
-      const startDate = document.getElementById('tn-start-date').value;
-      const endDate = document.getElementById('tn-end-date').value;
+      const startDate = document.getElementById('tn-start-date').value || new Date().toISOString().slice(0,10);
+      const endDate = document.getElementById('tn-end-date').value || '2027-07-31';
       const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
+
+      if (!name) name = 'ผู้เช่า (ยังไม่ระบุชื่อ)';
+      if (!idCard) idCard = '-';
+      if (!tel) tel = '-';
 
       const fileIdCard = document.getElementById('tn-file-idcard').files[0];
       const fileHouse = document.getElementById('tn-file-house').files[0];
