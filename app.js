@@ -863,8 +863,34 @@ class TenantsComponent {
 
 class RoomsComponent {
   static render(state) {
-    const rooms = state.rooms;
-    const roomTypes = state.roomTypes;
+    const rawRooms = state.rooms || [];
+    const roomTypes = state.roomTypes || [];
+
+    // Sort rooms according to user requirement:
+    // 1. Rooms starting with 'S' or 's' (S101, S102, S103...) FIRST
+    // 2. Standard letter/numeric rooms (A101, 46/1...) SECOND
+    // 3. Named rooms ("บ้านหลัง...", "แสงเงินแสงทอง", "ทิพย์มงคล"...) LAST
+    const rooms = [...rawRooms].sort((a, b) => {
+      const nameA = String(a.name || '').trim();
+      const nameB = String(b.name || '').trim();
+
+      const isSA = /^s/i.test(nameA);
+      const isSB = /^s/i.test(nameB);
+
+      if (isSA && !isSB) return -1;
+      if (!isSA && isSB) return 1;
+      if (isSA && isSB) {
+        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+      }
+
+      const isNamedA = /^[^A-Za-z0-9]/i.test(nameA) || nameA.startsWith('บ้าน') || nameA.startsWith('เรือน');
+      const isNamedB = /^[^A-Za-z0-9]/i.test(nameB) || nameB.startsWith('บ้าน') || nameB.startsWith('เรือน');
+
+      if (isNamedA && !isNamedB) return 1;
+      if (!isNamedA && isNamedB) return -1;
+
+      return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+    });
 
     return `
       <div class="view-container animate-fade-in">
