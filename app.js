@@ -2164,12 +2164,12 @@ class App {
               </select>
             </div>
             <div class="form-group">
-              <label>วันเริ่มสัญญา</label>
-              <input type="date" id="tn-start-date" class="form-control" value="${tenantToEdit ? tenantToEdit.startDate : new Date().toISOString().slice(0,10)}">
+              <label>วันเริ่มสัญญา (วัน/เดือน/ปี พ.ศ.)</label>
+              <input type="text" id="tn-start-date" class="form-control" value="${tenantToEdit && tenantToEdit.startDate ? Formatters.thaiDate(tenantToEdit.startDate) : Formatters.thaiDate(new Date().toISOString().slice(0,10))}" placeholder="01/05/2568">
             </div>
             <div class="form-group">
-              <label>วันหมดสัญญา</label>
-              <input type="date" id="tn-end-date" class="form-control" value="${tenantToEdit ? tenantToEdit.endDate : '2027-07-31'}">
+              <label>วันหมดสัญญา (วัน/เดือน/ปี พ.ศ.)</label>
+              <input type="text" id="tn-end-date" class="form-control" value="${tenantToEdit && tenantToEdit.endDate ? Formatters.thaiDate(tenantToEdit.endDate) : '31/07/2570'}" placeholder="31/07/2570">
             </div>
           </div>
 
@@ -2221,8 +2221,10 @@ class App {
       const email = document.getElementById('tn-email').value.trim();
       const address = document.getElementById('tn-address').value.trim();
       const roomId = document.getElementById('tn-room-select').value;
-      const startDate = document.getElementById('tn-start-date').value || new Date().toISOString().slice(0,10);
-      const endDate = document.getElementById('tn-end-date').value || '2027-07-31';
+      const startDateInput = document.getElementById('tn-start-date').value.trim();
+      const endDateInput = document.getElementById('tn-end-date').value.trim();
+      const startDate = Formatters.parseThaiDateToISO(startDateInput);
+      const endDate = Formatters.parseThaiDateToISO(endDateInput);
       const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
 
       if (!name) name = 'ผู้เช่า (ยังไม่ระบุชื่อ)';
