@@ -1,7 +1,8 @@
 // ==========================================================================
-// SOMBAT APARTMENT (ENTERPRISE EDITION) - FULLY INTERACTIVE APP CONTROLLER
-// 100% Compatible with Vercel, GitHub Pages, Local file:// & Google Sheets Sync
-// Real-Time Google Sheets Cloud Engine & Multi-File Document Attachment System
+// SOMBAT APARTMENT (ENTERPRISE EDITION) - 100% COMPLETE APP CONTROLLER
+// Fully Interactive 10 Modules: Dashboard, Contracts, Tenants, Rooms, Billing,
+// Repairs, Accounting Ledger, Event Calendar, Reports & Settings System.
+// Real-Time Google Sheets Cloud Engine & Multi-File Document Attachment Engine
 // ==========================================================================
 
 /* ==========================================================================
@@ -220,9 +221,6 @@ class DBService {
         googleSheetUrl: ''
       },
       rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 200.0, commonFee: 100.0 },
-      rateHistory: [
-        { id: 'rh_1', timestamp: '2026-01-01T00:00:00.000Z', changedBy: 'superadmin', newRates: { electricityRate: 8, waterRate: 20 } }
-      ],
       users: [
         { id: 'usr_super', username: 'superadmin', displayName: 'ผู้ดูแลระบบสูงสุด (Super Admin)', role: 'super_admin', passwordHash: 'admin123' },
         { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
@@ -283,6 +281,10 @@ class DBService {
       ledger: [
         { id: 'led_1', date: '2026-07-03', type: 'income', category: 'rent_collected', description: 'รับชำระค่าเช่าห้อง A101', amount: 4280, recordedBy: 'admin' },
         { id: 'led_2', date: '2026-07-12', type: 'expense', category: 'maintenance', description: 'ค่าล้างแอร์ห้อง A101', amount: 500, recordedBy: 'admin' }
+      ],
+      events: [
+        { id: 'evt_1', date: '2026-07-05', title: 'กำหนดชำระค่าเช่าประจำเดือน', category: 'billing', roomName: 'ทุกห้อง' },
+        { id: 'evt_2', date: '2026-07-25', title: 'ล้างแอร์ประจำปี ชั้น 2', category: 'maintenance', roomName: 'ชั้น 2' }
       ]
     };
   }
@@ -341,21 +343,10 @@ class DBService {
     link.click();
     document.body.removeChild(link);
   }
-
-  static importJSON(jsonStr) {
-    try {
-      const data = JSON.parse(jsonStr);
-      if (data && data.settings && data.rooms && data.tenants) {
-        this.saveState(data);
-        return true;
-      }
-      return false;
-    } catch { return false; }
-  }
 }
 
 /* ==========================================================================
-   4. UI COMPONENTS (NAVBAR, SIDEBAR, DASHBOARD, CONTRACTS, TENANTS, ETC.)
+   4. UI COMPONENTS (ALL 10 MODULES FULLY INTERACTIVE)
    ========================================================================== */
 
 class NavbarComponent {
@@ -841,7 +832,7 @@ class RoomsComponent {
                   <div class="info-row"><span>ผู้เช่าปัจจุบัน:</span><strong>${room.currentTenantName || 'ไม่มีผู้เข้าเช่า'}</strong></div>
                 </div>
                 <div class="room-card-footer">
-                  <button class="btn btn-secondary btn-xs btn-edit-room" data-id="${room.id}">แก้ไข</button>
+                  <button class="btn btn-secondary btn-xs btn-edit-room" data-id="${room.id}">แก้ไขห้อง</button>
                   <button class="btn btn-primary btn-xs btn-action-bill" data-id="${room.id}">ออกบิล</button>
                 </div>
               </div>
@@ -889,12 +880,17 @@ class BillingComponent {
                     <td><span class="badge-pill badge-primary">ห้อง ${inv.roomName}</span></td>
                     <td><strong>${inv.tenantName}</strong></td>
                     <td><strong class="text-primary">${Formatters.currency(inv.totalAmount)}</strong></td>
-                    <td><span class="badge-pill ${inv.status === 'paid' ? 'badge-success' : 'badge-danger'}">${inv.status === 'paid' ? 'ชำระแล้ว' : 'ค้างชำระ'}</span></td>
+                    <td>
+                      <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : 'btn-danger'} btn-toggle-pay-status" data-id="${inv.id}">
+                        ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : '🔴 ค้างชำระ'}
+                      </button>
+                    </td>
                     <td>
                       <div class="action-buttons">
-                        <button class="btn btn-secondary btn-xs btn-qr-promptpay" data-id="${inv.id}">QR PromptPay</button>
-                        <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}">พิมพ์</button>
+                        <button class="btn btn-secondary btn-xs btn-qr-promptpay" data-id="${inv.id}"><i class="fa-solid fa-qrcode text-primary"></i> QR PromptPay</button>
+                        <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}"><i class="fa-solid fa-print text-warning"></i> พิมพ์บิล</button>
                         <button class="btn btn-secondary btn-xs btn-send-line" data-id="${inv.id}"><i class="fa-brands fa-line text-success"></i> LINE</button>
+                        <button class="btn btn-danger btn-xs btn-delete-bill" data-id="${inv.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
                       </div>
                     </td>
                   </tr>
@@ -910,23 +906,43 @@ class BillingComponent {
 
 class RepairsComponent {
   static render(state) {
+    const repairs = state.repairs || [];
+
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
           <div><h2><i class="fa-solid fa-screwdriver-wrench text-primary"></i> ระบบแจ้งซ่อมและซ่อมบำรุงห้องพัก</h2><p>ติดตามคำขอแจ้งซ่อมจากผู้เช่า แนบรูปถ่าย และบันทึกค่าใช้จ่ายงานซ่อมบำรุง</p></div>
+          <div class="header-actions">
+            <button id="btn-add-repair" class="btn btn-primary"><i class="fa-solid fa-plus"></i> เพิ่มรายการแจ้งซ่อมใหม่</button>
+          </div>
         </div>
+
         <div class="glass-card style-table-card">
           <div class="table-responsive">
             <table class="custom-table">
-              <thead><tr><th>เลขที่ใบซ่อม</th><th>ห้องพัก</th><th>หัวข้อแจ้งซ่อม</th><th>ค่าซ่อม</th><th>สถานะ</th></tr></thead>
+              <thead><tr><th>เลขที่ใบซ่อม</th><th>ห้องพัก</th><th>ผู้แจ้งซ่อม</th><th>หัวข้อแจ้งซ่อม / รายละเอียด</th><th>ช่างรับงาน</th><th>ค่าซ่อม</th><th>สถานะ</th><th>การจัดการ</th></tr></thead>
               <tbody>
-                ${state.repairs.map(rep => `
+                ${repairs.length === 0 ? `
+                  <tr><td colspan="8" class="text-center text-muted" style="padding:2rem;">ยังไม่มีรายการแจ้งซ่อม</td></tr>
+                ` : repairs.map(rep => `
                   <tr>
                     <td><strong>${rep.ticketNumber}</strong></td>
-                    <td>ห้อง ${rep.roomName}</td>
-                    <td>${rep.title}</td>
-                    <td>${Formatters.currency(rep.expenseAmount)}</td>
-                    <td><span class="badge-pill badge-success">${rep.status}</span></td>
+                    <td><span class="badge-pill badge-primary">ห้อง ${rep.roomName}</span></td>
+                    <td>${rep.tenantName || '-'}</td>
+                    <td><strong>${rep.title}</strong><div class="text-muted text-sm">${rep.description || ''}</div></td>
+                    <td>${rep.assignedTechnician || 'ยังไม่ระบุช่าง'}</td>
+                    <td><strong class="text-danger">${Formatters.currency(rep.expenseAmount)}</strong></td>
+                    <td>
+                      <span class="badge-pill ${rep.status === 'completed' ? 'badge-success' : 'badge-warning'}">
+                        ${rep.status === 'completed' ? '🟢 เสร็จสิ้น' : '🟡 กำลังซ่อม'}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-toggle-repair" data-id="${rep.id}">${rep.status === 'completed' ? 'ปรับเป็นกำลังซ่อม' : 'ปรับเป็นเสร็จสิ้น'}</button>
+                        <button class="btn btn-danger btn-xs btn-delete-repair" data-id="${rep.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
+                      </div>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -940,8 +956,9 @@ class RepairsComponent {
 
 class AccountingComponent {
   static render(state) {
+    const ledger = state.ledger || [];
     let totalIncome = 0; let totalExpense = 0;
-    state.ledger.forEach(entry => {
+    ledger.forEach(entry => {
       if (entry.type === 'income') totalIncome += entry.amount;
       else totalExpense += entry.amount;
     });
@@ -950,11 +967,36 @@ class AccountingComponent {
       <div class="view-container animate-fade-in">
         <div class="view-header">
           <div><h2><i class="fa-solid fa-scale-balanced text-primary"></i> ระบบบัญชี รายรับ - รายจ่าย (Accounting Ledger)</h2><p>บันทึกรายรับค่าน้ำไฟค่าเช่า และรายจ่ายแม่บ้าน ค่าซ่อมบำรุง ค่าน้ำไฟหลวง</p></div>
+          <div class="header-actions">
+            <button id="btn-add-ledger" class="btn btn-primary"><i class="fa-solid fa-plus"></i> บันทึกรายรับ-รายจ่ายใหม่</button>
+          </div>
         </div>
+
         <div class="kpi-cards-grid">
           <div class="kpi-card card-green"><div class="kpi-content"><span class="label">รายรับรวม</span><h3 class="value text-success">${Formatters.currency(totalIncome)}</h3></div></div>
           <div class="kpi-card card-red"><div class="kpi-content"><span class="label">รายจ่ายรวม</span><h3 class="value text-danger">${Formatters.currency(totalExpense)}</h3></div></div>
           <div class="kpi-card card-blue"><div class="kpi-content"><span class="label">กำไรสุทธิ</span><h3 class="value text-primary">${Formatters.currency(totalIncome - totalExpense)}</h3></div></div>
+        </div>
+
+        <div class="glass-card style-table-card" style="margin-top:1.5rem;">
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead><tr><th>วันที่</th><th>ประเภท</th><th>หมวดหมู่</th><th>รายการรายละเอียด</th><th>จำนวนเงิน</th><th>บันทึกโดย</th><th>การจัดการ</th></tr></thead>
+              <tbody>
+                ${ledger.map(l => `
+                  <tr>
+                    <td>${Formatters.thaiDate(l.date)}</td>
+                    <td><span class="badge-pill ${l.type === 'income' ? 'badge-success' : 'badge-danger'}">${l.type === 'income' ? '📈 รายรับ' : '📉 รายจ่าย'}</span></td>
+                    <td>${l.category}</td>
+                    <td><strong>${l.description}</strong></td>
+                    <td><strong class="${l.type === 'income' ? 'text-success' : 'text-danger'}">${Formatters.currency(l.amount)}</strong></td>
+                    <td>${l.recordedBy || 'admin'}</td>
+                    <td><button class="btn btn-danger btn-xs btn-delete-ledger" data-id="${l.id}"><i class="fa-solid fa-trash"></i> ลบ</button></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
@@ -963,12 +1005,38 @@ class AccountingComponent {
 
 class CalendarComponent {
   static render(state) {
+    const events = state.events || [];
+
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
           <div><h2><i class="fa-solid fa-calendar-days text-primary"></i> ปฏิทินงานและวันนัดหมาย (Event Calendar)</h2><p>รวมกำหนดการวันชำระค่าเช่า วันหมดอายุสัญญาเช่า และวันนัดซ่อมบำรุง</p></div>
+          <div class="header-actions">
+            <button id="btn-add-event" class="btn btn-primary"><i class="fa-solid fa-plus"></i> เพิ่มวันนัดหมายใหม่</button>
+          </div>
         </div>
-        <div class="glass-card"><p class="text-center text-muted" style="padding:2rem;">ปฏิทินงานกำหนดการนัดหมายพร้อมใช้งาน</p></div>
+
+        <div class="glass-card">
+          <h3 style="margin-bottom:1rem;"><i class="fa-solid fa-list-check text-primary"></i> รายการนัดหมายและกิจกรรมประจำเดือน</h3>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead><tr><th>วันที่นัดหมาย</th><th>หัวข้อนัดหมาย / กิจกรรม</th><th>หมวดหมู่</th><th>ห้องที่เกี่ยวข้อง</th><th>การจัดการ</th></tr></thead>
+              <tbody>
+                ${events.length === 0 ? `
+                  <tr><td colspan="5" class="text-center text-muted" style="padding:2rem;">ยังไม่มีวันนัดหมายในปฏิทิน</td></tr>
+                ` : events.map(evt => `
+                  <tr>
+                    <td><strong>${Formatters.thaiDate(evt.date)}</strong></td>
+                    <td><strong>${evt.title}</strong></td>
+                    <td><span class="badge-pill badge-primary">${evt.category}</span></td>
+                    <td>${evt.roomName || '-'}</td>
+                    <td><button class="btn btn-danger btn-xs btn-delete-event" data-id="${evt.id}"><i class="fa-solid fa-trash"></i> ลบ</button></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -981,10 +1049,30 @@ class ReportsComponent {
         <div class="view-header">
           <div><h2><i class="fa-solid fa-chart-line text-primary"></i> ระบบสรุปรายงานและการส่งออกข้อมูล</h2><p>สรุปผลการดำเนินงาน รายรับ ยอดค้างชำระ และส่งออกไฟล์ PDF / Excel 1-Click</p></div>
         </div>
-        <div class="reports-grid-container">
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
           <div class="glass-card report-card">
-            <h3>1. รายงานรายรับประจำเดือน</h3>
-            <button class="btn btn-secondary btn-sm btn-export-csv"><i class="fa-solid fa-file-excel text-success"></i> Export CSV/Excel</button>
+            <h3><i class="fa-solid fa-file-invoice-dollar text-success"></i> 1. รายงานสรุปรายรับประจำเดือน</h3>
+            <p class="text-muted">ส่งออกข้อมูลรายรับค่าเช่า ค่าน้ำ ค่าไฟ ของทุกห้องพัก</p>
+            <button class="btn btn-success btn-sm btn-export-income-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (รายรับ)</button>
+          </div>
+
+          <div class="glass-card report-card">
+            <h3><i class="fa-solid fa-user-clock text-danger"></i> 2. รายงานผู้เช่าค้างชำระเงิน</h3>
+            <p class="text-muted">สรุปรายชื่อผู้เช่าที่ยังไม่ได้ชำระค่าเช่าตามกำหนด</p>
+            <button class="btn btn-danger btn-sm btn-export-overdue-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (ค้างชำระ)</button>
+          </div>
+
+          <div class="glass-card report-card">
+            <h3><i class="fa-solid fa-bolt text-warning"></i> 3. รายงานมิเตอร์น้ำ-ไฟประจำเดือน</h3>
+            <p class="text-muted">สรุปหน่วยมิเตอร์น้ำประปาและไฟฟ้าทุกห้อง</p>
+            <button class="btn btn-warning btn-sm btn-export-meter-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (มิเตอร์น้ำไฟ)</button>
+          </div>
+
+          <div class="glass-card report-card">
+            <h3><i class="fa-solid fa-file-contract text-primary"></i> 4. รายงานประวัติสัญญาเช่าทั้งหมด</h3>
+            <p class="text-muted">สรุปทะเบียนสัญญาเช่า วันเริ่มสัญญา และวันหมดอายุ</p>
+            <button class="btn btn-primary btn-sm btn-export-contracts-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (สัญญาเช่า)</button>
           </div>
         </div>
       </div>
@@ -995,14 +1083,17 @@ class ReportsComponent {
 class SettingsComponent {
   static render(state) {
     const settings = state.settings;
+    const rates = state.rates;
+    const users = state.users || [];
 
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
-          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท), บันทึกข้อมูลซิงค์คลาวด์ Google Sheets และ Activity Logs</p></div>
+          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท), ตั้งค่าเรทค่าน้ำค่าไฟ และบันทึกข้อมูลซิงค์คลาวด์ Google Sheets</p></div>
         </div>
+
         <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-solid fa-cloud text-primary"></i> ซิงค์ข้อมูลลง Google Sheets</h3>
+          <h3><i class="fa-solid fa-cloud text-primary"></i> เชื่อมต่อซิงค์ข้อมูล Google Sheets แบบเรียลไทม์</h3>
           <div class="form-group" style="margin-top:1rem;">
             <label>Google Apps Script Web App URL:</label>
             <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
@@ -1012,9 +1103,34 @@ class SettingsComponent {
             <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้</button>
           </div>
         </div>
+
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-bolt text-warning"></i> กำหนดเรทค่าน้ำ - ค่าไฟ และค่าบริการสาธารณูปโภค</h3>
+          <form id="form-rates" style="margin-top:1rem;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group"><label>ค่าไฟฟ้า (บาท / ยูนิต):</label><input type="number" step="0.1" id="rate-elec" class="form-control" value="${rates.electricityRate || 8.0}"></div>
+              <div class="form-group"><label>ค่าน้ำประปา (บาท / ยูนิต):</label><input type="number" step="0.1" id="rate-water" class="form-control" value="${rates.waterRate || 20.0}"></div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกปรับเรทค่าน้ำไฟ</button>
+          </form>
+        </div>
+
         <div class="glass-card">
-          <h3><i class="fa-solid fa-download text-success"></i> สำรอง & กู้คืนข้อมูล (Backup JSON)</h3>
-          <button id="btn-backup-export" class="btn btn-success" style="margin-top:1rem;"><i class="fa-solid fa-file-export"></i> ดาวน์โหลดไฟล์สำรองข้อมูล JSON</button>
+          <h3><i class="fa-solid fa-users-gear text-primary"></i> จัดการผู้ใช้งานระบบ (User Roles Management)</h3>
+          <div class="table-responsive" style="margin-top:1rem;">
+            <table class="custom-table">
+              <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>บทบาทสิทธิ์ใช้งาน</th></tr></thead>
+              <tbody>
+                ${users.map(u => `
+                  <tr>
+                    <td><strong>${u.username}</strong></td>
+                    <td>${u.displayName}</td>
+                    <td><span class="role-pill role-${u.role}">${u.role}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
@@ -1079,11 +1195,11 @@ class App {
       case 'dashboard': workspace.innerHTML = DashboardComponent.render(this.state); break;
       case 'contracts': workspace.innerHTML = ContractsComponent.render(this.state); this.bindContractsEvents(); break;
       case 'tenants': workspace.innerHTML = TenantsComponent.render(this.state); this.bindTenantsEvents(); break;
-      case 'rooms': workspace.innerHTML = RoomsComponent.render(this.state); break;
+      case 'rooms': workspace.innerHTML = RoomsComponent.render(this.state); this.bindRoomsEvents(); break;
       case 'billing': workspace.innerHTML = BillingComponent.render(this.state); this.bindBillingEvents(); break;
-      case 'repairs': workspace.innerHTML = RepairsComponent.render(this.state); break;
-      case 'accounting': workspace.innerHTML = AccountingComponent.render(this.state); break;
-      case 'calendar': workspace.innerHTML = CalendarComponent.render(this.state); break;
+      case 'repairs': workspace.innerHTML = RepairsComponent.render(this.state); this.bindRepairsEvents(); break;
+      case 'accounting': workspace.innerHTML = AccountingComponent.render(this.state); this.bindAccountingEvents(); break;
+      case 'calendar': workspace.innerHTML = CalendarComponent.render(this.state); this.bindCalendarEvents(); break;
       case 'reports': workspace.innerHTML = ReportsComponent.render(this.state); this.bindReportsEvents(); break;
       case 'settings': workspace.innerHTML = SettingsComponent.render(this.state); this.bindSettingsEvents(); break;
       default: workspace.innerHTML = DashboardComponent.render(this.state);
@@ -1129,6 +1245,119 @@ class App {
     }
   }
 
+  // --- 1. ROOMS EVENTS ---
+  static bindRoomsEvents() {
+    const addRoomBtn = document.getElementById('btn-add-room');
+    if (addRoomBtn) {
+      addRoomBtn.addEventListener('click', () => this.openRoomModal());
+    }
+
+    document.querySelectorAll('.btn-edit-room').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const room = this.state.rooms.find(r => r.id === id);
+        if (room) this.openRoomModal(room);
+      });
+    });
+
+    document.querySelectorAll('.btn-action-bill').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const room = this.state.rooms.find(r => r.id === id);
+        if (room) {
+          this.switchTab('billing');
+          this.openCreateBillModal(room);
+        }
+      });
+    });
+  }
+
+  static openRoomModal(roomToEdit = null) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const isEdit = !!roomToEdit;
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid ${isEdit ? 'fa-pen text-info' : 'fa-plus text-primary'}"></i> ${isEdit ? 'แก้ไขข้อมูลห้องพัก' : 'เพิ่มห้องพักใหม่'}</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="room-form">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>เลขห้อง / ชื่อห้อง *</label>
+              <input type="text" id="rm-name" class="form-control" value="${roomToEdit ? roomToEdit.name : ''}" placeholder="A105" required>
+            </div>
+            <div class="form-group">
+              <label>ชั้นที่ *</label>
+              <input type="number" id="rm-floor" class="form-control" value="${roomToEdit ? roomToEdit.floor : 1}" required>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ประเภทห้องพัก *</label>
+              <select id="rm-type" class="form-control" required>
+                ${this.state.roomTypes.map(t => `<option value="${t.id}" ${roomToEdit && roomToEdit.typeId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>ค่าเช่ารายเดือน (บาท) *</label>
+              <input type="number" id="rm-rent" class="form-control" value="${roomToEdit ? roomToEdit.baseRent : 3500}" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>สถานะห้องพัก *</label>
+            <select id="rm-status" class="form-control" required>
+              <option value="vacant" ${roomToEdit && roomToEdit.status === 'vacant' ? 'selected' : ''}>⚪ ห้องว่าง</option>
+              <option value="occupied" ${roomToEdit && roomToEdit.status === 'occupied' ? 'selected' : ''}>🟢 มีผู้เช่า</option>
+              <option value="overdue" ${roomToEdit && roomToEdit.status === 'overdue' ? 'selected' : ''}>🔴 ค้างชำระ</option>
+              <option value="reserved" ${roomToEdit && roomToEdit.status === 'reserved' ? 'selected' : ''}>🟡 จองแล้ว</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลห้องพัก
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('room-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('rm-name').value.trim();
+      const floor = parseInt(document.getElementById('rm-floor').value, 10) || 1;
+      const typeId = document.getElementById('rm-type').value;
+      const baseRent = parseFloat(document.getElementById('rm-rent').value) || 3500;
+      const status = document.getElementById('rm-status').value;
+
+      if (isEdit) {
+        roomToEdit.name = name;
+        roomToEdit.floor = floor;
+        roomToEdit.typeId = typeId;
+        roomToEdit.baseRent = baseRent;
+        roomToEdit.status = status;
+      } else {
+        const newRoom = {
+          id: 'r_' + Date.now(),
+          name, floor, typeId, baseRent, status,
+          lastWaterMeter: 0, lastElecMeter: 0
+        };
+        this.state.rooms.push(newRoom);
+      }
+
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('rooms');
+    });
+  }
+
+  // --- 2. TENANTS EVENTS ---
   static bindTenantsEvents() {
     const exportExcel = document.getElementById('btn-export-tenants-excel');
     if (exportExcel) {
@@ -1179,7 +1408,6 @@ class App {
     });
   }
 
-  // Multi-File Attachment Reader Helper (Reads images, PDFs, docx, etc. into Base64 Data URLs)
   static readFileAsDataUrl(file) {
     return new Promise((resolve) => {
       if (!file) return resolve(null);
@@ -1196,7 +1424,6 @@ class App {
     });
   }
 
-  // Interactive Modal: Add/Edit Tenant with Multi-File Uploads (บัตรประชาชน, ทะเบียนบ้าน, เอกสารอื่นๆ)
   static openTenantModal(tenantToEdit = null) {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
@@ -1267,7 +1494,6 @@ class App {
             <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}" required>
           </div>
 
-          <!-- Multi-File Attachments Section (บัตรประชาชน & สำเนาทะเบียนบ้าน & เอกสารแนบ) -->
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-paperclip"></i> แนบไฟล์เอกสารผู้เช่า (รองรับทุกไฟล์: รูปถ่าย/PDF/DOCX/ZIP)</h4>
             
@@ -1302,9 +1528,8 @@ class App {
       e.preventDefault();
       const submitBtn = document.getElementById('btn-submit-tenant');
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกและซิงค์ข้อมูลลง Google Sheets...';
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...';
 
-      const user = AuthService.getCurrentUser();
       const name = document.getElementById('tn-name').value.trim();
       const idCard = document.getElementById('tn-idcard').value.trim();
       const tel = document.getElementById('tn-tel').value.trim();
@@ -1316,7 +1541,6 @@ class App {
       const endDate = document.getElementById('tn-end-date').value;
       const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
 
-      // Read attachments
       const fileIdCard = document.getElementById('tn-file-idcard').files[0];
       const fileHouse = document.getElementById('tn-file-house').files[0];
       const otherFiles = Array.from(document.getElementById('tn-file-other').files);
@@ -1348,8 +1572,6 @@ class App {
         tenantToEdit.endDate = endDate;
         tenantToEdit.documents = newDocs;
         if (tenantToEdit.deposit) tenantToEdit.deposit.initialBail = bail;
-
-        LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'UPDATE', 'TENANTS', `แก้ไขข้อมูลผู้เช่า ${name}`);
       } else {
         const newTenant = {
           id: 't_' + Date.now(),
@@ -1359,10 +1581,8 @@ class App {
           documents: newDocs
         };
         this.state.tenants.push(newTenant);
-        LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'CREATE', 'TENANTS', `เพิ่มผู้เช่าใหม่ ${name}`);
       }
 
-      // Update room status
       const room = this.state.rooms.find(r => r.id === roomId);
       if (room) {
         room.status = 'occupied';
@@ -1371,14 +1591,12 @@ class App {
         room.entryDate = startDate;
       }
 
-      // Save local and trigger background Google Sheets sync
       DBService.saveState(this.state);
       modal.classList.remove('active');
       this.switchTab('tenants');
     });
   }
 
-  // Interactive Modal: View & Download Tenant Documents (ดูเอกสารแนบ)
   static openViewTenantDocsModal(tenant) {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
@@ -1420,28 +1638,541 @@ class App {
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
   }
 
-  // Delete Tenant Function (ลบผู้เช่า)
   static deleteTenant(tenantId) {
-    const user = AuthService.getCurrentUser();
     const idx = this.state.tenants.findIndex(t => t.id === tenantId);
     if (idx !== -1) {
-      const deletedName = this.state.tenants[idx].name;
       const assignedRoomId = this.state.tenants[idx].assignedRoomId;
-
       const room = this.state.rooms.find(r => r.id === assignedRoomId);
       if (room) {
         room.status = 'vacant';
         room.currentTenantId = null;
         room.currentTenantName = null;
       }
-
       this.state.tenants.splice(idx, 1);
       DBService.saveState(this.state);
-      LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'DELETE', 'TENANTS', `ลบผู้เช่า ${deletedName}`);
       this.switchTab('tenants');
     }
   }
 
+  // --- 3. BILLING EVENTS ---
+  static bindBillingEvents() {
+    const createBillBtn = document.getElementById('btn-create-bill');
+    if (createBillBtn) {
+      createBillBtn.addEventListener('click', () => this.openCreateBillModal());
+    }
+
+    document.querySelectorAll('.btn-toggle-pay-status').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv) {
+          inv.status = inv.status === 'paid' ? 'unpaid' : 'paid';
+          inv.paidAmount = inv.status === 'paid' ? inv.totalAmount : 0;
+          inv.outstandingAmount = inv.status === 'paid' ? 0 : inv.totalAmount;
+          inv.paymentDate = inv.status === 'paid' ? new Date().toISOString().slice(0, 10) : null;
+          DBService.saveState(this.state);
+          this.switchTab('billing');
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-delete-bill').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (confirm('คุณต้องการลบบิลนี้ใช่หรือไม่?')) {
+          const idx = this.state.invoices.findIndex(i => i.id === id);
+          if (idx !== -1) {
+            this.state.invoices.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('billing');
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-qr-promptpay').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv) {
+          const payload = PromptPayService.generatePayload(this.state.settings.promptPayId, inv.totalAmount);
+          alert(`📱 Dynamic PromptPay QR Code Payload:\n\n${payload}\n\nยอดเงิน: ฿${inv.totalAmount.toLocaleString()}`);
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-print-bill').forEach(btn => {
+      btn.addEventListener('click', () => window.print());
+    });
+
+    document.querySelectorAll('.btn-send-line').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv) {
+          alert(`📲 จำลองการส่งข้อความ LINE:\n\n${LineService.createBillingMessage(inv, this.state.settings.apartmentName)}`);
+        }
+      });
+    });
+  }
+
+  static openCreateBillModal(preselectedRoom = null) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-calculator text-primary"></i> คำนวณออกบิลแจ้งหนี้ประจำเดือน</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="bill-form">
+          <div class="form-group">
+            <label>เลือกห้องพัก *</label>
+            <select id="bill-room-select" class="form-control" required>
+              <option value="">-- เลือกห้องพัก --</option>
+              ${this.state.rooms.map(r => `<option value="${r.id}" ${preselectedRoom && preselectedRoom.id === r.id ? 'selected' : ''}>ห้อง ${r.name} (${r.currentTenantName || 'ไม่มีผู้เช่า'})</option>`).join('')}
+            </select>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>รอบเดือน *</label>
+              <input type="month" id="bill-month" class="form-control" value="${new Date().toISOString().slice(0, 7)}" required>
+            </div>
+            <div class="form-group">
+              <label>กำหนดชำระ *</label>
+              <input type="date" id="bill-due-date" class="form-control" value="${new Date().toISOString().slice(0, 7)}-05" required>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
+            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> จดเลขมิเตอร์ไฟฟ้า (เรท ฿${this.state.rates.electricityRate}/ยูนิต)</h4>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="bill-elec-prev" class="form-control" value="1000"></div>
+              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="1050" required></div>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
+            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> จดเลขมิเตอร์น้ำประปา (เรท ฿${this.state.rates.waterRate}/ยูนิต)</h4>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="bill-water-prev" class="form-control" value="100"></div>
+              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="110" required></div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
+            <i class="fa-solid fa-file-invoice"></i> คำนวณและสร้างใบแจ้งหนี้
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('bill-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const roomId = document.getElementById('bill-room-select').value;
+      const room = this.state.rooms.find(r => r.id === roomId);
+      if (!room) return alert('กรุณาเลือกห้องพัก');
+
+      const monthKey = document.getElementById('bill-month').value;
+      const dueDate = document.getElementById('bill-due-date').value;
+      const elecPrev = parseFloat(document.getElementById('bill-elec-prev').value) || 0;
+      const elecCurr = parseFloat(document.getElementById('bill-elec-curr').value) || 0;
+      const waterPrev = parseFloat(document.getElementById('bill-water-prev').value) || 0;
+      const waterCurr = parseFloat(document.getElementById('bill-water-curr').value) || 0;
+
+      const elecUnits = Math.max(0, elecCurr - elecPrev);
+      const waterUnits = Math.max(0, waterCurr - waterPrev);
+      const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
+      const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
+      const rentAmt = room.baseRent || 3500;
+      const total = rentAmt + elecAmt + waterAmt;
+
+      const newInv = {
+        id: 'inv_' + Date.now(),
+        invoiceNumber: `INV${monthKey.replace('-', '')}-${room.name}`,
+        monthKey, roomId: room.id, roomName: room.name,
+        tenantId: room.currentTenantId || 't1',
+        tenantName: room.currentTenantName || 'ผู้เช่า',
+        issueDate: new Date().toISOString().slice(0, 10),
+        dueDate,
+        waterPrev, waterCurr, elecPrev, elecCurr,
+        rentAmount: rentAmt, waterAmount: waterAmt, elecAmount: elecAmt,
+        totalAmount: total, paidAmount: 0, outstandingAmount: total,
+        status: 'unpaid'
+      };
+
+      this.state.invoices.unshift(newInv);
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('billing');
+    });
+  }
+
+  // --- 4. REPAIRS EVENTS ---
+  static bindRepairsEvents() {
+    const addRepairBtn = document.getElementById('btn-add-repair');
+    if (addRepairBtn) {
+      addRepairBtn.addEventListener('click', () => this.openRepairModal());
+    }
+
+    document.querySelectorAll('.btn-toggle-repair').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const rep = this.state.repairs.find(r => r.id === id);
+        if (rep) {
+          rep.status = rep.status === 'completed' ? 'pending' : 'completed';
+          DBService.saveState(this.state);
+          this.switchTab('repairs');
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-delete-repair').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (confirm('ลบรายการแจ้งซ่อมนี้ใช่หรือไม่?')) {
+          const idx = this.state.repairs.findIndex(r => r.id === id);
+          if (idx !== -1) {
+            this.state.repairs.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('repairs');
+          }
+        }
+      });
+    });
+  }
+
+  static openRepairModal() {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-screwdriver-wrench text-primary"></i> บันทึกใบแจ้งซ่อมห้องพักใหม่</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="repair-form">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>เลือกห้องพัก *</label>
+              <select id="rep-room" class="form-control" required>
+                ${this.state.rooms.map(r => `<option value="${r.id}">ห้อง ${r.name} (${r.currentTenantName || 'ไม่มีผู้เช่า'})</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>หัวข้อแจ้งซ่อม *</label>
+              <input type="text" id="rep-title" class="form-control" placeholder="แอร์ไม่เย็น / ท่อน้ำรั่ว" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>รายละเอียด:</label>
+            <input type="text" id="rep-desc" class="form-control" placeholder="รายละเอียดอาการชำรุด">
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ช่างผู้ดูแล:</label>
+              <input type="text" id="rep-tech" class="form-control" placeholder="ช่างสมศักดิ์ แอร์เซอร์วิส">
+            </div>
+            <div class="form-group">
+              <label>ค่าซ่อมบำรุง (บาท):</label>
+              <input type="number" id="rep-expense" class="form-control" value="0">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกใบแจ้งซ่อม</button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('repair-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const roomId = document.getElementById('rep-room').value;
+      const room = this.state.rooms.find(r => r.id === roomId);
+
+      const newRep = {
+        id: 'rep_' + Date.now(),
+        ticketNumber: `REP-2026-${Math.floor(100 + Math.random() * 900)}`,
+        roomId: room ? room.id : '',
+        roomName: room ? room.name : '',
+        tenantName: room ? room.currentTenantName : '',
+        title: document.getElementById('rep-title').value,
+        description: document.getElementById('rep-desc').value,
+        category: 'general',
+        requestDate: new Date().toISOString().slice(0, 10),
+        status: 'pending',
+        expenseAmount: parseFloat(document.getElementById('rep-expense').value) || 0,
+        assignedTechnician: document.getElementById('rep-tech').value
+      };
+
+      if (!this.state.repairs) this.state.repairs = [];
+      this.state.repairs.unshift(newRep);
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('repairs');
+    });
+  }
+
+  // --- 5. ACCOUNTING EVENTS ---
+  static bindAccountingEvents() {
+    const addLedgerBtn = document.getElementById('btn-add-ledger');
+    if (addLedgerBtn) {
+      addLedgerBtn.addEventListener('click', () => this.openLedgerModal());
+    }
+
+    document.querySelectorAll('.btn-delete-ledger').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (confirm('ลบรายการบัญชีนี้ใช่หรือไม่?')) {
+          const idx = this.state.ledger.findIndex(l => l.id === id);
+          if (idx !== -1) {
+            this.state.ledger.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('accounting');
+          }
+        }
+      });
+    });
+  }
+
+  static openLedgerModal() {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-scale-balanced text-primary"></i> บันทึกรายการ รายรับ - รายจ่าย</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="ledger-form">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>ประเภทรายการ *</label>
+              <select id="led-type" class="form-control" required>
+                <option value="income">📈 รายรับ</option>
+                <option value="expense">📉 รายจ่าย</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>หมวดหมู่ *</label>
+              <input type="text" id="led-cat" class="form-control" placeholder="ค่าเช่าห้อง / ค่าแม่บ้าน / ค่าซ่อม" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>รายละเอียดรายการ *</label>
+            <input type="text" id="led-desc" class="form-control" placeholder="รับชำระค่าเช่าห้อง A101" required>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>จำนวนเงิน (บาท) *</label>
+              <input type="number" id="led-amt" class="form-control" placeholder="3500" required>
+            </div>
+            <div class="form-group">
+              <label>วันที่ *</label>
+              <input type="date" id="led-date" class="form-control" value="${new Date().toISOString().slice(0, 10)}" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกรายการลงบัญชี</button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('ledger-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const newLed = {
+        id: 'led_' + Date.now(),
+        date: document.getElementById('led-date').value,
+        type: document.getElementById('led-type').value,
+        category: document.getElementById('led-cat').value,
+        description: document.getElementById('led-desc').value,
+        amount: parseFloat(document.getElementById('led-amt').value) || 0,
+        recordedBy: 'admin'
+      };
+
+      if (!this.state.ledger) this.state.ledger = [];
+      this.state.ledger.unshift(newLed);
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('accounting');
+    });
+  }
+
+  // --- 6. CALENDAR EVENTS ---
+  static bindCalendarEvents() {
+    const addEvtBtn = document.getElementById('btn-add-event');
+    if (addEvtBtn) {
+      addEvtBtn.addEventListener('click', () => this.openEventModal());
+    }
+
+    document.querySelectorAll('.btn-delete-event').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (confirm('ลบวันนัดหมายนี้ใช่หรือไม่?')) {
+          const idx = this.state.events.findIndex(ev => ev.id === id);
+          if (idx !== -1) {
+            this.state.events.splice(idx, 1);
+            DBService.saveState(this.state);
+            this.switchTab('calendar');
+          }
+        }
+      });
+    });
+  }
+
+  static openEventModal() {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-calendar-plus text-primary"></i> เพิ่มวันนัดหมายในปฏิทิน</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="event-form">
+          <div class="form-group">
+            <label>หัวข้อนัดหมาย *</label>
+            <input type="text" id="evt-title" class="form-control" placeholder="นัดช่างมาล้างแอร์ ชั้น 1" required>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>วันที่นัดหมาย *</label>
+              <input type="date" id="evt-date" class="form-control" value="${new Date().toISOString().slice(0, 10)}" required>
+            </div>
+            <div class="form-group">
+              <label>หมวดหมู่ *</label>
+              <input type="text" id="evt-cat" class="form-control" value="ซ่อมบำรุง" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> เพิ่มวันนัดหมาย</button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('event-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const newEvt = {
+        id: 'evt_' + Date.now(),
+        title: document.getElementById('evt-title').value,
+        date: document.getElementById('evt-date').value,
+        category: document.getElementById('evt-cat').value,
+        roomName: 'ทั่วไป'
+      };
+
+      if (!this.state.events) this.state.events = [];
+      this.state.events.unshift(newEvt);
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.switchTab('calendar');
+    });
+  }
+
+  // --- 7. REPORTS EVENTS ---
+  static bindReportsEvents() {
+    const expInc = document.querySelector('.btn-export-income-report');
+    if (expInc) {
+      expInc.addEventListener('click', () => {
+        const headers = ['เลขที่บิล', 'รอบเดือน', 'ห้อง', 'ผู้เช่า', 'ยอดเงินสุทธิ', 'สถานะ'];
+        const rows = this.state.invoices.map(i => [i.invoiceNumber, i.monthKey, i.roomName, i.tenantName, i.totalAmount, i.status]);
+        ExportService.exportToCSV('รายงานรายรับประจำเดือน_Sombat.csv', headers, rows);
+      });
+    }
+
+    const expOvd = document.querySelector('.btn-export-overdue-report');
+    if (expOvd) {
+      expOvd.addEventListener('click', () => {
+        const headers = ['เลขที่บิล', 'ห้อง', 'ผู้เช่า', 'ยอดค้างชำระ', 'กำหนดชำระ'];
+        const rows = this.state.invoices.filter(i => i.status === 'unpaid').map(i => [i.invoiceNumber, i.roomName, i.tenantName, i.outstandingAmount, i.dueDate]);
+        ExportService.exportToCSV('รายงานผู้เช่าค้างชำระ_Sombat.csv', headers, rows);
+      });
+    }
+
+    const expMtr = document.querySelector('.btn-export-meter-report');
+    if (expMtr) {
+      expMtr.addEventListener('click', () => {
+        const headers = ['ห้องพัก', 'มิเตอร์ไฟครั้งก่อน', 'มิเตอร์ไฟครั้งนี้', 'มิเตอร์น้ำครั้งก่อน', 'มิเตอร์น้ำครั้งนี้'];
+        const rows = this.state.invoices.map(i => [i.roomName, i.elecPrev, i.elecCurr, i.waterPrev, i.waterCurr]);
+        ExportService.exportToCSV('รายงานมิเตอร์น้ำไฟ_Sombat.csv', headers, rows);
+      });
+    }
+
+    const expCtr = document.querySelector('.btn-export-contracts-report');
+    if (expCtr) {
+      expCtr.addEventListener('click', () => {
+        const headers = ['ผู้เช่า', 'เลขบัตรประชาชน', 'ห้องพัก', 'วันเริ่มสัญญา', 'วันหมดสัญญา'];
+        const rows = this.state.tenants.map(t => {
+          const room = this.state.rooms.find(r => r.id === t.assignedRoomId);
+          return [t.name, t.idCard, room ? room.name : '-', t.startDate, t.endDate];
+        });
+        ExportService.exportToCSV('รายงานทะเบียนสัญญาเช่า_Sombat.csv', headers, rows);
+      });
+    }
+  }
+
+  // --- 8. SETTINGS EVENTS ---
+  static bindSettingsEvents() {
+    const saveUrlBtn = document.getElementById('btn-save-sheets-url');
+    if (saveUrlBtn) {
+      saveUrlBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const urlInput = document.getElementById('sheets-url-input');
+        if (urlInput) {
+          this.state.settings.googleSheetUrl = urlInput.value;
+          DBService.saveState(this.state);
+          alert('บันทึก Google Sheets Web App URL เรียบร้อยแล้ว!');
+        }
+      });
+    }
+
+    const syncSheetsBtn = document.getElementById('btn-sync-to-sheets');
+    if (syncSheetsBtn) {
+      syncSheetsBtn.addEventListener('click', async () => {
+        const url = this.state.settings.googleSheetUrl;
+        if (!url) {
+          alert('กรุณาใส่ Google Sheets Web App URL ในช่องก่อนกดบันทึกซิงค์ข้อมูล');
+          return;
+        }
+        syncSheetsBtn.disabled = true;
+        syncSheetsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งข้อมูลลง Google Sheets...';
+        try {
+          await DBService.syncToGoogleSheets(url, this.state);
+          alert('✅ บันทึกข้อมูลลง Google Sheets สำเร็จเรียบร้อยแล้ว!');
+        } catch (err) {
+          alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: ' + err.message);
+        } finally {
+          syncSheetsBtn.disabled = false;
+          syncSheetsBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้';
+        }
+      });
+    }
+
+    const ratesForm = document.getElementById('form-rates');
+    if (ratesForm) {
+      ratesForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.state.rates.electricityRate = parseFloat(document.getElementById('rate-elec').value) || 8.0;
+        this.state.rates.waterRate = parseFloat(document.getElementById('rate-water').value) || 20.0;
+        DBService.saveState(this.state);
+        alert('ปรับปรุงเรทค่าน้ำ-ค่าไฟ เรียบร้อยแล้ว!');
+      });
+    }
+  }
+
+  // --- 9. CONTRACTS EVENTS ---
   static bindContractsEvents() {
     document.querySelectorAll('.contract-filter-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1592,9 +2323,7 @@ class App {
 
     document.getElementById('create-contract-form').addEventListener('submit', (e) => {
       e.preventDefault();
-      const user = AuthService.getCurrentUser();
       const tenantId = tenantSelect.value;
-
       let tenant = this.state.tenants.find(t => t.id === tenantId);
       const name = nameInput.value;
       const idCard = idCardInput.value;
@@ -1635,8 +2364,6 @@ class App {
       }
 
       DBService.saveState(this.state);
-      LoggerService.log(user ? user.username : 'admin', user ? user.role : 'admin', 'CREATE', 'TENANTS', `ออกสัญญาเช่าใหม่ให้ห้อง ${room ? room.name : ''} (${tenant.name})`);
-
       modal.classList.remove('active');
       this.openOfficialContractModal(tenant, witness1, witness2);
     });
@@ -1681,7 +2408,6 @@ class App {
       </div>
 
       <div class="modal-body" style="padding-top: 0.5rem;">
-        <!-- Front Page Document Preview -->
         <div id="contract-front-view" class="contract-paper front-page">
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
             หนังสือสัญญาเช่าห้องแถว
@@ -1734,7 +2460,6 @@ class App {
           </div>
         </div>
 
-        <!-- Back Page Rules Preview -->
         <div id="contract-back-view" class="contract-paper back-page" style="display: none;">
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.5rem;">
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
@@ -1789,7 +2514,7 @@ class App {
 
     tabBack.addEventListener('click', () => {
       tabBack.classList.add('active'); tabFront.classList.remove('active');
-      viewBack.style.display = 'block'; viewFront.style.display = 'none';
+      viewFront.style.display = 'none'; viewBack.style.display = 'block';
     });
 
     document.getElementById('btn-do-print-official-contract').addEventListener('click', () => {
@@ -1884,88 +2609,9 @@ class App {
       window.print();
     });
   }
-
-  static bindBillingEvents() {
-    document.querySelectorAll('.btn-qr-promptpay').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        const inv = this.state.invoices.find(i => i.id === id);
-        if (inv) {
-          const payload = PromptPayService.generatePayload(this.state.settings.promptPayId, inv.totalAmount);
-          alert(`📱 Dynamic PromptPay QR Code Payload:\n\n${payload}\n\nยอดเงิน: ฿${inv.totalAmount.toLocaleString()}`);
-        }
-      });
-    });
-
-    document.querySelectorAll('.btn-print-bill').forEach(btn => {
-      btn.addEventListener('click', () => window.print());
-    });
-
-    document.querySelectorAll('.btn-send-line').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        const inv = this.state.invoices.find(i => i.id === id);
-        if (inv) {
-          alert(`📲 จำลองการส่งข้อความ LINE:\n\n${LineService.createBillingMessage(inv, this.state.settings.apartmentName)}`);
-        }
-      });
-    });
-  }
-
-  static bindReportsEvents() {
-    document.querySelectorAll('.btn-export-csv').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const headers = ['เลขที่บิล', 'ห้อง', 'ผู้เช่า', 'ยอดรวม'];
-        const rows = this.state.invoices.map(i => [i.invoiceNumber, i.roomName, i.tenantName, i.totalAmount]);
-        ExportService.exportToCSV('รายงานรายรับ_Sombat.csv', headers, rows);
-      });
-    });
-  }
-
-  static bindSettingsEvents() {
-    const backupBtn = document.getElementById('btn-backup-export');
-    if (backupBtn) {
-      backupBtn.addEventListener('click', () => DBService.exportJSON());
-    }
-
-    const saveUrlBtn = document.getElementById('btn-save-sheets-url');
-    if (saveUrlBtn) {
-      saveUrlBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const urlInput = document.getElementById('sheets-url-input');
-        if (urlInput) {
-          this.state.settings.googleSheetUrl = urlInput.value;
-          DBService.saveState(this.state);
-          alert('บันทึก Google Sheets Web App URL เรียบร้อยแล้ว!');
-        }
-      });
-    }
-
-    const syncSheetsBtn = document.getElementById('btn-sync-to-sheets');
-    if (syncSheetsBtn) {
-      syncSheetsBtn.addEventListener('click', async () => {
-        const url = this.state.settings.googleSheetUrl;
-        if (!url) {
-          alert('กรุณาใส่ Google Sheets Web App URL ในช่องก่อนกดบันทึกซิงค์ข้อมูล');
-          return;
-        }
-        syncSheetsBtn.disabled = true;
-        syncSheetsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งข้อมูลลง Google Sheets...';
-        try {
-          await DBService.syncToGoogleSheets(url, this.state);
-          alert('✅ บันทึกข้อมูลลง Google Sheets สำเร็จเรียบร้อยแล้ว!');
-        } catch (err) {
-          alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: ' + err.message);
-        } finally {
-          syncSheetsBtn.disabled = false;
-          syncSheetsBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้';
-        }
-      });
-    }
-  }
 }
 
-// Global Launcher with Real-Time Google Sheets Auto-Pull
+// Global Launcher
 window.addEventListener('DOMContentLoaded', () => {
   App.init();
 });
