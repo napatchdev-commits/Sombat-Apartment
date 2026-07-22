@@ -259,6 +259,12 @@ function formatDateString(val) {
 // 2. WRITE STRUCTURED SHEETS
 // ==========================================================================
 function writeAllStructuredSheets(ss, data) {
+  // Delete legacy duplicate tab "รายการบิล" if present to consolidate on single INVOICES tab
+  var legacySheet = ss.getSheetByName("รายการบิล");
+  if (legacySheet && ss.getSheets().length > 1) {
+    try { ss.deleteSheet(legacySheet); } catch(e) {}
+  }
+
   writeDashboardSheet(ss, data);
   writeRoomTypesSheet(ss, data.roomTypes || []);
   writeRoomsSheet(ss, data.rooms || []);
