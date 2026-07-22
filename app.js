@@ -3911,12 +3911,14 @@ class App {
     const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
 
     const today = new Date();
+    const hasAddress = tenant.address && tenant.address.trim() && !tenant.address.includes('45/10 หมู่ที่ 8');
     const d = {
       day: today.getDate().toString(),
       month: Formatters.thaiMonthBE(today.toISOString().slice(0, 7)).split(' ')[0],
       year: (today.getFullYear() + 543).toString(),
       tenantName: tenant.name,
-      tenantAddress: tenant.address || '45/10 หมู่ที่ 8 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี',
+      tenantAddress: hasAddress ? tenant.address : '',
+      tenantAddressFormatted: hasAddress ? `<span class="dotted-fill">${tenant.address}</span>` : `<span style="display:inline-block; min-width:320px; border-bottom:1px dotted #000;">&nbsp;</span>`,
       tenantIdCard: Formatters.formatIdCard(tenant.idCard),
       tenantIdIssueDate: Formatters.thaiDate(tenant.startDate),
       roomName: room ? room.name : 'A101',
@@ -3959,7 +3961,7 @@ class App {
 
           <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>นายสมบัติ น้ำวน</strong> อยู่บ้านเลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
-            อยู่บ้านเลขที่ <span class="dotted-fill">${d.tenantAddress}</span><br>
+            อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
             ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้เช่า”</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้คือ<br>
 
@@ -4071,7 +4073,7 @@ class App {
 
           <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>นายสมบัติ น้ำวน</strong> อยู่บ้านเลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
-            อยู่บ้านเลขที่ <span class="dotted-fill">${d.tenantAddress}</span><br>
+            อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
             ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้เช่า”</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้คือ<br>
 
