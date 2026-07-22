@@ -2228,7 +2228,7 @@ class App {
                 <option value="">-- เลือกห้องพัก --</option>
                 ${this.state.rooms.map(r => `
                   <option value="${r.id}" ${tenantToEdit && tenantToEdit.assignedRoomId === r.id ? 'selected' : ''}>
-                    ห้อง ${r.name} (${r.status === 'vacant' ? 'ว่าง' : r.id === (tenantToEdit ? tenantToEdit.assignedRoomId : '') ? 'ห้องเดิม' : 'มีผู้เช่า'})
+                    ห้อง ${r.name}
                   </option>
                 `).join('')}
               </select>
@@ -2940,7 +2940,7 @@ class App {
             <label>เลือกห้องพัก *</label>
             <select id="bill-room-select" class="form-control" required>
               <option value="">-- เลือกห้องพัก --</option>
-              ${this.state.rooms.map(r => `<option value="${r.id}" ${initialRoom && initialRoom.id === r.id ? 'selected' : ''}>ห้อง ${r.name} (${r.currentTenantName || 'ไม่มีผู้เช่า'})</option>`).join('')}
+              ${this.state.rooms.map(r => `<option value="${r.id}" ${initialRoom && initialRoom.id === r.id ? 'selected' : ''}>ห้อง ${r.name}</option>`).join('')}
             </select>
           </div>
 
@@ -3090,7 +3090,7 @@ class App {
             <div class="form-group">
               <label>เลือกห้องพัก *</label>
               <select id="rep-room" class="form-control" required>
-                ${this.state.rooms.map(r => `<option value="${r.id}">ห้อง ${r.name} (${r.currentTenantName || 'ไม่มีผู้เช่า'})</option>`).join('')}
+                ${this.state.rooms.map(r => `<option value="${r.id}">ห้อง ${r.name}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
@@ -3790,7 +3790,7 @@ class App {
             <div class="form-group">
               <label>เลือกห้องเช่า / บ้าน *</label>
               <select id="ctr-room-select" class="form-control" required>
-                ${this.state.rooms.map(r => `<option value="${r.id}">ห้อง ${r.name} (ค่าเช่า ฿${r.baseRent.toLocaleString()}/เดือน)</option>`).join('')}
+                ${this.state.rooms.map(r => `<option value="${r.id}">ห้อง ${r.name}</option>`).join('')}
               </select>
             </div>
           </div>
