@@ -2238,6 +2238,109 @@ class App {
           <div class="form-group">
             <label>ที่อยู่ตามภูมิลำเนาผู้เช่า:</label>
             <input type="text" id="tn-address" class="form-control" value="${tenantToEdit ? (tenantToEdit.address || '') : ''}" placeholder="12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี">
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>จัดเข้าห้องพัก</label>
+              <select id="tn-room-select" class="form-control">
+                <option value="">-- เลือกห้องพัก --</option>
+                ${this.state.rooms.map(r => `
+                  <option value="${r.id}" ${tenantToEdit && tenantToEdit.assignedRoomId === r.id ? 'selected' : ''}>
+                    ห้อง ${r.name}
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>วันเริ่มสัญญา (วัน/เดือน/ปี พ.ศ.)</label>
+              <input type="text" id="tn-start-date" class="form-control" value="${tenantToEdit && tenantToEdit.startDate ? Formatters.thaiDate(tenantToEdit.startDate) : Formatters.thaiDate(new Date().toISOString().slice(0,10))}" placeholder="01/05/2568">
+            </div>
+            <div class="form-group">
+              <label>วันหมดสัญญา (วัน/เดือน/ปี พ.ศ.)</label>
+              <input type="text" id="tn-end-date" class="form-control" value="${tenantToEdit && tenantToEdit.endDate ? Formatters.thaiDate(tenantToEdit.endDate) : '31/07/2570'}" placeholder="31/07/2570">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>เงินประกันมัดจำ (บาท)</label>
+            <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}">
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
+            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-paperclip"></i> แนบไฟล์เอกสารผู้เช่า (รองรับทุกไฟล์: รูปถ่าย/PDF/DOCX/ZIP)</h4>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group">
+                <label><i class="fa-solid fa-id-card text-success"></i> สำเนาบัตรประชาชน:</label>
+                <input type="file" id="tn-file-idcard" class="form-control" accept="image/*,.pdf">
+              </div>
+              <div class="form-group">
+                <label><i class="fa-solid fa-house-user text-warning"></i> สำเนาทะเบียนบ้าน:</label>
+                <input type="file" id="tn-file-house" class="form-control" accept="image/*,.pdf">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label><i class="fa-solid fa-folder-plus text-info"></i> เอกสารประกอบอื่นๆ:</label>
+              <input type="file" id="tn-file-other" class="form-control" accept="*/*" multiple>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;" id="btn-submit-tenant">
+            <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'บันทึกการแก้ไขข้อมูลผู้เช่า' : 'บันทึกเพิ่มผู้เช่าใหม่เข้าระบบ'}
+          </button>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('tenant-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('btn-submit-tenant');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...';
+
+      let name = document.getElementById('tn-name').value.trim();
+      let idCard = document.getElementById('tn-idcard').value.trim();
+      let tel = document.getElementById('tn-tel').value.trim();
+      const lineId = document.getElementById('tn-line').value.trim();
+      const email = document.getElementById('tn-email').value.trim();
+      const address = document.getElementById('tn-address').value.trim();
+      const roomId = document.getElementById('tn-room-select').value;
+      const startDateInput = document.getElementById('tn-start-date').value.trim();
+      const endDateInput = document.getElementById('tn-end-date').value.trim();
+      const startDate = Formatters.parseThaiDateToISO(startDateInput);
+      const endDate = Formatters.parseThaiDateToISO(endDateInput);
+      const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
+
+      if (!name) name = 'ผู้เช่า (ยังไม่ระบุชื่อ)';
+      if (!idCard) idCard = '-';
+      if (!tel) tel = '-';
+
+      const fileIdCard = document.getElementById('tn-file-idcard').files[0];
+      const fileHouse = document.getElementById('tn-file-house').files[0];
+      const otherFiles = Array.from(document.getElementById('tn-file-other').files);
+
+      const newDocs = tenantToEdit && tenantToEdit.documents ? [...tenantToEdit.documents] : [];
+
+      if (fileIdCard) {
+        const doc = await App.readFileAsDataUrl(fileIdCard);
+        if (doc) { doc.category = 'idcard'; doc.title = 'สำเนาบัตรประชาชน'; newDocs.push(doc); }
+      }
+      if (fileHouse) {
+        const doc = await App.readFileAsDataUrl(fileHouse);
+        if (doc) { doc.category = 'house'; doc.title = 'สำเนาทะเบียนบ้าน'; newDocs.push(doc); }
+      }
+      for (const f of otherFiles) {
+        const doc = await App.readFileAsDataUrl(f);
+        if (doc) { doc.category = 'other'; doc.title = doc.fileName; newDocs.push(doc); }
+      }
+
+      if (isEdit) {
+        tenantToEdit.name = name;
         tenantToEdit.idCard = idCard;
         tenantToEdit.tel = tel;
         tenantToEdit.lineId = lineId;
