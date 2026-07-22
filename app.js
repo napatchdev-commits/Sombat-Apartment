@@ -216,8 +216,12 @@ class PromptPayService {
 }
 
 class LineService {
-  static createBillingMessage(invoice, propertyName) {
-    return `📢 [${propertyName}] ใบแจ้งหนี้ประจำเดือน ${invoice.monthKey}\n----------------------------------------\n🏠 ห้อง: ${invoice.roomName}\n👤 ผู้เช่า: ${invoice.tenantName}\n💵 ยอดบิลรวมสุทธิ: ฿${invoice.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}\n📅 กำหนดชำระภายใน: ${invoice.dueDate}\n\nกรุณาโอนชำระเงินตามยอดดังกล่าว แล้วส่งสลิปยืนยันทาง LINE นี้ ขอบคุณครับ/ค่ะ 🙏`;
+  static createBillingMessage(invoice, propertyName, tenantUrl) {
+    const aptName = propertyName || 'หอพักสมบัติ นนทบุรี';
+    const tenantName = invoice ? (invoice.tenantName || 'ผู้เช่า') : 'ผู้เช่า';
+    const url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
+    
+    return `🏠 ${aptName}\n\n📢 แจ้งเตือนค่าเช่าประจำเดือน\n\nเรียน คุณ${tenantName}\n\nระบบได้ออกบิลประจำเดือนเรียบร้อยแล้ว\n\nกรุณาเข้าสู่ระบบผู้เช่า\nเพื่อตรวจสอบรายละเอียดบิล\nและอัปโหลดหลักฐานการชำระเงิน\n\nกดที่นี่\n\n${url}\n\nขอบคุณครับ`;
   }
 }
 
@@ -1143,6 +1147,9 @@ class BillingComponent {
           </div>
           <div class="header-actions">
             <button id="btn-create-bill" class="btn btn-primary"><i class="fa-solid fa-calculator"></i> คำนวณออกบิลใหม่</button>
+            <button id="btn-line-notify-header" class="btn btn-success" style="margin-left:0.5rem; background-color:#06c755; border-color:#06c755; color:#ffffff;" title="ส่งข้อความแจ้งเตือนค่าเช่าเข้า LINE">
+              <i class="fa-brands fa-line"></i> แจ้งเตือน LINE ชำระเงิน
+            </button>
           </div>
         </div>
 
@@ -2499,14 +2506,132 @@ class App {
       });
     });
 
+    const lineNotifyBtn = document.getElementById('btn-line-notify-header');
+    if (lineNotifyBtn) {
+      lineNotifyBtn.addEventListener('click', () => this.openLineNotifyModal());
+    }
+
     document.querySelectorAll('.btn-send-line').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.getAttribute('data-id');
-        const inv = this.state.invoices.find(i => i.id === id);
-        if (inv) {
-          alert(`📲 จำลองการส่งข้อความ LINE:\n\n${LineService.createBillingMessage(inv, this.state.settings.apartmentName)}`);
-        }
+        this.openLineNotifyModal(id);
       });
+    });
+  }
+
+  static openLineNotifyModal(initialInvoiceId = null) {
+    const invoices = this.state.invoices || [];
+    const settings = this.state.settings || {};
+    
+    const savedTenantUrl = localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html');
+    const currentAptName = settings.apartmentName || 'หอพักสมบัติ นนทบุรี';
+
+    const selectedInv = invoices.find(i => i.id === initialInvoiceId) || invoices[0] || null;
+
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div class="modal-header" style="background:#06c755; color:#ffffff;">
+        <h3><i class="fa-brands fa-line"></i> ระบบส่งไลน์แจ้งเตือนผู้เช่าชำระเงินประจำเดือน</h3>
+        <button class="close-modal-btn" style="color:#ffffff;">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding:1.5rem;">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1.2rem; margin-bottom:1.25rem;">
+          <h4 style="margin-top:0; margin-bottom:0.75rem; color:#0f172a; font-size:1.05rem;">
+            <i class="fa-solid fa-gear text-primary"></i> ตั้งค่าข้อมูลการส่งแจ้งเตือน (สามารถแก้ไขได้)
+          </h4>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div>
+              <label style="font-weight:600; font-size:0.9rem; color:#334155; margin-bottom:0.35rem; display:block;">ชื่อหอพัก / เจ้าของหอพัก:</label>
+              <input type="text" id="line-cfg-apt-name" class="form-control" value="${currentAptName}" placeholder="เช่น หอพักสมบัติ นนทบุรี">
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:0.9rem; color:#334155; margin-bottom:0.35rem; display:block;">ลิงก์ระบบผู้เช่า (Tenant Portal URL):</label>
+              <input type="text" id="line-cfg-tenant-url" class="form-control" value="${savedTenantUrl}" placeholder="เช่น https://sombat-apartment.vercel.app/tenant.html">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1.25rem;">
+          <label style="font-weight:600; font-size:0.95rem; color:#0f172a;">เลือกรายการผู้เช่า / ห้องพักที่ต้องการแจ้งเตือน *</label>
+          <select id="line-notify-inv-select" class="form-control" style="font-size:1rem; padding:0.65rem 0.85rem;">
+            ${invoices.map(inv => `
+              <option value="${inv.id}" ${selectedInv && selectedInv.id === inv.id ? 'selected' : ''}>
+                ห้อง ${inv.roomName} - คุณ ${inv.tenantName || 'ผู้เช่า'} (ยอดชำระ ฿${(inv.totalAmount || 0).toLocaleString()})
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1.5rem;">
+          <label style="font-weight:600; font-size:0.95rem; color:#0f172a; display:flex; justify-content:space-between; align-items:center;">
+            <span><i class="fa-solid fa-eye text-info"></i> ตัวอย่างข้อความที่จะส่งให้ผู้เช่า</span>
+            <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(จะอัปเดตอัตโนมัติตามห้องและค่าที่ตั้งไว้)</span>
+          </label>
+          <textarea id="line-msg-preview-textarea" class="form-control" rows="12" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #cbd5e1; border-radius:8px; padding:0.85rem;" readonly></textarea>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+          <button id="btn-copy-line-msg" class="btn btn-secondary" style="padding:0.75rem; font-size:1rem; font-weight:600;">
+            <i class="fa-regular fa-copy"></i> คัดลอกข้อความ
+          </button>
+          <button id="btn-open-line-share" class="btn btn-success" style="padding:0.75rem; font-size:1rem; font-weight:600; background-color:#06c755; border-color:#06c755;">
+            <i class="fa-brands fa-line"></i> ส่งข้อความเข้า LINE
+          </button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    const aptInput = document.getElementById('line-cfg-apt-name');
+    const urlInput = document.getElementById('line-cfg-tenant-url');
+    const invSelect = document.getElementById('line-notify-inv-select');
+    const textarea = document.getElementById('line-msg-preview-textarea');
+
+    const updatePreview = () => {
+      const invId = invSelect ? invSelect.value : null;
+      const inv = invoices.find(i => i.id === invId) || { tenantName: 'ผู้เช่า', roomName: 'S101' };
+      const apt = aptInput.value.trim() || 'หอพักสมบัติ นนทบุรี';
+      const url = urlInput.value.trim() || (window.location.origin + '/tenant.html');
+
+      if (this.state.settings) {
+        this.state.settings.apartmentName = apt;
+      }
+      localStorage.setItem('SOMBAT_TENANT_PORTAL_URL', url);
+      DBService.saveState(this.state);
+
+      textarea.value = LineService.createBillingMessage(inv, apt, url);
+    };
+
+    aptInput.addEventListener('input', updatePreview);
+    urlInput.addEventListener('input', updatePreview);
+    if (invSelect) invSelect.addEventListener('change', updatePreview);
+
+    updatePreview();
+
+    document.getElementById('btn-copy-line-msg').addEventListener('click', () => {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textarea.value).then(() => {
+          alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!');
+        }).catch(() => {
+          textarea.select();
+          document.execCommand('copy');
+          alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!');
+        });
+      } else {
+        textarea.select();
+        document.execCommand('copy');
+        alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!');
+      }
+    });
+
+    document.getElementById('btn-open-line-share').addEventListener('click', () => {
+      const text = encodeURIComponent(textarea.value);
+      window.open(`https://line.me/R/msg/text/?${text}`, '_blank');
     });
   }
 
