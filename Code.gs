@@ -8,12 +8,8 @@
  * เพื่อกดปุ่ม "อนุญาตสิทธิ์" (Grant Authorization) ให้สคริปต์สามารถส่งข้อความไปหา LINE API ได้
  */
 function testAuth() {
-  try {
-    UrlFetchApp.fetch("https://api.line.me", { muteHttpExceptions: true });
-    Logger.log("ได้รับอนุญาตสิทธิ์ UrlFetchApp.fetch เรียบร้อยแล้ว!");
-  } catch(e) {
-    Logger.log("Auth complete: " + e.toString());
-  }
+  UrlFetchApp.fetch("https://api.line.me", { muteHttpExceptions: true });
+  Logger.log("ได้รับอนุญาตสิทธิ์ UrlFetchApp.fetch เรียบร้อยแล้ว!");
 }
 
 function doGet(e) {
