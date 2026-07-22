@@ -3,6 +3,14 @@
 // Deploy this script inside Google Sheets Apps Script editor (Extensions -> Apps Script)
 // ==========================================================================
 
+/**
+ * ฟังก์ชันสำหรับกดปุ่ม "เรียกใช้" (Run) ใน Apps Script Editor 1 ครั้ง 
+ * เพื่อกดปุ่ม "อนุญาตสิทธิ์" (Grant Authorization) ให้สคริปต์สามารถส่งข้อความไปหา LINE API ได้
+ */
+function testAuth() {
+  Logger.log("ได้รับอนุญาตสิทธิ์ UrlFetchApp.fetch เรียบร้อยแล้ว!");
+}
+
 function doGet(e) {
   var action = e.parameter ? e.parameter.action : "get";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
