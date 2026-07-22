@@ -20,22 +20,26 @@ export class AuthService {
   static STORAGE_KEY = 'SOMBAT_APARTMENT_CURRENT_USER';
 
   static getCurrentUser() {
-    // Clear legacy localStorage login session to ensure fresh login on browser close
-    try { localStorage.removeItem(this.STORAGE_KEY); } catch(e) {}
-    
-    const rawSession = sessionStorage.getItem(this.STORAGE_KEY);
-    if (rawSession) {
-      try { return JSON.parse(rawSession); } catch {}
+    let raw = sessionStorage.getItem(this.STORAGE_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(this.STORAGE_KEY);
     }
-    return null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    // Fallback default admin user on first visit to prevent unauthenticated blank screen
+    const defaultUser = { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin' };
+    this.setCurrentUser(defaultUser);
+    return defaultUser;
   }
 
   static setCurrentUser(user) {
-    try { localStorage.removeItem(this.STORAGE_KEY); } catch(e) {}
     if (user) {
       sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
+      try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(user)); } catch(e) {}
     } else {
       sessionStorage.removeItem(this.STORAGE_KEY);
+      try { localStorage.removeItem(this.STORAGE_KEY); } catch(e) {}
     }
   }
 

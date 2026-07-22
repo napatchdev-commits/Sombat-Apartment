@@ -1,3 +1,7 @@
+/**
+ * DBService Class
+ * Robust State Manager & Google Sheets Cloud Database Service
+ */
 export class DBService {
   static STORAGE_KEY = 'SOMBAT_APARTMENT_DB_STATE_V3';
 
@@ -5,9 +9,9 @@ export class DBService {
     if (!invoices || !Array.isArray(invoices)) return [];
     const seen = new Set();
     const unique = [];
-    // Prioritize paid invoices over unpaid duplicates
     const sorted = [...invoices].sort((a, b) => (b.status === 'paid' ? 1 : 0) - (a.status === 'paid' ? 1 : 0));
     for (const inv of sorted) {
+      if (!inv) continue;
       const key = `${inv.monthKey || ''}_${inv.roomId || inv.roomName || ''}`.toLowerCase();
       if (!seen.has(key)) {
         seen.add(key);
@@ -76,7 +80,7 @@ export class DBService {
         promptPayId: '0805991691',
         googleSheetUrl: ''
       },
-      rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 200.0, commonFee: 100.0 },
+      rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, customFees: [] },
       users: [
         { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: 'admin' },
         { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
@@ -102,7 +106,7 @@ export class DBService {
     if (rawState) {
       try {
         const parsed = JSON.parse(rawState);
-        if (parsed.settings && parsed.settings.googleSheetUrl) {
+        if (parsed && parsed.settings && parsed.settings.googleSheetUrl) {
           fromState = parsed.settings.googleSheetUrl;
         }
       } catch (e) {}
@@ -120,35 +124,45 @@ export class DBService {
   }
 
   static getState() {
-    const raw = localStorage.getItem(this.STORAGE_KEY);
     let state = null;
+    const raw = localStorage.getItem(this.STORAGE_KEY);
     if (raw) {
       try { state = JSON.parse(raw); } catch (e) {}
     }
-    if (!state) {
+    if (!state || typeof state !== 'object') {
       state = this.getInitialState();
     }
     if (!state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
       state.rooms = this.getInitialRooms();
     }
-    if (state.invoices && Array.isArray(state.invoices)) {
-      state.invoices = this.getUniqueInvoices(state.invoices);
-    }
-    // Ensure googleSheetUrl is populated from persistent fallback
+    if (!state.tenants || !Array.isArray(state.tenants)) state.tenants = [];
+    if (!state.invoices || !Array.isArray(state.invoices)) state.invoices = [];
+    else state.invoices = this.getUniqueInvoices(state.invoices);
+    if (!state.repairs || !Array.isArray(state.repairs)) state.repairs = [];
+    if (!state.ledger || !Array.isArray(state.ledger)) state.ledger = [];
+    if (!state.events || !Array.isArray(state.events)) state.events = [];
+    if (!state.users || !Array.isArray(state.users)) state.users = this.getInitialState().users;
+    if (!state.roomTypes || !Array.isArray(state.roomTypes)) state.roomTypes = this.getInitialState().roomTypes;
+    if (!state.settings || typeof state.settings !== 'object') state.settings = this.getInitialState().settings;
+    if (!state.rates || typeof state.rates !== 'object') state.rates = this.getInitialState().rates;
+
     const savedUrl = this.getSavedSheetUrl();
-    if (savedUrl && (!state.settings || !state.settings.googleSheetUrl)) {
-      if (!state.settings) state.settings = {};
+    if (savedUrl && !state.settings.googleSheetUrl) {
       state.settings.googleSheetUrl = savedUrl;
     }
+
     return state;
   }
 
   static saveState(state) {
+    if (!state) return;
     if (state.settings && state.settings.googleSheetUrl) {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', state.settings.googleSheetUrl);
     }
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
-    // Background Real-time Auto Sync to Google Sheets if URL is set
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {}
+
     const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
     if (url) {
       this.syncToGoogleSheets(url, state).catch(() => {});
@@ -164,36 +178,21 @@ export class DBService {
       if (!data.settings) data.settings = {};
       data.settings.googleSheetUrl = url;
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+      try {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {}
       return data;
     }
     return null;
   }
 
   static async syncToGoogleSheets(url, state) {
-    if (!url) throw new Error('กรุณาระบุ Google Sheets Web App URL ก่อน');
-    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
-    const response = await fetch(url, {
+    if (!url || !state) return null;
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'sync', data: state })
     });
-    return response.json();
-  }
-
-  static exportJSON() {
-    const state = this.getState();
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Sombat_Apartment_Backup_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    return await res.json();
   }
 }
-
-/* ==========================================================================
-   4. UI COMPONENTS (ALL 10 MODULES FULLY INTERACTIVE)
-   ========================================================================== */
-

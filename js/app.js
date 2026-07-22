@@ -103,11 +103,13 @@ export class App {
     const sidebarContainer = document.getElementById('sidebar-container');
     const navbarContainer = document.getElementById('navbar-container');
 
+    const aptName = (this.state && this.state.settings && this.state.settings.apartmentName) || 'หอพักสมบัติ นนทบุรี';
+
     if (sidebarContainer) {
-      sidebarContainer.innerHTML = SidebarComponent.render(this.activeTab, this.state.settings.apartmentName);
+      sidebarContainer.innerHTML = SidebarComponent.render(this.activeTab, aptName);
     }
     if (navbarContainer && user) {
-      navbarContainer.innerHTML = NavbarComponent.render(user, this.state);
+      navbarContainer.innerHTML = NavbarComponent.render(user, this.state || {});
     }
   }
 
@@ -2823,7 +2825,7 @@ export class App {
   }
 }
 
-// Global Launcher
-window.addEventListener('DOMContentLoaded', () => {
-  App.init();
-});
+// Attach App globally to window for backward compatibility
+if (typeof window !== 'undefined') {
+  window.App = App;
+}
