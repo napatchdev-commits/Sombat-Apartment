@@ -2591,12 +2591,15 @@ class App {
           <textarea id="line-msg-preview-textarea" class="form-control" rows="13" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #06c755; border-radius:8px; padding:0.85rem;" placeholder="พิมพ์หรือแก้ไขข้อความเพิ่มเติมที่นี่..."></textarea>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-          <button id="btn-copy-line-msg" class="btn btn-secondary" style="padding:0.75rem; font-size:1rem; font-weight:600;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.75rem;">
+          <button id="btn-copy-line-msg" class="btn btn-secondary" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600;">
             <i class="fa-regular fa-copy"></i> คัดลอกข้อความ
           </button>
-          <button id="btn-open-line-share" class="btn btn-success" style="padding:0.75rem; font-size:1rem; font-weight:600; background-color:#06c755; border-color:#06c755;">
-            <i class="fa-brands fa-line"></i> ส่งข้อความเข้า LINE
+          <button id="btn-open-line-app" class="btn btn-success" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600; background-color:#06c755; border-color:#06c755;" title="เปิดแอป LINE บนคอมพิวเตอร์/มือถือโดยตรง ไม่ต้องล็อกอินเว็บ">
+            <i class="fa-brands fa-line"></i> เปิดในแอป LINE
+          </button>
+          <button id="btn-open-line-web-share" class="btn btn-primary" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600; background-color:#00b900; border-color:#00b900;" title="แชร์ผ่านเว็บ LINE Social Share">
+            <i class="fa-solid fa-share-nodes"></i> แชร์ผ่านเว็บ LINE
           </button>
         </div>
       </div>
@@ -2636,25 +2639,42 @@ class App {
 
     updatePreview();
 
+    // 1. Copy message action
     document.getElementById('btn-copy-line-msg').addEventListener('click', () => {
+      const txt = textarea.value;
       if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(textarea.value).then(() => {
-          alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!');
+        navigator.clipboard.writeText(txt).then(() => {
+          alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!\n\nคุณสามารถเปิดแชท LINE แล้วกด วาง (Ctrl+V) เพื่อส่งหาผู้เช่าได้ทันที');
         }).catch(() => {
           textarea.select();
           document.execCommand('copy');
-          alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!');
+          alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!\n\nคุณสามารถเปิดแชท LINE แล้วกด วาง (Ctrl+V) เพื่อส่งหาผู้เช่าได้ทันที');
         });
       } else {
         textarea.select();
         document.execCommand('copy');
-        alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!');
+        alert('📋 คัดลอกข้อความแจ้งเตือนค่าเช่าเรียบร้อยแล้ว!\n\nคุณสามารถเปิดแชท LINE แล้วกด วาง (Ctrl+V) เพื่อส่งหาผู้เช่าได้ทันที');
       }
     });
 
-    document.getElementById('btn-open-line-share').addEventListener('click', () => {
-      const text = encodeURIComponent(textarea.value);
-      window.open(`https://line.me/R/msg/text/?${text}`, '_blank');
+    // 2. Open LINE Desktop / Mobile App directly (line:// - No login screen required!)
+    document.getElementById('btn-open-line-app').addEventListener('click', () => {
+      const txt = textarea.value;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(txt);
+        }
+      } catch(e) {}
+      
+      const encodedText = encodeURIComponent(txt);
+      window.location.href = `line://msg/text/?${encodedText}`;
+    });
+
+    // 3. Open LINE Web Share plugin (no login redirect!)
+    document.getElementById('btn-open-line-web-share').addEventListener('click', () => {
+      const txt = textarea.value;
+      const encodedText = encodeURIComponent(txt);
+      window.open(`https://social-plugins.line.me/lineit/share?text=${encodedText}`, '_blank');
     });
   }
 
