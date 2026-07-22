@@ -2238,109 +2238,6 @@ class App {
           <div class="form-group">
             <label>ที่อยู่ตามภูมิลำเนาผู้เช่า:</label>
             <input type="text" id="tn-address" class="form-control" value="${tenantToEdit ? (tenantToEdit.address || '') : ''}" placeholder="12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี">
-          </div>
-
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
-            <div class="form-group">
-              <label>จัดเข้าห้องพัก</label>
-              <select id="tn-room-select" class="form-control">
-                <option value="">-- เลือกห้องพัก --</option>
-                ${this.state.rooms.map(r => `
-                  <option value="${r.id}" ${tenantToEdit && tenantToEdit.assignedRoomId === r.id ? 'selected' : ''}>
-                    ห้อง ${r.name}
-                  </option>
-                `).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>วันเริ่มสัญญา (วัน/เดือน/ปี พ.ศ.)</label>
-              <input type="text" id="tn-start-date" class="form-control" value="${tenantToEdit && tenantToEdit.startDate ? Formatters.thaiDate(tenantToEdit.startDate) : Formatters.thaiDate(new Date().toISOString().slice(0,10))}" placeholder="01/05/2568">
-            </div>
-            <div class="form-group">
-              <label>วันหมดสัญญา (วัน/เดือน/ปี พ.ศ.)</label>
-              <input type="text" id="tn-end-date" class="form-control" value="${tenantToEdit && tenantToEdit.endDate ? Formatters.thaiDate(tenantToEdit.endDate) : '31/07/2570'}" placeholder="31/07/2570">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>เงินประกันมัดจำ (บาท)</label>
-            <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}">
-          </div>
-
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
-            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-paperclip"></i> แนบไฟล์เอกสารผู้เช่า (รองรับทุกไฟล์: รูปถ่าย/PDF/DOCX/ZIP)</h4>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-              <div class="form-group">
-                <label><i class="fa-solid fa-id-card text-success"></i> สำเนาบัตรประชาชน:</label>
-                <input type="file" id="tn-file-idcard" class="form-control" accept="image/*,.pdf">
-              </div>
-              <div class="form-group">
-                <label><i class="fa-solid fa-house-user text-warning"></i> สำเนาทะเบียนบ้าน:</label>
-                <input type="file" id="tn-file-house" class="form-control" accept="image/*,.pdf">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label><i class="fa-solid fa-folder-plus text-info"></i> เอกสารประกอบอื่นๆ:</label>
-              <input type="file" id="tn-file-other" class="form-control" accept="*/*" multiple>
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;" id="btn-submit-tenant">
-            <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'บันทึกการแก้ไขข้อมูลผู้เช่า' : 'บันทึกเพิ่มผู้เช่าใหม่เข้าระบบ'}
-          </button>
-        </form>
-      </div>
-    `;
-
-    modal.classList.add('active');
-    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
-
-    document.getElementById('tenant-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const submitBtn = document.getElementById('btn-submit-tenant');
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...';
-
-      let name = document.getElementById('tn-name').value.trim();
-      let idCard = document.getElementById('tn-idcard').value.trim();
-      let tel = document.getElementById('tn-tel').value.trim();
-      const lineId = document.getElementById('tn-line').value.trim();
-      const email = document.getElementById('tn-email').value.trim();
-      const address = document.getElementById('tn-address').value.trim();
-      const roomId = document.getElementById('tn-room-select').value;
-      const startDateInput = document.getElementById('tn-start-date').value.trim();
-      const endDateInput = document.getElementById('tn-end-date').value.trim();
-      const startDate = Formatters.parseThaiDateToISO(startDateInput);
-      const endDate = Formatters.parseThaiDateToISO(endDateInput);
-      const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
-
-      if (!name) name = 'ผู้เช่า (ยังไม่ระบุชื่อ)';
-      if (!idCard) idCard = '-';
-      if (!tel) tel = '-';
-
-      const fileIdCard = document.getElementById('tn-file-idcard').files[0];
-      const fileHouse = document.getElementById('tn-file-house').files[0];
-      const otherFiles = Array.from(document.getElementById('tn-file-other').files);
-
-      const newDocs = tenantToEdit && tenantToEdit.documents ? [...tenantToEdit.documents] : [];
-
-      if (fileIdCard) {
-        const doc = await App.readFileAsDataUrl(fileIdCard);
-        if (doc) { doc.category = 'idcard'; doc.title = 'สำเนาบัตรประชาชน'; newDocs.push(doc); }
-      }
-      if (fileHouse) {
-        const doc = await App.readFileAsDataUrl(fileHouse);
-        if (doc) { doc.category = 'house'; doc.title = 'สำเนาทะเบียนบ้าน'; newDocs.push(doc); }
-      }
-      for (const f of otherFiles) {
-        const doc = await App.readFileAsDataUrl(f);
-        if (doc) { doc.category = 'other'; doc.title = doc.fileName; newDocs.push(doc); }
-      }
-
-      if (isEdit) {
-        tenantToEdit.name = name;
         tenantToEdit.idCard = idCard;
         tenantToEdit.tel = tel;
         tenantToEdit.lineId = lineId;
@@ -2551,26 +2448,6 @@ class App {
       </div>
 
       <div class="modal-body" style="padding:1.5rem;">
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1.2rem; margin-bottom:1.25rem;">
-          <h4 style="margin-top:0; margin-bottom:0.75rem; color:#0f172a; font-size:1.05rem;">
-            <i class="fa-solid fa-gear text-primary"></i> ตั้งค่าข้อมูลการส่งแจ้งเตือน (สามารถแก้ไขได้)
-          </h4>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:0.75rem;">
-            <div>
-              <label style="font-weight:600; font-size:0.9rem; color:#334155; margin-bottom:0.35rem; display:block;">ชื่อหอพัก / เจ้าของหอพัก:</label>
-              <input type="text" id="line-cfg-apt-name" class="form-control" value="${currentAptName}" placeholder="เช่น หอพักสมบัติ นนทบุรี">
-            </div>
-            <div>
-              <label style="font-weight:600; font-size:0.9rem; color:#334155; margin-bottom:0.35rem; display:block;">ลิงก์ระบบผู้เช่า (Tenant Portal URL):</label>
-              <input type="text" id="line-cfg-tenant-url" class="form-control" value="${savedTenantUrl}" placeholder="เช่น https://sombat-apartment.vercel.app/tenant.html">
-            </div>
-          </div>
-          <div>
-            <label style="font-weight:600; font-size:0.9rem; color:#334155; margin-bottom:0.35rem; display:block;">ลิงก์ LINE Bot / Official Account (ถ้ามี):</label>
-            <input type="text" id="line-cfg-bot-url" class="form-control" value="${savedLineBotUrl}" placeholder="เช่น https://line.me/R/ti/p/@sombat_bot หรือ https://lin.ee/xxxxxx">
-          </div>
-        </div>
-
         <div class="form-group" style="margin-bottom:1.25rem;">
           <label style="font-weight:600; font-size:0.95rem; color:#0f172a;">เลือกรายการผู้เช่า / ห้องพักที่ต้องการแจ้งเตือน *</label>
           <select id="line-notify-inv-select" class="form-control" style="font-size:1rem; padding:0.65rem 0.85rem;">
@@ -2583,22 +2460,28 @@ class App {
           </select>
         </div>
 
-        <div class="form-group" style="margin-bottom:1.5rem;">
+        <div class="form-group" style="margin-bottom:1.25rem;">
           <label style="font-weight:600; font-size:0.95rem; color:#0f172a; display:flex; justify-content:space-between; align-items:center;">
             <span><i class="fa-solid fa-pen-to-square text-info"></i> ข้อความที่จะส่งให้ผู้เช่า (สามารถพิมพ์แก้ไขเพิ่มเติมได้)</span>
             <span style="font-size:0.8rem; font-weight:normal; color:#059669;">✏️ สามารถพิมพ์แก้ไขข้อความได้ตามต้องการ</span>
           </label>
-          <textarea id="line-msg-preview-textarea" class="form-control" rows="13" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #06c755; border-radius:8px; padding:0.85rem;" placeholder="พิมพ์หรือแก้ไขข้อความเพิ่มเติมที่นี่..."></textarea>
+          <textarea id="line-msg-preview-textarea" class="form-control" rows="12" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #06c755; border-radius:8px; padding:0.85rem;" placeholder="พิมพ์หรือแก้ไขข้อความเพิ่มเติมที่นี่..."></textarea>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+          <button id="btn-push-line-bot" class="btn btn-success" style="width:100%; padding:0.9rem; font-size:1.1rem; font-weight:bold; background-color:#06c755; border-color:#06c755; color:#ffffff; box-shadow: 0 4px 14px rgba(6, 199, 85, 0.4); cursor:pointer; border-radius:10px;">
+            <i class="fa-solid fa-paper-plane"></i> ⚡ กดส่ง LINE Bot แจ้งเตือนตรงหาผู้เช่าทันที (Instant Auto Push)
+          </button>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.75rem;">
-          <button id="btn-copy-line-msg" class="btn btn-secondary" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600;">
+          <button id="btn-copy-line-msg" class="btn btn-secondary" style="padding:0.65rem 0.4rem; font-size:0.85rem; font-weight:600;">
             <i class="fa-regular fa-copy"></i> คัดลอกข้อความ
           </button>
-          <button id="btn-open-line-app" class="btn btn-success" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600; background-color:#06c755; border-color:#06c755;" title="เปิดแอป LINE บนคอมพิวเตอร์/มือถือโดยตรง ไม่ต้องล็อกอินเว็บ">
+          <button id="btn-open-line-app" class="btn btn-outline-success" style="padding:0.65rem 0.4rem; font-size:0.85rem; font-weight:600; border-color:#06c755; color:#06c755;" title="เปิดแอป LINE บนคอมพิวเตอร์/มือถือโดยตรง">
             <i class="fa-brands fa-line"></i> เปิดในแอป LINE
           </button>
-          <button id="btn-open-line-web-share" class="btn btn-primary" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600; background-color:#00b900; border-color:#00b900;" title="แชร์ผ่านเว็บ LINE Social Share">
+          <button id="btn-open-line-web-share" class="btn btn-outline-primary" style="padding:0.65rem 0.4rem; font-size:0.85rem; font-weight:600; border-color:#00b900; color:#00b900;" title="แชร์ผ่านเว็บ LINE Social Share">
             <i class="fa-solid fa-share-nodes"></i> แชร์ผ่านเว็บ LINE
           </button>
         </div>
@@ -2608,9 +2491,6 @@ class App {
     modal.classList.add('active');
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
 
-    const aptInput = document.getElementById('line-cfg-apt-name');
-    const urlInput = document.getElementById('line-cfg-tenant-url');
-    const botInput = document.getElementById('line-cfg-bot-url');
     const invSelect = document.getElementById('line-notify-inv-select');
     const textarea = document.getElementById('line-msg-preview-textarea');
 
@@ -2618,26 +2498,56 @@ class App {
       const invId = invSelect ? invSelect.value : null;
       const isBroadcast = invId === 'ALL' || !invId;
       const inv = invoices.find(i => i.id === invId) || null;
-      const apt = aptInput.value.trim() || 'หอพักสมบัติ นนทบุรี';
-      const url = urlInput.value.trim() || (window.location.origin + '/tenant.html');
-      const bot = botInput.value.trim();
-
-      if (this.state.settings) {
-        this.state.settings.apartmentName = apt;
-      }
-      localStorage.setItem('SOMBAT_TENANT_PORTAL_URL', url);
-      localStorage.setItem('SOMBAT_LINE_BOT_URL', bot);
-      DBService.saveState(this.state);
+      const apt = currentAptName;
+      const url = savedTenantUrl;
+      const bot = savedLineBotUrl;
 
       textarea.value = LineService.createBillingMessage(inv, apt, url, bot, isBroadcast);
     };
 
-    aptInput.addEventListener('input', updatePreview);
-    urlInput.addEventListener('input', updatePreview);
-    botInput.addEventListener('input', updatePreview);
     if (invSelect) invSelect.addEventListener('change', updatePreview);
-
     updatePreview();
+
+    // 0. Direct 1-Click LINE Bot Push Notification Action
+    const pushBtn = document.getElementById('btn-push-line-bot');
+    if (pushBtn) {
+      pushBtn.addEventListener('click', async () => {
+        const invId = invSelect ? invSelect.value : 'ALL';
+        const msgText = textarea.value;
+        const sheetUrl = (this.state.settings && this.state.settings.googleSheetUrl) || DBService.getSavedSheetUrl();
+
+        if (!sheetUrl) {
+          return alert('⚠️ ยังไม่ได้บันทึก Google Sheets Web App URL ในระบบ!\n\nกรุณาไปที่เมนู "ตั้งค่า" แล้วระบุและบันทึก Web App URL ก่อนครับ');
+        }
+
+        pushBtn.disabled = true;
+        pushBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังยิงข้อความเข้า LINE ผู้เช่าทันที...`;
+
+        try {
+          const response = await fetch(sheetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'linePushNotify',
+              invoiceId: invId,
+              messageText: msgText
+            })
+          });
+
+          const res = await response.json();
+          if (res.status === 'success') {
+            alert(`✅ ${res.message || 'ส่งข้อความ LINE แจ้งเตือนเข้าโทรศัพท์ผู้เช่าเรียบร้อยแล้ว!'}`);
+          } else {
+            alert(`⚠️ การส่งข้อความ LINE ล้มเหลว:\n\n${res.message || 'กรุณาตรวจสอบ Channel Access Token ในการตั้งค่า'}`);
+          }
+        } catch (err) {
+          alert(`⚠️ ไม่สามารถเชื่อมต่อ Google Apps Script ได้:\n${err.toString()}`);
+        } finally {
+          pushBtn.disabled = false;
+          pushBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ⚡ กดส่ง LINE Bot แจ้งเตือนตรงหาผู้เช่าทันที (Instant Auto Push)`;
+        }
+      });
+    }
 
     // 1. Copy message action
     document.getElementById('btn-copy-line-msg').addEventListener('click', () => {
