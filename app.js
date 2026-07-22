@@ -116,10 +116,9 @@ class AuthService {
   static STORAGE_KEY = 'SOMBAT_APARTMENT_CURRENT_USER';
 
   static getCurrentUser() {
-    const rawLocal = localStorage.getItem(this.STORAGE_KEY);
-    if (rawLocal) {
-      try { return JSON.parse(rawLocal); } catch {}
-    }
+    // Clear legacy localStorage login session to ensure fresh login on browser close
+    localStorage.removeItem(this.STORAGE_KEY);
+    
     const rawSession = sessionStorage.getItem(this.STORAGE_KEY);
     if (rawSession) {
       try { return JSON.parse(rawSession); } catch {}
@@ -127,17 +126,11 @@ class AuthService {
     return null;
   }
 
-  static setCurrentUser(user, rememberMe = true) {
+  static setCurrentUser(user) {
+    localStorage.removeItem(this.STORAGE_KEY);
     if (user) {
-      if (rememberMe) {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
-        sessionStorage.removeItem(this.STORAGE_KEY);
-      } else {
-        sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
-        localStorage.removeItem(this.STORAGE_KEY);
-      }
+      sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
     } else {
-      localStorage.removeItem(this.STORAGE_KEY);
       sessionStorage.removeItem(this.STORAGE_KEY);
     }
   }
