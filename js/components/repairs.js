@@ -3,12 +3,12 @@ import { UIHelpers } from '../utils/helpers.js';
 
 /**
  * RepairsComponent Class
- * Handles maintenance tickets, repair requests, and technician assignments
+ * Handles maintenance tickets, repair requests, and technician assignments matching style.css
  */
 export class RepairsComponent {
   static renderHeader() {
     return `
-      <div class="workspace-header">
+      <div class="view-header">
         <div>
           <h2><i class="fa-solid fa-wrench text-primary"></i> รายการแจ้งซ่อมแซมและดูแลหอพัก</h2>
           <p>บันทึกเรื่องแจ้งซ่อม อุปกรณ์ชำรุด ติดตามสถานะการซ่อม และบันทึกค่าใช้จ่าย</p>
@@ -49,7 +49,7 @@ export class RepairsComponent {
     }).join('');
 
     return `
-      <div class="glass-card style-table-card">
+      <div class="glass-card">
         <div class="table-responsive">
           <table class="table">
             <thead>

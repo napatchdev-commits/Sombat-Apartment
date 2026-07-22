@@ -3,12 +3,12 @@ import { UIHelpers } from '../utils/helpers.js';
 
 /**
  * TenantsComponent Class
- * Handles tenant registry, document attachments, and room assignments
+ * Handles tenant registry, document attachments, and room assignments matching style.css
  */
 export class TenantsComponent {
   static renderHeader() {
     return `
-      <div class="workspace-header">
+      <div class="view-header">
         <div>
           <h2><i class="fa-solid fa-users text-primary"></i> ทะเบียนผู้เช่า (Tenant Directory)</h2>
           <p>จัดการข้อมูลผู้เช่า เลขบัตรประชาชน เบอร์โทรศัพท์ และเอกสารประจำตัว</p>
@@ -48,7 +48,7 @@ export class TenantsComponent {
     }).join('');
 
     return `
-      <div class="glass-card style-table-card">
+      <div class="glass-card">
         <div class="table-responsive">
           <table class="table">
             <thead>

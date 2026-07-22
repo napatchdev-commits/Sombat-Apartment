@@ -8,7 +8,7 @@ import { UIHelpers } from '../utils/helpers.js';
 export class RoomsComponent {
   static renderHeader() {
     return `
-      <div class="workspace-header">
+      <div class="view-header">
         <div>
           <h2><i class="fa-solid fa-door-open text-primary"></i> ผังห้องพักและจัดการสถานะ (Room Management)</h2>
           <p>ตรวจสอบสถานะห้องพัก รายชื่อผู้เช่าปัจจุบัน ปรับเปลี่ยนสถานะ และจัดการห้องเช่า</p>
@@ -89,10 +89,10 @@ export class RoomTypesComponent {
 
     return `
       <div class="roomtypes-view">
-        <div class="workspace-header">
+        <div class="view-header">
           <h2><i class="fa-solid fa-layer-group text-primary"></i> ตั้งค่าประเภทห้องพัก (Room Types)</h2>
         </div>
-        <div class="glass-card style-table-card">
+        <div class="glass-card">
           <div class="table-responsive">
             <table class="table">
               <thead>

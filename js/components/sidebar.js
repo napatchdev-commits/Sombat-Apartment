@@ -2,7 +2,7 @@ import { AuthService } from '../services/auth.js';
 
 /**
  * SidebarComponent Class
- * Renders sidebar navigation items according to user roles and permissions
+ * Renders sidebar navigation items matching style.css rules exactly
  */
 export class SidebarComponent {
   static getMenuItems() {
@@ -26,7 +26,7 @@ export class SidebarComponent {
     const menuHtml = menuItems.map(item => {
       const activeClass = item.id === activeTabId ? 'active' : '';
       return `
-        <li class="sidebar-item ${activeClass}">
+        <li class="${activeClass}">
           <a href="#" class="sidebar-link" data-tab="${item.id}">
             <i class="${item.icon}"></i>
             <span>${item.label}</span>
@@ -45,11 +45,15 @@ export class SidebarComponent {
           </div>
         </div>
 
-        <nav class="sidebar-menu">
+        <nav class="sidebar-nav">
           <ul>
             ${menuHtml}
           </ul>
         </nav>
+
+        <div class="sidebar-footer">
+          <span>Sombat Enterprise v2.5</span>
+        </div>
       </aside>
     `;
   }

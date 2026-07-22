@@ -3,12 +3,12 @@ import { UIHelpers } from '../utils/helpers.js';
 
 /**
  * DashboardComponent Class
- * Displays executive summary cards, occupancy statistics, and quick action panels
+ * Displays executive summary cards, occupancy statistics, and quick action panels matching style.css
  */
 export class DashboardComponent {
-  static renderHeader(apartmentName) {
+  static renderHeader() {
     return `
-      <div class="workspace-header">
+      <div class="view-header">
         <div>
           <h2><i class="fa-solid fa-chart-pie text-primary"></i> ภาพรวมระบบการบริหารหอพัก</h2>
           <p>สรุปสถิติสถานะห้องพัก ยอดรวมรายรับ บิลค้างชำระ และรายการซ่อมแซมล่าสุด</p>
@@ -22,40 +22,40 @@ export class DashboardComponent {
 
   static renderCards(roomSummary, financialSummary) {
     return `
-      <div class="metrics-grid">
-        <div class="metric-card glass-card">
-          <div class="metric-icon icon-blue"><i class="fa-solid fa-building-user"></i></div>
-          <div class="metric-details">
-            <span class="metric-label">อัตราการเช่าพัก</span>
-            <h3 class="metric-value">${roomSummary.occupancyRate}%</h3>
-            <span class="metric-subtext">มีผู้เช่า ${roomSummary.occupied} / ${roomSummary.total} ห้อง</span>
+      <div class="kpi-cards-grid">
+        <div class="kpi-card card-blue">
+          <div class="kpi-icon"><i class="fa-solid fa-building-user"></i></div>
+          <div class="kpi-content">
+            <span class="label">อัตราการเช่าพัก</span>
+            <h3 class="value">${roomSummary.occupancyRate}%</h3>
+            <span class="subtext">มีผู้เช่า ${roomSummary.occupied} / ${roomSummary.total} ห้อง</span>
           </div>
         </div>
 
-        <div class="metric-card glass-card">
-          <div class="metric-icon icon-green"><i class="fa-solid fa-hand-holding-dollar"></i></div>
-          <div class="metric-details">
-            <span class="metric-label">รายรับรวมที่ได้รับ</span>
-            <h3 class="metric-value text-success">${Formatters.currency(financialSummary.totalIncome)}</h3>
-            <span class="metric-subtext">ชำระแล้ว ${financialSummary.paidCount} รายการ</span>
+        <div class="kpi-card card-green">
+          <div class="kpi-icon"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+          <div class="kpi-content">
+            <span class="label">รายรับรวมที่ได้รับ</span>
+            <h3 class="value text-success">${Formatters.currency(financialSummary.totalIncome)}</h3>
+            <span class="subtext">ชำระแล้ว ${financialSummary.paidCount} รายการ</span>
           </div>
         </div>
 
-        <div class="metric-card glass-card">
-          <div class="metric-icon icon-red"><i class="fa-solid fa-clock-rotate-left"></i></div>
-          <div class="metric-details">
-            <span class="metric-label">ยอดค้างชำระคงเหลือ</span>
-            <h3 class="metric-value text-danger">${Formatters.currency(financialSummary.totalOutstanding)}</h3>
-            <span class="metric-subtext">รอชำระ ${financialSummary.unpaidCount} รายการ</span>
+        <div class="kpi-card card-red">
+          <div class="kpi-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <div class="kpi-content">
+            <span class="label">ยอดค้างชำระคงเหลือ</span>
+            <h3 class="value text-danger">${Formatters.currency(financialSummary.totalOutstanding)}</h3>
+            <span class="subtext">รอชำระ ${financialSummary.unpaidCount} รายการ</span>
           </div>
         </div>
 
-        <div class="metric-card glass-card">
-          <div class="metric-icon icon-orange"><i class="fa-solid fa-door-open"></i></div>
-          <div class="metric-details">
-            <span class="metric-label">ห้องว่างพร้อมเช่า</span>
-            <h3 class="metric-value text-warning">${roomSummary.vacant} ห้อง</h3>
-            <span class="metric-subtext">เตรียมพร้อมต้อนรับผู้เช่าใหม่</span>
+        <div class="kpi-card card-gray">
+          <div class="kpi-icon"><i class="fa-solid fa-door-open"></i></div>
+          <div class="kpi-content">
+            <span class="label">ห้องว่างพร้อมเช่า</span>
+            <h3 class="value text-warning">${roomSummary.vacant} ห้อง</h3>
+            <span class="subtext">เตรียมพร้อมต้อนรับผู้เช่าใหม่</span>
           </div>
         </div>
       </div>
@@ -91,8 +91,8 @@ export class DashboardComponent {
 
     return `
       <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:1.5rem; margin-top:1.5rem;">
-        <div class="glass-card style-table-card">
-          <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div class="glass-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <h3 style="font-size:1.1rem; margin:0;"><i class="fa-solid fa-file-invoice text-primary"></i> รายการบิลล่าสุด</h3>
             <button class="btn btn-xs btn-outline-primary btn-switch-tab" data-tab="billing">ดูทั้งหมด</button>
           </div>
@@ -114,8 +114,8 @@ export class DashboardComponent {
           </div>
         </div>
 
-        <div class="glass-card style-table-card">
-          <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div class="glass-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <h3 style="font-size:1.1rem; margin:0;"><i class="fa-solid fa-wrench text-warning"></i> แจ้งซ่อมรอดำเนินการ</h3>
             <button class="btn btn-xs btn-outline-warning btn-switch-tab" data-tab="repairs">ดูทั้งหมด</button>
           </div>
@@ -140,15 +140,12 @@ export class DashboardComponent {
   }
 
   static render(state = {}) {
-    const settings = state.settings || {};
-    const apartmentName = settings.apartmentName || 'หอพักสมบัติ นนทบุรี';
-
     const roomSummary = UIHelpers.calculateRoomSummary(state.rooms || []);
     const financialSummary = UIHelpers.calculateFinancialSummary(state.invoices || []);
 
     return `
       <div class="dashboard-view">
-        ${this.renderHeader(apartmentName)}
+        ${this.renderHeader()}
         ${this.renderCards(roomSummary, financialSummary)}
         ${this.renderTables(state)}
       </div>

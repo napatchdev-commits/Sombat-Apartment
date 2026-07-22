@@ -8,7 +8,7 @@ import { UIHelpers } from '../utils/helpers.js';
 export class ContractsComponent {
   static renderHeader() {
     return `
-      <div class="workspace-header">
+      <div class="view-header">
         <div>
           <h2><i class="fa-solid fa-file-contract text-primary"></i> หนังสือสัญญาเช่า (Lease Contracts)</h2>
           <p>สร้างและพิมพ์หนังสือสัญญาเช่าห้องพักฉบับมาตรฐาน บันทึกเงินประกัน และเงื่อนไขการเช่า</p>
@@ -44,7 +44,7 @@ export class ContractsComponent {
     }).join('');
 
     return `
-      <div class="glass-card style-table-card">
+      <div class="glass-card">
         <div class="table-responsive">
           <table class="table">
             <thead>

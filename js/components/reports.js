@@ -4,12 +4,12 @@ import { ExportService } from '../services/export.js';
 
 /**
  * ReportsComponent, AccountingComponent & CalendarComponent Class
- * Handles financial reports, accounting ledger, export to CSV, and appointment calendars
+ * Handles financial reports, accounting ledger, export to CSV, and appointment calendars matching style.css
  */
 export class ReportsComponent {
   static renderHeader() {
     return `
-      <div class="workspace-header">
+      <div class="view-header">
         <div>
           <h2><i class="fa-solid fa-chart-line text-primary"></i> รายงานสรุปการเงินและสถิติหอพัก</h2>
           <p>สรุปรายรับ-รายจ่าย รายงานค่าน้ำค่าไฟ ประจำเดือน และส่งออกข้อมูลเป็น CSV</p>
@@ -25,28 +25,28 @@ export class ReportsComponent {
     const roomSummary = UIHelpers.calculateRoomSummary(rooms);
 
     return `
-      <div class="metrics-grid">
-        <div class="metric-card glass-card">
-          <div class="metric-icon icon-green"><i class="fa-solid fa-money-bill-wave"></i></div>
-          <div class="metric-details">
-            <span class="metric-label">รายรับรวมสุทธิ</span>
-            <h3 class="metric-value text-success">${Formatters.currency(financialSummary.totalIncome)}</h3>
+      <div class="kpi-cards-grid">
+        <div class="kpi-card card-green">
+          <div class="kpi-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
+          <div class="kpi-content">
+            <span class="label">รายรับรวมสุทธิ</span>
+            <h3 class="value text-success">${Formatters.currency(financialSummary.totalIncome)}</h3>
           </div>
         </div>
 
-        <div class="metric-card glass-card">
-          <div class="metric-icon icon-red"><i class="fa-solid fa-file-circle-exclamation"></i></div>
-          <div class="metric-details">
-            <span class="metric-label">ยอดค้างชำระรวม</span>
-            <h3 class="metric-value text-danger">${Formatters.currency(financialSummary.totalOutstanding)}</h3>
+        <div class="kpi-card card-red">
+          <div class="kpi-icon"><i class="fa-solid fa-file-circle-exclamation"></i></div>
+          <div class="kpi-content">
+            <span class="label">ยอดค้างชำระรวม</span>
+            <h3 class="value text-danger">${Formatters.currency(financialSummary.totalOutstanding)}</h3>
           </div>
         </div>
 
-        <div class="metric-card glass-card">
-          <div class="metric-icon icon-blue"><i class="fa-solid fa-chart-pie"></i></div>
-          <div class="metric-details">
-            <span class="metric-label">อัตราครองห้อง</span>
-            <h3 class="metric-value text-primary">${roomSummary.occupancyRate}%</h3>
+        <div class="kpi-card card-blue">
+          <div class="kpi-icon"><i class="fa-solid fa-chart-pie"></i></div>
+          <div class="kpi-content">
+            <span class="label">อัตราครองห้อง</span>
+            <h3 class="value text-primary">${roomSummary.occupancyRate}%</h3>
           </div>
         </div>
       </div>
@@ -85,10 +85,10 @@ export class AccountingComponent {
 
     return `
       <div class="accounting-view">
-        <div class="workspace-header">
+        <div class="view-header">
           <h2><i class="fa-solid fa-book text-primary"></i> บัญชีรายรับ - รายจ่าย (Accounting Ledger)</h2>
         </div>
-        <div class="glass-card style-table-card">
+        <div class="glass-card">
           <div class="table-responsive">
             <table class="table">
               <thead>
@@ -116,7 +116,7 @@ export class CalendarComponent {
     const events = state.events || [];
     return `
       <div class="calendar-view">
-        <div class="workspace-header">
+        <div class="view-header">
           <h2><i class="fa-solid fa-calendar-days text-primary"></i> ปฏิทินนัดหมายและกิจกรรม</h2>
         </div>
         <div class="glass-card p-4">

@@ -2,7 +2,7 @@ import { Formatters } from '../utils/formatters.js';
 
 /**
  * SettingsComponent & RatesComponent Class
- * Handles system settings, apartment profile, cloud sync URL, utility rates, and user accounts
+ * Handles system settings, apartment profile, cloud sync URL, utility rates, and user accounts matching style.css
  */
 export class SettingsComponent {
   static render(state = {}) {
@@ -23,7 +23,7 @@ export class SettingsComponent {
 
     return `
       <div class="settings-view">
-        <div class="workspace-header">
+        <div class="view-header">
           <div>
             <h2><i class="fa-solid fa-sliders text-primary"></i> ตั้งค่าระบบหอพัก (System Settings)</h2>
             <p>กำหนดชื่อหอพัก อัตราค่าน้ำ ค่าไฟ บัญชี PromptPay และเชื่อมต่อ Google Sheets API</p>

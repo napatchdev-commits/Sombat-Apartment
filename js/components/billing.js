@@ -8,7 +8,7 @@ import { UIHelpers } from '../utils/helpers.js';
 export class BillingComponent {
   static renderHeader() {
     return `
-      <div class="workspace-header">
+      <div class="view-header">
         <div>
           <h2><i class="fa-solid fa-file-invoice-dollar text-primary"></i> ระบบออกบิลและบันทึกชำระเงินค่าเช่า</h2>
           <p>จดมิเตอร์น้ำไฟ คำนวณยอดอัตโนมัติ เจน PromptPay QR Code และสั่งพิมพ์ใบแจ้งหนี้/สลิปใบเสร็จ</p>
@@ -61,7 +61,7 @@ export class BillingComponent {
     }).join('');
 
     return `
-      <div class="glass-card style-table-card">
+      <div class="glass-card">
         <div class="table-responsive">
           <table class="table">
             <thead>
