@@ -36,6 +36,7 @@ function doPost(e) {
     }
 
     var requestData = JSON.parse(contents);
+    var action = requestData ? requestData.action : "";
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     // 1. Handle LINE Messaging API Webhook events
@@ -68,7 +69,6 @@ function doPost(e) {
     }
 
     // 3. Handle Cloud Data Sync from Admin Portal
-    var action = requestData.action;
     var sheet = ss.getSheetByName("DB_STATE") || ss.getSheetByName("DB_STORE");
     if (!sheet) {
       sheet = ss.insertSheet("DB_STATE");
@@ -82,7 +82,7 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
     
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Invalid post action" }))
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Invalid post action: " + action }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
