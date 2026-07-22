@@ -1,65 +1,86 @@
 import { AuthService } from '../services/auth.js';
-
-/**
- * NavbarComponent Class
- * Renders top header navigation bar matching style.css rules exactly
- */
 export class NavbarComponent {
-  static render(user, state = {}) {
-    const roleBadge = user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'เจ้าของหอพัก' : 'พนักงาน';
-    const repairs = state.repairs || [];
-    const pendingRepairs = repairs.filter(r => r.status === 'pending');
+  static render(user, state) {
+    const overdueCount = state.rooms.filter(r => r.status === 'overdue').length;
+    const vacantCount = state.rooms.filter(r => r.status === 'vacant').length;
+    
+    const today = new Date();
+    const expiringContracts = state.tenants.filter(t => {
+      if (!t.endDate) return false;
+      const end = new Date(t.endDate);
+      const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 3600 * 24));
+      return diffDays >= 0 && diffDays <= 30;
+    }).length;
+
+    const totalNotifications = overdueCount + expiringContracts;
 
     return `
       <header class="app-header">
         <div class="header-left">
-          <button id="sidebar-toggle-btn" class="icon-btn" title="ซ่อน/แสดง เมนู">
-            <i class="fa-solid fa-bars"></i>
-          </button>
+          <button id="mobile-toggle-btn" class="icon-btn mobile-only"><i class="fa-solid fa-bars"></i></button>
           <div class="global-search-container">
             <i class="fa-solid fa-magnifying-glass search-icon"></i>
-            <input type="text" id="global-search-input" class="global-search-input" placeholder="ค้นหาห้องพัก, ชื่อผู้เช่า, เลขบิล...">
+            <input type="text" id="global-search-input" class="global-search-input" placeholder="ค้นหาห้องพัก, ผู้เช่า, เลขบัตร, บิล (Real-time)..." autocomplete="off">
           </div>
         </div>
 
         <div class="header-right">
-          <!-- Notification Bell Dropdown -->
+          <a href="tenant.html" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills (สำหรับผู้เช่าล็อกอินสแกนสลิปผ่านเลขบัตรประชาชน)">
+            <i class="fa-solid fa-mobile-screen-button text-success"></i> <span class="desktop-only">เปิดระบบบิลผู้เช่า MyBills</span>
+          </a>
+
+          <button id="btn-manual-sync-sheets" class="btn btn-secondary btn-sm" style="margin-right:0.5rem;" title="ดึงข้อมูลล่าสุดที่แก้ไขใน Google Sheets มาแสดงผลทันที">
+            <i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>
+          </button>
+
           <div class="notification-dropdown-wrapper">
-            <button id="notification-bell-btn" class="icon-btn" title="การแจ้งเตือน">
-              <i class="fa-solid fa-bell"></i>
-              ${pendingRepairs.length > 0 ? `<span class="notification-badge">${pendingRepairs.length}</span>` : ''}
+            <button id="notification-bell-btn" class="icon-btn" title="การแจ้งเตือนระบบ">
+              <i class="fa-regular fa-bell"></i>
+              ${totalNotifications > 0 ? `<span class="notification-badge">${totalNotifications}</span>` : ''}
             </button>
             <div id="notification-menu" class="notification-menu-panel">
               <div class="notification-header">
-                <h4><i class="fa-solid fa-bell text-warning"></i> การแจ้งเตือนซ่อมแซม</h4>
+                <h4><i class="fa-solid fa-bell"></i> ศูนย์แจ้งเตือนระบบ</h4>
+                <span class="text-muted">${totalNotifications} รายการใหม่</span>
               </div>
               <div class="notification-body">
-                ${pendingRepairs.length > 0 ? pendingRepairs.map(r => `
-                  <div class="notification-item item-warning" data-id="${r.id}">
-                    <i class="fa-solid fa-wrench"></i>
-                    <div>
-                      <strong>ห้อง ${r.roomName}: ${r.title}</strong>
-                      <small style="display:block;">${r.requestDate}</small>
-                    </div>
+                ${overdueCount > 0 ? `
+                  <div class="notification-item item-danger notif-link-item" data-tab="billing" style="cursor:pointer;">
+                    <i class="fa-solid fa-circle-exclamation icon"></i>
+                    <div><strong>ผู้เช่าค้างชำระ: ${overdueCount} ห้อง</strong><p>มีห้องพักเกินกำหนดชำระเงิน คลิกเพื่อไปหน้าออกบิล</p></div>
                   </div>
-                `).join('') : '<p class="text-muted p-2 text-center" style="margin:0;">ไม่มีการแจ้งซ่อมใหม่</p>'}
+                ` : ''}
+                ${expiringContracts > 0 ? `
+                  <div class="notification-item item-warning notif-link-item" data-tab="contracts" style="cursor:pointer;">
+                    <i class="fa-solid fa-file-contract icon"></i>
+                    <div><strong>สัญญาใกล้หมดอายุ: ${expiringContracts} ราย</strong><p>มีผู้เช่าที่มีสัญญาเช่าหมดอายุภายใน 30 วัน คลิกเพื่อเปิดดู</p></div>
+                  </div>
+                ` : ''}
+                <div class="notification-item item-info notif-link-item" data-tab="rooms" style="cursor:pointer;">
+                  <i class="fa-solid fa-door-open icon"></i>
+                  <div><strong>ห้องว่างพร้อมเข้าอยู่: ${vacantCount} ห้อง</strong><p>สามารถลงทะเบียนผู้เช่าใหม่เข้าพักได้ทันที คลิกเพื่อดูผังห้อง</p></div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- User Profile Badge -->
-          <div class="user-profile-badge" id="navbar-user-profile" title="ดูโปรไฟล์ / เปลี่ยนรหัสผ่าน" style="cursor:pointer;">
-            <div class="avatar"><i class="fa-solid fa-user-gear"></i></div>
-            <span class="name">${user.displayName}</span>
-            <span class="role-pill role-${user.role}">${roleBadge}</span>
+          <div class="user-profile-badge" id="navbar-user-profile" style="cursor:pointer;" title="คลิกเพื่อสลับบทบาท/ดูข้อมูลผู้ใช้">
+            <div class="avatar"><i class="fa-solid fa-user-shield"></i></div>
+            <div class="user-info">
+              <span class="name">${user.displayName}</span>
+              <span class="role-pill role-${user.role}">
+                ${user.role === 'super_admin' ? '👑 Super Admin' : (user.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}
+              </span>
+            </div>
           </div>
 
-          <!-- Logout Button -->
-          <button id="navbar-logout-btn" class="icon-btn" title="ออกจากระบบ" style="color:var(--danger); border-color:#fee2e2; background:#fef2f2;">
-            <i class="fa-solid fa-right-from-bracket"></i>
+          <button id="logout-btn" class="btn btn-secondary btn-sm" title="ออกจากระบบ">
+            <i class="fa-solid fa-right-from-bracket"></i> <span class="desktop-only">ออกจากระบบ</span>
           </button>
         </div>
       </header>
     `;
   }
 }
+
+class SidebarComponent {

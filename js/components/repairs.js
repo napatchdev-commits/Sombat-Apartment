@@ -1,85 +1,52 @@
 import { Formatters } from '../utils/formatters.js';
-import { UIHelpers } from '../utils/helpers.js';
-
-/**
- * RepairsComponent Class
- * Handles maintenance tickets, repair requests, and technician assignments matching style.css
- */
 export class RepairsComponent {
-  static renderHeader() {
-    return `
-      <div class="view-header">
-        <div>
-          <h2><i class="fa-solid fa-wrench text-primary"></i> รายการแจ้งซ่อมแซมและดูแลหอพัก</h2>
-          <p>บันทึกเรื่องแจ้งซ่อม อุปกรณ์ชำรุด ติดตามสถานะการซ่อม และบันทึกค่าใช้จ่าย</p>
-        </div>
-        <div class="header-actions">
-          <button id="btn-add-repair" class="btn btn-primary"><i class="fa-solid fa-plus"></i> แจ้งซ่อมแซมใหม่</button>
-        </div>
-      </div>
-    `;
-  }
-
-  static renderTable(repairs = []) {
-    if (repairs.length === 0) return UIHelpers.emptyState('ยังไม่มีรายการแจ้งซ่อมในระบบ');
-
-    const rowsHtml = repairs.map(repair => {
-      const isDone = repair.status === 'completed';
-      const statusBadge = isDone 
-        ? UIHelpers.badge('เสร็จสิ้น', 'success') 
-        : UIHelpers.badge('รอดำเนินการ', 'warning');
-
-      return `
-        <tr>
-          <td><strong>${repair.ticketNumber}</strong></td>
-          <td><span class="badge badge-info">ห้อง ${repair.roomName}</span></td>
-          <td><strong>${repair.title}</strong></td>
-          <td>${repair.description || '-'}</td>
-          <td>${Formatters.currency(repair.expenseAmount || 0)}</td>
-          <td>${repair.requestDate}</td>
-          <td>${statusBadge}</td>
-          <td>
-            <button class="btn btn-xs ${isDone ? 'btn-outline-secondary' : 'btn-success'} btn-toggle-repair-status" data-id="${repair.id}">
-              ${isDone ? 'ย้อนสถานะ' : 'ทำเสร็จแล้ว'}
-            </button>
-            <button class="btn btn-xs btn-danger btn-delete-repair" data-id="${repair.id}"><i class="fa-solid fa-trash"></i></button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    return `
-      <div class="glass-card">
-        <div class="table-responsive">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>เลขที่ตั๋ว</th>
-                <th>ห้องพัก</th>
-                <th>หัวข้อแจ้งซ่อม</th>
-                <th>รายละเอียด</th>
-                <th>ค่าใช้จ่าย</th>
-                <th>วันที่แจ้ง</th>
-                <th>สถานะ</th>
-                <th>จัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
-  static render(state = {}) {
+  static render(state) {
     const repairs = state.repairs || [];
+
     return `
-      <div class="repairs-view">
-        ${this.renderHeader()}
-        ${this.renderTable(repairs)}
+      <div class="view-container animate-fade-in">
+        <div class="view-header">
+          <div><h2><i class="fa-solid fa-screwdriver-wrench text-primary"></i> ระบบแจ้งซ่อมและซ่อมบำรุงห้องพัก</h2><p>ติดตามคำขอแจ้งซ่อมจากผู้เช่า แนบรูปถ่าย และบันทึกค่าใช้จ่ายงานซ่อมบำรุง</p></div>
+          <div class="header-actions">
+            <button id="btn-add-repair" class="btn btn-primary"><i class="fa-solid fa-plus"></i> เพิ่มรายการแจ้งซ่อมใหม่</button>
+          </div>
+        </div>
+
+        <div class="glass-card style-table-card">
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead><tr><th>เลขที่ใบซ่อม</th><th>ห้องพัก</th><th>ผู้แจ้งซ่อม</th><th>หัวข้อแจ้งซ่อม / รายละเอียด</th><th>ช่างรับงาน</th><th>ค่าซ่อม</th><th>สถานะ</th><th>การจัดการ</th></tr></thead>
+              <tbody>
+                ${repairs.length === 0 ? `
+                  <tr><td colspan="8" class="text-center text-muted" style="padding:2rem;">ยังไม่มีรายการแจ้งซ่อม</td></tr>
+                ` : repairs.map(rep => `
+                  <tr>
+                    <td><strong>${rep.ticketNumber}</strong></td>
+                    <td><span class="badge-pill badge-primary">ห้อง ${rep.roomName}</span></td>
+                    <td>${rep.tenantName || '-'}</td>
+                    <td><strong>${rep.title}</strong><div class="text-muted text-sm">${rep.description || ''}</div></td>
+                    <td>${rep.assignedTechnician || 'ยังไม่ระบุช่าง'}</td>
+                    <td><strong class="text-danger">${Formatters.currency(rep.expenseAmount)}</strong></td>
+                    <td>
+                      <span class="badge-pill ${rep.status === 'completed' ? 'badge-success' : 'badge-warning'}">
+                        ${rep.status === 'completed' ? '🟢 เสร็จสิ้น' : '🟡 กำลังซ่อม'}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-toggle-repair" data-id="${rep.id}">${rep.status === 'completed' ? 'ปรับเป็นกำลังซ่อม' : 'ปรับเป็นเสร็จสิ้น'}</button>
+                        <button class="btn btn-danger btn-xs btn-delete-repair" data-id="${rep.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     `;
   }
 }
+
+class AccountingComponent {

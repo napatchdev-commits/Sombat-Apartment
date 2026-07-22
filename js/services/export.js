@@ -1,17 +1,11 @@
-/**
- * ExportService Class
- * Handles CSV export and report data extraction
- */
 export class ExportService {
   static exportToCSV(filename, headers, rows) {
-    let csvContent = '\uFEFF'; // UTF-8 BOM
+    let csvContent = '\uFEFF';
     csvContent += headers.join(',') + '\n';
-
     rows.forEach(row => {
       const escapedRow = row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`);
       csvContent += escapedRow.join(',') + '\n';
     });
-
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -21,3 +15,5 @@ export class ExportService {
     document.body.removeChild(link);
   }
 }
+
+
