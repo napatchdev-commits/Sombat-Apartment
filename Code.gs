@@ -29,15 +29,28 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    var requestData = JSON.parse(e.postData.contents);
-    var action = requestData.action;
+    var contents = e ? (e.postData ? e.postData.contents : "") : "";
+    if (!contents) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Empty POST body" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var requestData = JSON.parse(contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("DB_STATE");
+
+    // 1. Handle LINE Messaging API Webhook events
+    if (requestData.events && Array.isArray(requestData.events)) {
+      return handleLineWebhook(requestData.events, ss);
+    }
+
+    // 2. Handle Cloud Data Sync from Admin Portal
+    var action = requestData.action;
+    var sheet = ss.getSheetByName("DB_STATE") || ss.getSheetByName("DB_STORE");
     if (!sheet) {
       sheet = ss.insertSheet("DB_STATE");
     }
     
-    if (action === "sync") {
+    if (action === "sync" || requestData.data) {
       sheet.getRange(1, 1).setValue(JSON.stringify(requestData.data));
       writeAllStructuredSheets(ss, requestData.data);
 
@@ -409,4 +422,114 @@ function writeUsersSheet(ss, users) {
   users.forEach(function(u) {
     sheet.appendRow([u.id, u.username, u.displayName, u.role]);
   });
+}
+
+// ==========================================================================
+// LINE BOT WEBHOOK HANDLER ENGINE
+// ==========================================================================
+var DEFAULT_LINE_CHANNEL_ACCESS_TOKEN = "YOUR_LINE_CHANNEL_ACCESS_TOKEN";
+
+function handleLineWebhook(events, ss) {
+  var propToken = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+  var channelToken = (propToken && propToken.trim()) ? propToken.trim() : DEFAULT_LINE_CHANNEL_ACCESS_TOKEN;
+
+  events.forEach(function(event) {
+    if (event.type === "message") {
+      var replyToken = event.replyToken;
+      var userMsg = event.message.text ? event.message.text.trim() : "";
+      var msgType = event.message.type;
+
+      // 1. กรณีผู้เช่าส่งรูปภาพ (เช่น รูปสลิปการโอนเงิน)
+      if (msgType === "image") {
+        var replyText = "🙏 ขอบคุณสำหรับสลิปการโอนเงินครับ/ค่ะ!\n\nระบบได้รับรูปภาพสลิปเรียบร้อยแล้ว เจ้าหน้าที่จะทำการตรวจสอบและอัปเดทสถานะบิลให้อย่างเร่งด่วนครับ\n\n📲 ตรวจสอบสถานะและรายละเอียดบิลล่าสุด:\nhttps://sombat-apartment.vercel.app/tenant.html";
+        sendLineReply(replyToken, replyText, channelToken);
+        return;
+      }
+
+      // 2. กรณีผู้เช่าส่งข้อความตัวอักษร
+      if (msgType === "text") {
+        var cleanMsg = userMsg.toLowerCase().replace(/ห้อง|\s+/g, "");
+        var data = getLatestDbData(ss);
+        var invoices = data.invoices || [];
+
+        // ค้นหาบิลประจำห้อง (เช่น 101, S101, s101, 46/2)
+        var matchedInv = invoices.find(function(inv) {
+          var rName = String(inv.roomName || "").toLowerCase().replace(/ห้อง|\s+/g, "");
+          var rId = String(inv.roomId || "").toLowerCase().replace(/ห้อง|\s+/g, "");
+          return rName === cleanMsg || rId === cleanMsg || (cleanMsg.length > 0 && rName.indexOf(cleanMsg) !== -1);
+        });
+
+        if (matchedInv) {
+          var isPaid = matchedInv.status === 'paid';
+          var statusText = isPaid ? "✅ ชำระเงินเรียบร้อยแล้ว" : "🔴 รอชำระเงิน";
+          var replyText = "🏠 หอพักสมบัติ นนทบุรี (ห้อง " + matchedInv.roomName + ")\n" +
+            "----------------------------------------\n" +
+            "👤 ผู้เช่า: " + (matchedInv.tenantName || "ผู้เช่า") + "\n" +
+            "📅 ประจำเดือน: " + (matchedInv.monthKey || "ล่าสุด") + "\n" +
+            "⚡ ค่าไฟ: ฿" + Number(matchedInv.elecAmount || 0).toLocaleString() + "\n" +
+            "💧 ค่าน้ำ: ฿" + Number(matchedInv.waterAmount || 0).toLocaleString() + "\n" +
+            "💰 ยอดบิลสุทธิ: ฿" + Number(matchedInv.totalAmount || 0).toLocaleString() + "\n" +
+            "📌 สถานะ: " + statusText + "\n\n" +
+            "📲 ตรวจสอบรายละเอียดเต็มและแนบสลิป:\n" +
+            "https://sombat-apartment.vercel.app/tenant.html";
+          
+          sendLineReply(replyToken, replyText, channelToken);
+          return;
+        }
+
+        // ค้นหาด้วยคำคีย์เวิร์ด บิล, เช็ค, น้ำ, ไฟ, ยอด
+        if (cleanMsg.indexOf("บิล") !== -1 || cleanMsg.indexOf("น้ำ") !== -1 || cleanMsg.indexOf("ไฟ") !== -1 || cleanMsg.indexOf("ยอด") !== -1 || cleanMsg.indexOf("เช็ค") !== -1) {
+          var replyText = "🏠 หอพักสมบัติ นนทบุรี\n\n📢 ระบบตรวจสอบบิลผ่าน LINE Bot\n\nกรุณาพิมพ์ \"เลขห้องพัก\" ของคุณ (เช่น S101 หรือ 101) เพื่อตรวจสอบยอดบิลประจำเดือนครับ\n\nหรือกดลิงก์เข้าสู่ระบบผู้เช่าเพื่อชำระเงินและแนบสลิป:\nhttps://sombat-apartment.vercel.app/tenant.html";
+          sendLineReply(replyToken, replyText, channelToken);
+          return;
+        }
+
+        // ข้อความต้อนรับและคำแนะนำการใช้งาน
+        var replyText = "🏠 ยินดีต้อนรับสู่ LINE Official หอพักสมบัติ นนทบุรี\n\n" +
+          "🔹 พิมพ์ \"เลขห้องพัก\" (เช่น S101 หรือ 101) เพื่อเช็คยอดบิล\n" +
+          "🔹 พิมพ์ \"บิล\" เพื่อรับคำแนะนำการใช้งาน\n\n" +
+          "📲 เข้าสู่ระบบผู้เช่า (ดูบิล / ชำระเงิน / แนบสลิป):\n" +
+          "https://sombat-apartment.vercel.app/tenant.html";
+        sendLineReply(replyToken, replyText, channelToken);
+      }
+    }
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "LINE Event Processed" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function sendLineReply(replyToken, textMessage, channelToken) {
+  if (!replyToken || !channelToken || channelToken === "YOUR_LINE_CHANNEL_ACCESS_TOKEN") {
+    Logger.log("LINE Reply skipped: Channel Access Token not configured.");
+    return;
+  }
+  try {
+    var url = "https://api.line.me/v2/bot/message/reply";
+    var payload = {
+      replyToken: replyToken,
+      messages: [{ type: "text", text: textMessage }]
+    };
+    var options = {
+      method: "post",
+      contentType: "application/json",
+      headers: { "Authorization": "Bearer " + channelToken },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+    UrlFetchApp.fetch(url, options);
+  } catch(err) {
+    Logger.log("Error sending LINE reply: " + err.toString());
+  }
+}
+
+function getLatestDbData(ss) {
+  var sheet = ss.getSheetByName("DB_STORE") || ss.getSheetByName("DB_STATE");
+  if (!sheet) return {};
+  var raw = sheet.getRange(1, 1).getValue();
+  try {
+    return JSON.parse(raw || "{}");
+  } catch(e) {
+    return {};
+  }
 }
