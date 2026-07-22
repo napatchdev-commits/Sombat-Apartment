@@ -2585,10 +2585,10 @@ class App {
 
         <div class="form-group" style="margin-bottom:1.5rem;">
           <label style="font-weight:600; font-size:0.95rem; color:#0f172a; display:flex; justify-content:space-between; align-items:center;">
-            <span><i class="fa-solid fa-eye text-info"></i> ตัวอย่างข้อความที่จะส่งให้ผู้เช่า</span>
-            <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(จะอัปเดตอัตโนมัติตามห้องและค่าที่ตั้งไว้)</span>
+            <span><i class="fa-solid fa-pen-to-square text-info"></i> ข้อความที่จะส่งให้ผู้เช่า (สามารถพิมพ์แก้ไขเพิ่มเติมได้)</span>
+            <span style="font-size:0.8rem; font-weight:normal; color:#059669;">✏️ สามารถพิมพ์แก้ไขข้อความได้ตามต้องการ</span>
           </label>
-          <textarea id="line-msg-preview-textarea" class="form-control" rows="13" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #cbd5e1; border-radius:8px; padding:0.85rem;" readonly></textarea>
+          <textarea id="line-msg-preview-textarea" class="form-control" rows="13" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #06c755; border-radius:8px; padding:0.85rem;" placeholder="พิมพ์หรือแก้ไขข้อความเพิ่มเติมที่นี่..."></textarea>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
