@@ -216,12 +216,24 @@ class PromptPayService {
 }
 
 class LineService {
-  static createBillingMessage(invoice, propertyName, tenantUrl) {
+  static createBillingMessage(invoice, propertyName, tenantUrl, lineBotUrl, isBroadcast = false) {
     const aptName = propertyName || 'หอพักสมบัติ นนทบุรี';
-    const tenantName = invoice ? (invoice.tenantName || 'ผู้เช่า') : 'ผู้เช่า';
     const url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
-    
-    return `🏠 ${aptName}\n\n📢 แจ้งเตือนค่าเช่าประจำเดือน\n\nเรียน คุณ${tenantName}\n\nระบบได้ออกบิลประจำเดือนเรียบร้อยแล้ว\n\nกรุณาเข้าสู่ระบบผู้เช่า\nเพื่อตรวจสอบรายละเอียดบิล\nและอัปโหลดหลักฐานการชำระเงิน\n\nกดที่นี่\n\n${url}\n\nขอบคุณครับ`;
+    const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
+
+    const greeting = (isBroadcast || !invoice || !invoice.tenantName) 
+      ? 'เรียนผู้เช่าทุกท่าน' 
+      : `เรียน คุณ${invoice.tenantName}`;
+
+    let msg = `🏠 ${aptName}\n\n📢 แจ้งเตือนค่าเช่าประจำเดือน\n\n${greeting}\n\nระบบได้ออกบิลประจำเดือนเรียบร้อยแล้ว\n\nกรุณาเข้าสู่ระบบผู้เช่า\nเพื่อตรวจสอบรายละเอียดบิล\nและอัปโหลดหลักฐานการชำระเงิน\n\nกดที่นี่\n\n${url}`;
+
+    if (botUrl && botUrl.trim()) {
+      msg += `\n\nติดต่อสอบถาม / LINE Bot:\n${botUrl.trim()}`;
+    }
+
+    msg += `\n\nขอบคุณครับ`;
+
+    return msg;
   }
 }
 
@@ -2524,9 +2536,10 @@ class App {
     const settings = this.state.settings || {};
     
     const savedTenantUrl = localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html');
+    const savedLineBotUrl = localStorage.getItem('SOMBAT_LINE_BOT_URL') || '';
     const currentAptName = settings.apartmentName || 'หอพักสมบัติ นนทบุรี';
 
-    const selectedInv = invoices.find(i => i.id === initialInvoiceId) || invoices[0] || null;
+    const selectedInv = invoices.find(i => i.id === initialInvoiceId) || null;
 
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
@@ -2542,7 +2555,7 @@ class App {
           <h4 style="margin-top:0; margin-bottom:0.75rem; color:#0f172a; font-size:1.05rem;">
             <i class="fa-solid fa-gear text-primary"></i> ตั้งค่าข้อมูลการส่งแจ้งเตือน (สามารถแก้ไขได้)
           </h4>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:0.75rem;">
             <div>
               <label style="font-weight:600; font-size:0.9rem; color:#334155; margin-bottom:0.35rem; display:block;">ชื่อหอพัก / เจ้าของหอพัก:</label>
               <input type="text" id="line-cfg-apt-name" class="form-control" value="${currentAptName}" placeholder="เช่น หอพักสมบัติ นนทบุรี">
@@ -2552,11 +2565,16 @@ class App {
               <input type="text" id="line-cfg-tenant-url" class="form-control" value="${savedTenantUrl}" placeholder="เช่น https://sombat-apartment.vercel.app/tenant.html">
             </div>
           </div>
+          <div>
+            <label style="font-weight:600; font-size:0.9rem; color:#334155; margin-bottom:0.35rem; display:block;">ลิงก์ LINE Bot / Official Account (ถ้ามี):</label>
+            <input type="text" id="line-cfg-bot-url" class="form-control" value="${savedLineBotUrl}" placeholder="เช่น https://line.me/R/ti/p/@sombat_bot หรือ https://lin.ee/xxxxxx">
+          </div>
         </div>
 
         <div class="form-group" style="margin-bottom:1.25rem;">
           <label style="font-weight:600; font-size:0.95rem; color:#0f172a;">เลือกรายการผู้เช่า / ห้องพักที่ต้องการแจ้งเตือน *</label>
           <select id="line-notify-inv-select" class="form-control" style="font-size:1rem; padding:0.65rem 0.85rem;">
+            <option value="ALL" ${!selectedInv ? 'selected' : ''}>📢 ประกาศแจ้งเตือนรวม (เรียนผู้เช่าทุกท่าน)</option>
             ${invoices.map(inv => `
               <option value="${inv.id}" ${selectedInv && selectedInv.id === inv.id ? 'selected' : ''}>
                 ห้อง ${inv.roomName} - คุณ ${inv.tenantName || 'ผู้เช่า'} (ยอดชำระ ฿${(inv.totalAmount || 0).toLocaleString()})
@@ -2570,7 +2588,7 @@ class App {
             <span><i class="fa-solid fa-eye text-info"></i> ตัวอย่างข้อความที่จะส่งให้ผู้เช่า</span>
             <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(จะอัปเดตอัตโนมัติตามห้องและค่าที่ตั้งไว้)</span>
           </label>
-          <textarea id="line-msg-preview-textarea" class="form-control" rows="12" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #cbd5e1; border-radius:8px; padding:0.85rem;" readonly></textarea>
+          <textarea id="line-msg-preview-textarea" class="form-control" rows="13" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #cbd5e1; border-radius:8px; padding:0.85rem;" readonly></textarea>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
@@ -2589,26 +2607,31 @@ class App {
 
     const aptInput = document.getElementById('line-cfg-apt-name');
     const urlInput = document.getElementById('line-cfg-tenant-url');
+    const botInput = document.getElementById('line-cfg-bot-url');
     const invSelect = document.getElementById('line-notify-inv-select');
     const textarea = document.getElementById('line-msg-preview-textarea');
 
     const updatePreview = () => {
       const invId = invSelect ? invSelect.value : null;
-      const inv = invoices.find(i => i.id === invId) || { tenantName: 'ผู้เช่า', roomName: 'S101' };
+      const isBroadcast = invId === 'ALL' || !invId;
+      const inv = invoices.find(i => i.id === invId) || null;
       const apt = aptInput.value.trim() || 'หอพักสมบัติ นนทบุรี';
       const url = urlInput.value.trim() || (window.location.origin + '/tenant.html');
+      const bot = botInput.value.trim();
 
       if (this.state.settings) {
         this.state.settings.apartmentName = apt;
       }
       localStorage.setItem('SOMBAT_TENANT_PORTAL_URL', url);
+      localStorage.setItem('SOMBAT_LINE_BOT_URL', bot);
       DBService.saveState(this.state);
 
-      textarea.value = LineService.createBillingMessage(inv, apt, url);
+      textarea.value = LineService.createBillingMessage(inv, apt, url, bot, isBroadcast);
     };
 
     aptInput.addEventListener('input', updatePreview);
     urlInput.addEventListener('input', updatePreview);
+    botInput.addEventListener('input', updatePreview);
     if (invSelect) invSelect.addEventListener('change', updatePreview);
 
     updatePreview();
