@@ -2591,14 +2591,20 @@ class App {
           <textarea id="line-msg-preview-textarea" class="form-control" rows="13" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #06c755; border-radius:8px; padding:0.85rem;" placeholder="พิมพ์หรือแก้ไขข้อความเพิ่มเติมที่นี่..."></textarea>
         </div>
 
+        <div style="margin-bottom:0.85rem;">
+          <button id="btn-push-line-bot" class="btn btn-success" style="width:100%; padding:0.85rem; font-size:1.05rem; font-weight:bold; background-color:#06c755; border-color:#06c755; color:#ffffff; box-shadow: 0 4px 12px rgba(6, 199, 85, 0.35); cursor:pointer;">
+            <i class="fa-solid fa-paper-plane"></i> ⚡ กดส่ง LINE Bot แจ้งเตือนตรงหาผู้เช่าทันที (Instant Auto Push)
+          </button>
+        </div>
+
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.75rem;">
-          <button id="btn-copy-line-msg" class="btn btn-secondary" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600;">
+          <button id="btn-copy-line-msg" class="btn btn-secondary" style="padding:0.65rem 0.4rem; font-size:0.85rem; font-weight:600;">
             <i class="fa-regular fa-copy"></i> คัดลอกข้อความ
           </button>
-          <button id="btn-open-line-app" class="btn btn-success" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600; background-color:#06c755; border-color:#06c755;" title="เปิดแอป LINE บนคอมพิวเตอร์/มือถือโดยตรง ไม่ต้องล็อกอินเว็บ">
+          <button id="btn-open-line-app" class="btn btn-outline-success" style="padding:0.65rem 0.4rem; font-size:0.85rem; font-weight:600; border-color:#06c755; color:#06c755;" title="เปิดแอป LINE บนคอมพิวเตอร์/มือถือโดยตรง">
             <i class="fa-brands fa-line"></i> เปิดในแอป LINE
           </button>
-          <button id="btn-open-line-web-share" class="btn btn-primary" style="padding:0.75rem 0.4rem; font-size:0.9rem; font-weight:600; background-color:#00b900; border-color:#00b900;" title="แชร์ผ่านเว็บ LINE Social Share">
+          <button id="btn-open-line-web-share" class="btn btn-outline-primary" style="padding:0.65rem 0.4rem; font-size:0.85rem; font-weight:600; border-color:#00b900; color:#00b900;" title="แชร์ผ่านเว็บ LINE Social Share">
             <i class="fa-solid fa-share-nodes"></i> แชร์ผ่านเว็บ LINE
           </button>
         </div>
@@ -2638,6 +2644,48 @@ class App {
     if (invSelect) invSelect.addEventListener('change', updatePreview);
 
     updatePreview();
+
+    // 0. Direct LINE Bot Push Notification (Instant API Push)
+    const pushBtn = document.getElementById('btn-push-line-bot');
+    if (pushBtn) {
+      pushBtn.addEventListener('click', async () => {
+        const invId = invSelect ? invSelect.value : 'ALL';
+        const msgText = textarea.value;
+
+        const sheetUrl = (this.state.settings && this.state.settings.googleSheetUrl) || DBService.getSavedSheetUrl();
+        if (!sheetUrl) {
+          alert('⚠️ ยังไม่ได้บันทึก Google Sheets Web App URL ในระบบ!\n\nกรุณาไปที่เมนู "ตั้งค่า" แล้วระบุและบันทึก Web App URL ก่อนครับ');
+          return;
+        }
+
+        pushBtn.disabled = true;
+        pushBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งข้อความเข้า LINE บอททันที...`;
+
+        try {
+          const response = await fetch(sheetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'linePushNotify',
+              invoiceId: invId,
+              messageText: msgText
+            })
+          });
+
+          const res = await response.json();
+          if (res.status === 'success') {
+            alert(`✅ ${res.message || 'ส่งข้อความ LINE แจ้งเตือนเข้าโทรศัพท์ผู้เช่าเรียบร้อยแล้ว!'}`);
+          } else {
+            alert(`⚠️ การส่งข้อความ LINE ล้มเหลว:\n\n${res.message || 'กรุณาตรวจสอบ Channel Access Token ในการตั้งค่า'}`);
+          }
+        } catch (err) {
+          alert(`⚠️ ไม่สามารถเชื่อมต่อ Google Apps Script ได้:\n${err.toString()}`);
+        } finally {
+          pushBtn.disabled = false;
+          pushBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ⚡ กดส่ง LINE Bot แจ้งเตือนตรงหาผู้เช่าทันที (Instant Auto Push)`;
+        }
+      });
+    }
 
     // 1. Copy message action
     document.getElementById('btn-copy-line-msg').addEventListener('click', () => {

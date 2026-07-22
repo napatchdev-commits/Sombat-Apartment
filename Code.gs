@@ -43,7 +43,31 @@ function doPost(e) {
       return handleLineWebhook(requestData.events, ss);
     }
 
-    // 2. Handle Cloud Data Sync from Admin Portal
+    // 2. Handle Direct LINE Push Notification from Admin Web App
+    if (action === "linePushNotify") {
+      var msgText = requestData.messageText;
+      var invId = requestData.invoiceId;
+
+      var data = getLatestDbData(ss);
+      var settings = data.settings || {};
+      var propToken = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+      var channelToken = (settings.lineToken && settings.lineToken.trim()) 
+        ? settings.lineToken.trim() 
+        : ((propToken && propToken.trim()) ? propToken.trim() : DEFAULT_LINE_CHANNEL_ACCESS_TOKEN);
+
+      if (!channelToken || channelToken === "YOUR_LINE_CHANNEL_ACCESS_TOKEN") {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "ยังไม่ได้กรอก LINE Channel Access Token ในระบบ! กรุณาไปที่เมนู 'ตั้งค่า' แล้วกรอก Token ก่อนครับ"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var pushRes = sendLinePushOrBroadcast(channelToken, msgText, invId === "ALL");
+      return ContentService.createTextOutput(JSON.stringify(pushRes))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. Handle Cloud Data Sync from Admin Portal
     var action = requestData.action;
     var sheet = ss.getSheetByName("DB_STATE") || ss.getSheetByName("DB_STORE");
     if (!sheet) {
@@ -624,5 +648,36 @@ function getLatestDbData(ss) {
     return JSON.parse(raw || "{}");
   } catch(e) {
     return {};
+  }
+}
+
+function sendLinePushOrBroadcast(channelToken, messageText, isBroadcast) {
+  try {
+    var url = "https://api.line.me/v2/bot/message/broadcast";
+    var payload = {
+      messages: [{ type: "text", text: messageText }]
+    };
+
+    var options = {
+      method: "post",
+      contentType: "application/json",
+      headers: { "Authorization": "Bearer " + channelToken },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    var response = UrlFetchApp.fetch(url, options);
+    var respCode = response.getResponseCode();
+    var respText = response.getContentText();
+
+    if (respCode === 200) {
+      return { status: "success", message: "⚡ ส่งข้อความ LINE แจ้งเตือนเข้าโทรศัพท์ผู้เช่าเรียบร้อยแล้ว!" };
+    } else {
+      var errJson = {};
+      try { errJson = JSON.parse(respText); } catch(e){}
+      return { status: "error", message: "LINE API Error (" + respCode + "): " + (errJson.message || respText) };
+    }
+  } catch(err) {
+    return { status: "error", message: err.toString() };
   }
 }
