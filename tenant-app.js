@@ -690,63 +690,65 @@ class MyBillsApp {
             </div>
           </div>
 
-          <table style="width:100%; border-collapse:collapse; font-size:0.88rem; margin-bottom:1.25rem;" border="1" cellpadding="8" cellspacing="0">
-            <thead>
-              <tr style="background:#f1f5f9; color:#0f172a; text-align:center;">
-                <th style="width:8%;">ลำดับ</th>
-                <th>รายการชำระ (Description)</th>
-                <th style="width:12%;">เลขครั้งก่อน</th>
-                <th style="width:12%;">เลขครั้งนี้</th>
-                <th style="width:14%;">หน่วยที่ใช้</th>
-                <th style="width:14%;">ราคา/หน่วย</th>
-                <th style="width:18%;">จำนวนเงิน (บาท)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="text-align:center;">1</td>
-                <td>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(inv.monthKey)})</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:right;"><strong>${Formatters.currency(inv.rentAmount)}</strong></td>
-              </tr>
-              <tr>
-                <td style="text-align:center;">2</td>
-                <td>ค่าไฟฟ้า (Electricity)</td>
-                <td style="text-align:center;">${inv.elecPrev}</td>
-                <td style="text-align:center;">${inv.elecCurr}</td>
-                <td style="text-align:center;">${elecUnits} ยูนิต</td>
-                <td style="text-align:center;">฿8.00</td>
-                <td style="text-align:right;"><strong>${Formatters.currency(inv.elecAmount)}</strong></td>
-              </tr>
-              <tr>
-                <td style="text-align:center;">3</td>
-                <td>ค่าน้ำประปา (Water)</td>
-                <td style="text-align:center;">${inv.waterPrev}</td>
-                <td style="text-align:center;">${inv.waterCurr}</td>
-                <td style="text-align:center;">${waterUnits} ยูนิต</td>
-                <td style="text-align:center;">฿20.00</td>
-                <td style="text-align:right;"><strong>${Formatters.currency(inv.waterAmount)}</strong></td>
-              </tr>
-              <tr>
-                <td style="text-align:center;">4</td>
-                <td>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:right;"><strong>${Formatters.currency(inv.trashFee || 20)}</strong></td>
-              </tr>
-            </tbody>
-            <tfoot>
-              <tr style="background:#eff6ff; font-weight:800; color:#1e40af;">
-                <td colspan="6" style="text-align:right; font-size:1.05rem;">ยอดเงินรวมสุทธิที่ต้องชำระ (Total Net Amount):</td>
-                <td style="text-align:right; font-size:1.25rem; color:#1d4ed8;">${Formatters.currency(inv.totalAmount)}</td>
-              </tr>
-            </tfoot>
-          </table>
+          <div class="invoice-details-table-wrapper" style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:1.25rem;">
+            <table style="width:100%; min-width:560px; border-collapse:collapse; font-size:0.85rem;" border="1" cellpadding="8" cellspacing="0">
+              <thead>
+                <tr style="background:#f1f5f9; color:#0f172a; text-align:center;">
+                  <th style="width:8%;">ลำดับ</th>
+                  <th>รายการชำระ (Description)</th>
+                  <th style="width:12%;">เลขครั้งก่อน</th>
+                  <th style="width:12%;">เลขครั้งนี้</th>
+                  <th style="width:14%;">หน่วยที่ใช้</th>
+                  <th style="width:14%;">ราคา/หน่วย</th>
+                  <th style="width:18%;">จำนวนเงิน (บาท)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align:center;">1</td>
+                  <td>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(inv.monthKey)})</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:right;"><strong>${Formatters.currency(inv.rentAmount)}</strong></td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;">2</td>
+                  <td>ค่าไฟฟ้า (Electricity)</td>
+                  <td style="text-align:center;">${inv.elecPrev}</td>
+                  <td style="text-align:center;">${inv.elecCurr}</td>
+                  <td style="text-align:center;">${elecUnits} ยูนิต</td>
+                  <td style="text-align:center;">฿8.00</td>
+                  <td style="text-align:right;"><strong>${Formatters.currency(inv.elecAmount)}</strong></td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;">3</td>
+                  <td>ค่าน้ำประปา (Water)</td>
+                  <td style="text-align:center;">${inv.waterPrev}</td>
+                  <td style="text-align:center;">${inv.waterCurr}</td>
+                  <td style="text-align:center;">${waterUnits} ยูนิต</td>
+                  <td style="text-align:center;">฿20.00</td>
+                  <td style="text-align:right;"><strong>${Formatters.currency(inv.waterAmount)}</strong></td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;">4</td>
+                  <td>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:right;"><strong>${Formatters.currency(inv.trashFee || 20)}</strong></td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr style="background:#eff6ff; font-weight:800; color:#1e40af;">
+                  <td colspan="6" style="text-align:right; font-size:1.05rem;">ยอดเงินรวมสุทธิที่ต้องชำระ (Total Net Amount):</td>
+                  <td style="text-align:right; font-size:1.25rem; color:#1d4ed8;">${Formatters.currency(inv.totalAmount)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
           <div style="background:#fffbebf8; border:1px solid #fde68a; border-radius:8px; padding:0.85rem; font-size:0.85rem; color:#92400e; text-align:center; margin-bottom:1rem;">
             📌 <strong>ช่องทางชำระเงิน:</strong> โอนชำระเงิน ธ.กรุงศรีอยุธยา (BAY) เลขที่ <strong>240-1-34666-3</strong> ชื่อบัญชี: <strong>นางสมผิว น้ำวน</strong>

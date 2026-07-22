@@ -929,3 +929,131 @@ body {
     overflow-y: auto;
 }
 
+/* ==========================================================================
+   MOBILE RESPONSIVE & PRINT PERFECT BILL / INVOICE SLIP STYLES
+   ========================================================================== */
+
+/* Universal Bill Container Auto-Fitting */
+.invoice-paper,
+#modal-printable-bill-area,
+.receipt-slip-container {
+    width: 100% !important;
+    max-width: 760px !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+}
+
+/* Scrollable wrapper for tables on mobile screens */
+.invoice-details-table-wrapper {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Mobile Viewport Adjustments (max-width: 768px) */
+@media (max-width: 768px) {
+    #app-modal .modal-dialog {
+        width: 95% !important;
+        max-width: 100% !important;
+        margin: 0.5rem auto !important;
+        padding: 0.75rem !important;
+    }
+
+    .modal-body {
+        padding: 0.85rem !important;
+    }
+
+    .invoice-paper,
+    #modal-printable-bill-area {
+        padding: 0.85rem !important;
+        font-size: 0.82rem !important;
+        border-radius: 8px !important;
+    }
+
+    /* Stack 2-column info grids on mobile phones */
+    .invoice-paper > div[style*="grid-template-columns"],
+    #modal-printable-bill-area > div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+        padding: 0.75rem !important;
+    }
+
+    .invoice-paper table,
+    #modal-printable-bill-area table,
+    .invoice-details-table {
+        font-size: 0.75rem !important;
+    }
+
+    .invoice-paper th, .invoice-paper td,
+    #modal-printable-bill-area th, #modal-printable-bill-area td,
+    .invoice-details-table th, .invoice-details-table td {
+        padding: 0.35rem 0.2rem !important;
+        word-break: break-word !important;
+    }
+
+    .invoice-red-note-box {
+        font-size: 0.8rem !important;
+        padding: 0.65rem 0.75rem !important;
+    }
+}
+
+/* Perfect 100% Fit Print Engine */
+@media print {
+    body * {
+        visibility: hidden !important;
+    }
+
+    #app-modal, #app-modal * {
+        visibility: visible !important;
+    }
+
+    #print-receipt-area, #print-receipt-area * {
+        visibility: visible !important;
+    }
+
+    #modal-printable-bill-area, #modal-printable-bill-area * {
+        visibility: visible !important;
+    }
+
+    #app-modal .modal-dialog {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #app-modal .modal-header,
+    #app-modal .modal-body > button,
+    #app-modal .close-modal-btn {
+        display: none !important;
+    }
+
+    #print-receipt-area,
+    #modal-printable-bill-area,
+    .invoice-paper {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0.4cm !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    .invoice-details-table,
+    #modal-printable-bill-area table {
+        width: 100% !important;
+        font-size: 0.8rem !important;
+    }
+}
+

@@ -2860,74 +2860,76 @@ class App {
           </div>
 
           <!-- Items breakdown table -->
-          <table class="invoice-details-table">
-            <thead>
-              <tr>
-                <th style="text-align:center; width:45px;">ลำดับ</th>
-                <th>รายการชำระ (Description)</th>
-                <th style="text-align:center;">เลขครั้งก่อน</th>
-                <th style="text-align:center;">เลขครั้งนี้</th>
-                <th style="text-align:center;">หน่วยที่ใช้</th>
-                <th style="text-align:right;">ราคา/หน่วย</th>
-                <th style="text-align:right;">จำนวนเงิน (บาท)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="text-align:center;">1</td>
-                <td><strong>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(inv.monthKey)})</strong></td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:center;">-</td>
-                <td style="text-align:right;">-</td>
-                <td style="text-align:right;"><strong>฿${(inv.rentAmount || 3500).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
-              </tr>
-              <tr>
-                <td style="text-align:center;">2</td>
-                <td><strong>ค่าไฟฟ้า (Electricity)</strong></td>
-                <td style="text-align:center;">${inv.elecPrev}</td>
-                <td style="text-align:center;">${inv.elecCurr}</td>
-                <td style="text-align:center;"><strong>${elecUnits}</strong> ยูนิต</td>
-                <td style="text-align:right;">฿${elecRate.toFixed(2)}</td>
-                <td style="text-align:right;"><strong>฿${(inv.elecAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
-              </tr>
-              <tr>
-                <td style="text-align:center;">3</td>
-                <td><strong>ค่าน้ำประปา (Water)</strong></td>
-                <td style="text-align:center;">${inv.waterPrev}</td>
-                <td style="text-align:center;">${inv.waterCurr}</td>
-                <td style="text-align:center;"><strong>${waterUnits}</strong> ยูนิต</td>
-                <td style="text-align:right;">฿${waterRate.toFixed(2)}</td>
-                <td style="text-align:right;"><strong>฿${(inv.waterAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
-              </tr>
-              ${(inv.trashFee || 20) > 0 ? `
+          <div class="invoice-details-table-wrapper" style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:1rem;">
+            <table class="invoice-details-table" style="width:100%; min-width:560px;">
+              <thead>
                 <tr>
-                  <td style="text-align:center;">4</td>
-                  <td><strong>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</strong></td>
+                  <th style="text-align:center; width:45px;">ลำดับ</th>
+                  <th>รายการชำระ (Description)</th>
+                  <th style="text-align:center;">เลขครั้งก่อน</th>
+                  <th style="text-align:center;">เลขครั้งนี้</th>
+                  <th style="text-align:center;">หน่วยที่ใช้</th>
+                  <th style="text-align:right;">ราคา/หน่วย</th>
+                  <th style="text-align:right;">จำนวนเงิน (บาท)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align:center;">1</td>
+                  <td><strong>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(inv.monthKey)})</strong></td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:right;">-</td>
-                  <td style="text-align:right;"><strong>฿${(inv.trashFee || 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                  <td style="text-align:right;"><strong>฿${(inv.rentAmount || 3500).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
                 </tr>
-              ` : ''}
-              ${(inv.fineAmount || 0) > 0 ? `
                 <tr>
-                  <td style="text-align:center;">5</td>
-                  <td><strong class="text-danger">ค่าปรับชำระเกินกำหนด (Overdue Fine)</strong></td>
-                  <td style="text-align:center;">-</td>
-                  <td style="text-align:center;">-</td>
-                  <td style="text-align:center;">-</td>
-                  <td style="text-align:right;">-</td>
-                  <td style="text-align:right;"><strong class="text-danger">฿${inv.fineAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                  <td style="text-align:center;">2</td>
+                  <td><strong>ค่าไฟฟ้า (Electricity)</strong></td>
+                  <td style="text-align:center;">${inv.elecPrev}</td>
+                  <td style="text-align:center;">${inv.elecCurr}</td>
+                  <td style="text-align:center;"><strong>${elecUnits}</strong> ยูนิต</td>
+                  <td style="text-align:right;">฿${elecRate.toFixed(2)}</td>
+                  <td style="text-align:right;"><strong>฿${(inv.elecAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
                 </tr>
-              ` : ''}
-              <tr style="background:#f1f5f9; font-weight:bold; font-size:1.05rem;">
-                <td colspan="6" style="text-align:right;">ยอดเงินรวมสุทธิที่ต้องชำระ (Total Net Amount):</td>
-                <td style="text-align:right; color:var(--primary); font-size:1.15rem;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
-              </tr>
-            </tbody>
-          </table>
+                <tr>
+                  <td style="text-align:center;">3</td>
+                  <td><strong>ค่าน้ำประปา (Water)</strong></td>
+                  <td style="text-align:center;">${inv.waterPrev}</td>
+                  <td style="text-align:center;">${inv.waterCurr}</td>
+                  <td style="text-align:center;"><strong>${waterUnits}</strong> ยูนิต</td>
+                  <td style="text-align:right;">฿${waterRate.toFixed(2)}</td>
+                  <td style="text-align:right;"><strong>฿${(inv.waterAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                </tr>
+                ${(inv.trashFee || 20) > 0 ? `
+                  <tr>
+                    <td style="text-align:center;">4</td>
+                    <td><strong>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</strong></td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:right;">-</td>
+                    <td style="text-align:right;"><strong>฿${(inv.trashFee || 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                  </tr>
+                ` : ''}
+                ${(inv.fineAmount || 0) > 0 ? `
+                  <tr>
+                    <td style="text-align:center;">5</td>
+                    <td><strong class="text-danger">ค่าปรับชำระเกินกำหนด (Overdue Fine)</strong></td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:right;">-</td>
+                    <td style="text-align:right;"><strong class="text-danger">฿${inv.fineAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                  </tr>
+                ` : ''}
+                <tr style="background:#f1f5f9; font-weight:bold; font-size:1.05rem;">
+                  <td colspan="6" style="text-align:right;">ยอดเงินรวมสุทธิที่ต้องชำระ (Total Net Amount):</td>
+                  <td style="text-align:right; color:var(--primary); font-size:1.15rem;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <div style="text-align:right; font-weight:bold; color:#475569; margin-top:0.5rem;">
             (จำนวนเงินตัวอักษร: ${Formatters.thaiBahtText(inv.totalAmount)})
