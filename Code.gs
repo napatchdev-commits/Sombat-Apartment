@@ -8,11 +8,16 @@
  * เพื่อกดปุ่ม "อนุญาตสิทธิ์" (Grant Authorization) ให้สคริปต์สามารถส่งข้อความไปหา LINE API ได้
  */
 function testAuth() {
-  Logger.log("ได้รับอนุญาตสิทธิ์ UrlFetchApp.fetch เรียบร้อยแล้ว!");
+  try {
+    UrlFetchApp.fetch("https://api.line.me", { muteHttpExceptions: true });
+    Logger.log("ได้รับอนุญาตสิทธิ์ UrlFetchApp.fetch เรียบร้อยแล้ว!");
+  } catch(e) {
+    Logger.log("Auth complete: " + e.toString());
+  }
 }
 
 function doGet(e) {
-  var action = e.parameter ? e.parameter.action : "get";
+  var action = (e && e.parameter) ? e.parameter.action : "get";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("DB_STATE");
   if (!sheet) {
