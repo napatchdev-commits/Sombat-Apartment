@@ -159,7 +159,8 @@ class TenantDBService {
           fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'sync', data: state })
+            body: JSON.stringify({ action: 'sync', data: state }),
+            redirect: 'follow'
           }).catch(() => {});
         }
       }
@@ -174,7 +175,8 @@ class TenantDBService {
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'sync', data: state })
+        body: JSON.stringify({ action: 'sync', data: state }),
+        redirect: 'follow'
       }).catch(() => {});
     }
   }
@@ -707,7 +709,8 @@ class MyBillsApp {
         action: 'linePushNotify',
         invoiceId: 'ALL', // Broadcast/Notify the admin channel
         messageText: messageText
-      })
+      }),
+      redirect: 'follow'
     })
     .then(res => res.json())
     .then(data => {
