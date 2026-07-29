@@ -533,11 +533,12 @@ function writeInvoicesSheet(ss, invoices) {
   if (!invoices || invoices.length === 0) return;
 
   var rows = invoices.map(function(inv) {
+    var statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : 'ค้างชำระ';
     return [
       inv.invoiceNumber || "", inv.monthKey || "", inv.roomName || "", inv.tenantName || "", inv.issueDate || "", inv.dueDate || "",
       inv.elecPrev || 0, inv.elecCurr || 0, inv.elecAmount || 0,
       inv.waterPrev || 0, inv.waterCurr || 0, inv.waterAmount || 0,
-      inv.rentAmount || 0, inv.trashFee || 20, inv.totalAmount || 0, inv.status || "unpaid"
+      inv.rentAmount || 0, inv.trashFee || 20, inv.totalAmount || 0, statusStr
     ];
   });
 
