@@ -40,7 +40,7 @@ function clearAllDatabaseState() {
   }
   stateSheet.getRange(1, 1).setValue(JSON.stringify(emptyData));
   
-  // 3. เขียนและสร้างโครงสร้างแผ่นงานภาษาไทยเปล่า (และลบแท็บภาษาอังกฤษซ้ำซ้อนทิ้งทั้งหมด)
+  // 3. เขียนและสร้างโครงสร้างแผ่นงานภาษาไทยเปล่า (และลบแท็บอื่นๆ ที่ซ้ำซ้อนทิ้งทั้งหมด)
   writeAllStructuredSheets(ss, emptyData);
   
   Logger.log("⚡ ระบบได้ทำการล้างข้อมูลทั้งหมดใน Google Sheets และเตรียมแท็บภาษาไทยเริ่มต้นให้เรียบร้อยแล้ว!");
@@ -233,7 +233,7 @@ function readAndMergeSheetTabs(ss, data) {
   }
 
   // D. Read TENANTS / ข้อมูลผู้เช่า Tab
-  var tSheet = ss.getSheetByName("ข้อมูลผู้เช่า") || ss.getSheetByName("TENANTS");
+  var tSheet = ss.getSheetByName("ข้อมูลผู้เช่า") || ss.getSheetByName("TENANTS") || ss.getSheetByName("ทะเบียนผู้เช่า");
   if (tSheet) {
     var tValues = tSheet.getRange("A2:J200").getValues();
     tValues.forEach(function(row) {
@@ -253,7 +253,7 @@ function readAndMergeSheetTabs(ss, data) {
   }
 
   // E. Read INVOICES / รายการบิล Tab
-  var invSheet = ss.getSheetByName("รายการบิล") || ss.getSheetByName("INVOICES");
+  var invSheet = ss.getSheetByName("รายการบิล") || ss.getSheetByName("INVOICES") || ss.getSheetByName("รายการบิลค่าเช่า");
   if (invSheet) {
     var invValues = invSheet.getRange("A2:P300").getValues();
     invValues.forEach(function(row) {
@@ -302,17 +302,32 @@ function formatDateString(val) {
 // 2. WRITE STRUCTURED SHEETS
 // ==========================================================================
 function writeAllStructuredSheets(ss, data) {
-  // ล้างลบแท็บเก่าภาษาอังกฤษและแท็บที่ซ้ำซ้อนทั้งหมดออกจาก Google Sheets เพื่อจัดระเบียบใหม่
-  var legacySheets = [
-    "SETTINGS", "ROOM_TYPES", "RATES_AND_FEES", "DASHBOARD_SUMMARY", 
-    "ROOMS", "TENANTS", "CONTRACTS", "INVOICES", "REPAIRS", 
-    "ACCOUNTING_LEDGER", "CALENDAR_EVENTS", "USERS", "DB_STORE",
-    "ตั้งค่า_LINE_Bot", "ข้อมูลห้องเช่า", "ทะเบียนสัญญา", "ตั้งค่าระบบ", "รายการบิล_เก่า"
-  ];
-  legacySheets.forEach(function(name) {
-    var legacySheet = ss.getSheetByName(name);
-    if (legacySheet && ss.getSheets().length > 1) {
-      try { ss.deleteSheet(legacySheet); } catch(e) {}
+  // รายชื่อแผ่นงานมาตรฐานที่เราต้องการเก็บไว้ใช้งานจริง (ภาษาไทยล้วน 12 แท็บ + DB_STATE 1 แท็บ)
+  var canonicalSheets = {
+    "DB_STATE": true,
+    "สรุปภาพรวม": true,
+    "ประเภทห้องพัก": true,
+    "ข้อมูลห้องพัก": true,
+    "ข้อมูลผู้เช่า": true,
+    "ทะเบียนสัญญา": true,
+    "รายการบิล": true,
+    "รายการแจ้งซ่อม": true,
+    "บัญชีรายรับรายจ่าย": true,
+    "ปฏิทินกิจกรรม": true,
+    "ผู้ใช้งานระบบ": true,
+    "อัตราค่าบริการ": true,
+    "ตั้งค่าระบบ": true
+  };
+
+  // วนลูปตรวจสอบแผ่นงานทั้งหมดใน Google Sheets 
+  // หากชื่อแผ่นงานใดไม่ได้อยู่ในระบบมาตรฐาน (เช่น ภาษาอังกฤษเดิม หรือแท็บขัดแย้ง/ซ้ำซ้อน) จะถูกลบทิ้งทันที
+  var allSheets = ss.getSheets();
+  allSheets.forEach(function(sh) {
+    var name = sh.getName();
+    if (!canonicalSheets[name]) {
+      if (ss.getSheets().length > 1) {
+        try { ss.deleteSheet(sh); } catch(e) {}
+      }
     }
   });
 
@@ -544,6 +559,59 @@ function writeRepairsSheet(ss, repairs) {
       rep.ticketNumber || "", rep.roomName || "", rep.tenantName || "-", rep.title || "", rep.description || "",
       rep.expenseAmount || 0, rep.assignedTechnician || "-", rep.requestDate || "", rep.status || "pending"
     ];
+  });
+
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+}
+
+function writeLedgerSheet(ss, ledger) {
+  var sheet = ss.getSheetByName("บัญชีรายรับรายจ่าย");
+  if (!sheet) sheet = ss.insertSheet("บัญชีรายรับรายจ่าย");
+  sheet.clear();
+
+  var headers = ["ID รายการ", "วันที่", "ประเภท", "หมวดหมู่", "รายละเอียดรายการ", "จำนวนเงิน (บาท)", "บันทึกโดย"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
+
+  if (!ledger || ledger.length === 0) return;
+
+  var rows = ledger.map(function(l) {
+    return [
+      l.id || "", l.date || "", l.type === 'income' ? 'รายรับ' : 'รายจ่าย', l.category || "", l.description || "", l.amount || 0, l.recordedBy || 'admin'
+    ];
+  });
+
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+}
+
+function writeEventsSheet(ss, events) {
+  var sheet = ss.getSheetByName("ปฏิทินกิจกรรม");
+  if (!sheet) sheet = ss.insertSheet("ปฏิทินกิจกรรม");
+  sheet.clear();
+
+  var headers = ["ID กิจกรรม", "วันที่นัดหมาย", "หัวข้อนัดหมาย/กิจกรรม", "หมวดหมู่", "ห้องที่เกี่ยวข้อง"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
+
+  if (!events || events.length === 0) return;
+
+  var rows = events.map(function(evt) {
+    return [evt.id || "", evt.date || "", evt.title || "", evt.category || "", evt.roomName || "-"];
+  });
+
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+}
+
+function writeUsersSheet(ss, users) {
+  var sheet = ss.getSheetByName("ผู้ใช้งานระบบ");
+  if (!sheet) sheet = ss.insertSheet("ผู้ใช้งานระบบ");
+  sheet.clear();
+
+  var headers = ["ID ผู้ใช้งาน", "Username", "ชื่อที่แสดง", "บทบาทสิทธิ์"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
+
+  if (!users || users.length === 0) return;
+
+  var rows = users.map(function(u) {
+    return [u.id || "", u.username || "", u.displayName || "", u.role || "staff"];
   });
 
   sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
