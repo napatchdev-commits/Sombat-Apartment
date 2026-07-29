@@ -4,6 +4,49 @@
 // ==========================================================================
 
 /**
+ * ฟังก์ชันสำหรับล้างข้อมูลในระบบและ Google Sheets ทั้งหมดให้ว่างเปล่าเริ่มใหม่
+ * ให้คุณเลือกฟังก์ชัน "clearAllDatabaseState" ในแถบเครื่องมือด้านบนของ Apps Script Editor แล้วกดปุ่ม "เรียกใช้" (Run)
+ */
+function clearAllDatabaseState() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. ล้างข้อมูลแผ่นงานเก็บ State หลัก (DB_STATE และ DB_STORE)
+  var stateSheet = ss.getSheetByName("DB_STATE");
+  if (stateSheet) {
+    stateSheet.clear();
+  }
+  var storeSheet = ss.getSheetByName("DB_STORE");
+  if (storeSheet) {
+    try { ss.deleteSheet(storeSheet); } catch(e) {}
+  }
+  
+  // 2. กำหนดโครงสร้างข้อมูลว่างเริ่มต้น
+  var emptyData = {
+    rooms: [],
+    tenants: [],
+    invoices: [],
+    repairs: [],
+    ledger: [],
+    events: [],
+    users: [],
+    roomTypes: [],
+    rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, customFees: [] },
+    settings: {}
+  };
+  
+  // เขียน JSON ข้อมูลว่างกลับไปที่ DB_STATE ช่อง A1
+  if (!stateSheet) {
+    stateSheet = ss.insertSheet("DB_STATE");
+  }
+  stateSheet.getRange(1, 1).setValue(JSON.stringify(emptyData));
+  
+  // 3. เขียนและสร้างโครงสร้างแผ่นงานภาษาไทยเปล่า (และลบแท็บภาษาอังกฤษซ้ำซ้อนทิ้งทั้งหมด)
+  writeAllStructuredSheets(ss, emptyData);
+  
+  Logger.log("⚡ ระบบได้ทำการล้างข้อมูลทั้งหมดใน Google Sheets และเตรียมแท็บภาษาไทยเริ่มต้นให้เรียบร้อยแล้ว!");
+}
+
+/**
  * ฟังก์ชันสำหรับกดปุ่ม "เรียกใช้" (Run) ใน Apps Script Editor 1 ครั้ง 
  * เพื่อกดปุ่ม "อนุญาตสิทธิ์" (Grant Authorization) ให้สคริปต์สามารถทำงานได้
  */
@@ -501,59 +544,6 @@ function writeRepairsSheet(ss, repairs) {
       rep.ticketNumber || "", rep.roomName || "", rep.tenantName || "-", rep.title || "", rep.description || "",
       rep.expenseAmount || 0, rep.assignedTechnician || "-", rep.requestDate || "", rep.status || "pending"
     ];
-  });
-
-  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-}
-
-function writeLedgerSheet(ss, ledger) {
-  var sheet = ss.getSheetByName("บัญชีรายรับรายจ่าย");
-  if (!sheet) sheet = ss.insertSheet("บัญชีรายรับรายจ่าย");
-  sheet.clear();
-
-  var headers = ["ID รายการ", "วันที่", "ประเภท", "หมวดหมู่", "รายละเอียดรายการ", "จำนวนเงิน (บาท)", "บันทึกโดย"];
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
-
-  if (!ledger || ledger.length === 0) return;
-
-  var rows = ledger.map(function(l) {
-    return [
-      l.id || "", l.date || "", l.type === 'income' ? 'รายรับ' : 'รายจ่าย', l.category || "", l.description || "", l.amount || 0, l.recordedBy || 'admin'
-    ];
-  });
-
-  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-}
-
-function writeEventsSheet(ss, events) {
-  var sheet = ss.getSheetByName("ปฏิทินกิจกรรม");
-  if (!sheet) sheet = ss.insertSheet("ปฏิทินกิจกรรม");
-  sheet.clear();
-
-  var headers = ["ID กิจกรรม", "วันที่นัดหมาย", "หัวข้อนัดหมาย/กิจกรรม", "หมวดหมู่", "ห้องที่เกี่ยวข้อง"];
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
-
-  if (!events || events.length === 0) return;
-
-  var rows = events.map(function(evt) {
-    return [evt.id || "", evt.date || "", evt.title || "", evt.category || "", evt.roomName || "-"];
-  });
-
-  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-}
-
-function writeUsersSheet(ss, users) {
-  var sheet = ss.getSheetByName("ผู้ใช้งานระบบ");
-  if (!sheet) sheet = ss.insertSheet("ผู้ใช้งานระบบ");
-  sheet.clear();
-
-  var headers = ["ID ผู้ใช้งาน", "Username", "ชื่อที่แสดง", "บทบาทสิทธิ์"];
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
-
-  if (!users || users.length === 0) return;
-
-  var rows = users.map(function(u) {
-    return [u.id || "", u.username || "", u.displayName || "", u.role || "staff"];
   });
 
   sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
