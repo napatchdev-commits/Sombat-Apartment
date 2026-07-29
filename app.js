@@ -2813,6 +2813,27 @@ class App {
     modal.classList.add('active');
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
 
+    // Automatically pull room rent and tenant name from database when editing/typing the Room Name
+    const roomInput = document.getElementById('edit-inv-room');
+    if (roomInput) {
+      const autofillRoomData = (e) => {
+        const roomVal = e.target.value.trim().toLowerCase();
+        const matchedRoom = this.state.rooms.find(r => r.name.toLowerCase() === roomVal || r.id.toLowerCase() === roomVal);
+        if (matchedRoom) {
+          const rentInput = document.getElementById('edit-inv-rent');
+          const tenantInput = document.getElementById('edit-inv-tenant');
+          if (rentInput) rentInput.value = matchedRoom.baseRent || 0;
+          if (tenantInput) {
+            tenantInput.value = (matchedRoom.currentTenantName && matchedRoom.currentTenantName !== 'ไม่มีผู้เข้าเช่า') 
+              ? matchedRoom.currentTenantName 
+              : '';
+          }
+        }
+      };
+      roomInput.addEventListener('input', autofillRoomData);
+      roomInput.addEventListener('change', autofillRoomData);
+    }
+
     document.getElementById('edit-invoice-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const elecPrev = parseFloat(document.getElementById('edit-elec-prev').value) || 0;
@@ -3198,6 +3219,16 @@ class App {
             </div>
           </div>
 
+          <div style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:var(--radius-md); padding:0.85rem; margin-top:1rem; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <span style="font-weight:700; font-size:0.9rem; color:#1e293b; display:block;"><i class="fa-solid fa-house-user text-primary"></i> อัตราค่าเช่าห้องพักรายเดือน</span>
+              <span style="font-size:0.78rem; color:#64748b;">(ดึงข้อมูลราคาค่าห้องจากระบบอัตโนมัติ)</span>
+            </div>
+            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);" id="bill-room-rent-label">
+              ฿${(initialRoom ? (initialRoom.baseRent || 3500) : 3500).toLocaleString()}
+            </div>
+          </div>
+
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> จดเลขมิเตอร์ไฟฟ้า (เรท ฿${this.state.rates.electricityRate}/ยูนิต)</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
@@ -3234,6 +3265,11 @@ class App {
           document.getElementById('bill-elec-curr').value = meters.elecPrev + 50;
           document.getElementById('bill-water-prev').value = meters.waterPrev;
           document.getElementById('bill-water-curr').value = meters.waterPrev + 10;
+          
+          const rentLabel = document.getElementById('bill-room-rent-label');
+          if (rentLabel) {
+            rentLabel.textContent = `฿${(selectedRoom.baseRent || 3500).toLocaleString()}`;
+          }
         }
       });
     }
@@ -4113,6 +4149,24 @@ class App {
         addressInput.value = selected.address || '';
       }
     });
+
+    // Automatically pull room rent and calculate deposit when a room is selected
+    const roomSelect = document.getElementById('ctr-room-select');
+    const rentInput = document.getElementById('ctr-rent-amt');
+    const depositInput = document.getElementById('ctr-deposit-amt');
+    if (roomSelect && rentInput && depositInput) {
+      const updateRentAndDeposit = () => {
+        const room = this.state.rooms.find(r => r.id === roomSelect.value);
+        if (room) {
+          rentInput.value = room.baseRent || 3500;
+          depositInput.value = (room.baseRent || 3500) * 2; // Default deposit is 2 months rent
+        }
+      };
+      // Set initial values on load
+      updateRentAndDeposit();
+      // Listen to changes
+      roomSelect.addEventListener('change', updateRentAndDeposit);
+    }
 
     document.getElementById('create-contract-form').addEventListener('submit', (e) => {
       e.preventDefault();
