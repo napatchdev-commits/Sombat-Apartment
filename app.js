@@ -427,6 +427,16 @@ class DBService {
       if (!state.settings) state.settings = {};
       state.settings.googleSheetUrl = savedUrl;
     }
+    
+    // Ensure default users are always present in the state to prevent locking out administrators when the database is wiped/empty
+    if (!state.users || !Array.isArray(state.users) || state.users.length === 0) {
+      state.users = [
+        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: 'admin' },
+        { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
+        { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: 'staff' }
+      ];
+    }
+    
     return state;
   }
 
@@ -1695,7 +1705,12 @@ class App {
         const rememberMeInput = document.getElementById('login-remember-me');
         const rememberMe = rememberMeInput ? rememberMeInput.checked : true;
 
-        const users = this.state.users || [];
+        const defaultUsers = [
+          { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: 'admin' },
+          { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
+          { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: 'staff' }
+        ];
+        const users = (this.state.users && this.state.users.length > 0) ? this.state.users : defaultUsers;
         const user = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase() && (u.passwordHash === passwordInput || u.password === passwordInput || passwordInput === 'admin'));
 
         if (user) {
