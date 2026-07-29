@@ -1229,6 +1229,11 @@ class BillingComponent {
                       <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : 'btn-danger'} btn-toggle-pay-status" data-id="${inv.id}">
                         ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : '🔴 ค้างชำระ'}
                       </button>
+                      ${inv.slipUrl ? `
+                        <button class="btn btn-info btn-xs btn-view-slip" data-id="${inv.id}" style="margin-top:0.35rem; display:block; width:100%; border-radius:6px; font-weight:600;">
+                          <i class="fa-solid fa-image"></i> ดูสลิป
+                        </button>
+                      ` : ''}
                     </td>
                     <td>
                       <div class="action-buttons">
@@ -2522,6 +2527,14 @@ class App {
       });
     });
 
+    document.querySelectorAll('.btn-view-slip').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv && inv.slipUrl) this.openViewSlipModal(inv);
+      });
+    });
+
     document.querySelectorAll('.btn-qr-promptpay').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.getAttribute('data-id');
@@ -2869,6 +2882,36 @@ class App {
         alert('✅ แก้ไขข้อมูลบิลค่าเช่าและซิงค์ลง Google Sheets เรียบร้อยแล้ว!');
         this.switchTab('billing');
       }
+    });
+  }
+
+  static openViewSlipModal(inv) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-image text-success"></i> หลักฐานการชำระเงิน (สลิปโอนเงิน)</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align:center; padding:1.5rem;">
+        <p style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem; color:#0f172a;">ห้อง ${inv.roomName} - คุณ ${inv.tenantName}</p>
+        <p class="text-muted" style="font-size:0.85rem; margin-bottom:1.25rem;">วันที่ชำระเงิน: ${inv.paymentDate || 'ไม่ระบุ'}</p>
+        
+        <div style="max-width:100%; border:1px solid #cbd5e1; border-radius:12px; overflow:hidden; display:inline-block; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); background-color:#f8fafc; padding:0.5rem;">
+          <img src="${inv.slipUrl}" alt="Slip" style="max-width:100%; max-height:480px; display:block; border-radius:8px;">
+        </div>
+        
+        <div style="margin-top:1.5rem; display:flex; gap:1rem; justify-content:center;">
+          <a href="${inv.slipUrl}" download="slip_${inv.roomName}_${inv.monthKey}.png" class="btn btn-primary" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px; display:inline-flex; align-items:center; gap:0.5rem; text-decoration:none;">
+            <i class="fa-solid fa-download"></i> ดาวน์โหลดรูปสลิป
+          </a>
+          <button class="btn btn-secondary close-modal-btn" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px;">ปิดหน้าต่าง</button>
+        </div>
+      </div>
+    `;
+    modal.classList.add('active');
+    modal.querySelectorAll('.close-modal-btn').forEach(btn => {
+      btn.addEventListener('click', () => modal.classList.remove('active'));
     });
   }
 

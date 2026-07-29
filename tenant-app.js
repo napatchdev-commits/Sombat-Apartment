@@ -692,7 +692,30 @@ class MyBillsApp {
   }
 
   static sendLineNotify(invoice) {
-    console.log(`📢 [LINE Notify Auto Alert] ห้อง ${invoice.roomName} ผู้เช่า ${invoice.tenantName} ชำระเงินจำนวน ${Formatters.currency(invoice.totalAmount)} เรียบร้อยแล้ว!`);
+    const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (!url) {
+      console.log("LINE Notify skipped: Google Sheets Web App URL not found.");
+      return;
+    }
+    // Message says "paid" but does not notify the totalAmount as requested by the user
+    const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoice.roomName} (${invoice.tenantName || 'ผู้เช่า'}) ได้ทำการชำระเงินเรียบร้อยแล้ว!`;
+    
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'linePushNotify',
+        invoiceId: 'ALL', // Broadcast/Notify the admin channel
+        messageText: messageText
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      console.log("LINE Notification Response:", data);
+    })
+    .catch(err => {
+      console.error("Error sending LINE notification:", err);
+    });
   }
 
   // --- 3. OFFICIAL BILL POPUP MODAL ---
