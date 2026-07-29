@@ -218,8 +218,15 @@ class PromptPayService {
 class LineService {
   static createBillingMessage(invoice, propertyName, tenantUrl, lineBotUrl, isBroadcast = false) {
     const aptName = propertyName || 'หอพักสมบัติ นนทบุรี';
-    const url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
+    let url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
     const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
+
+    // Append sheetUrl parameter to the tenant URL so the tenant portal can pull from the real sheet DB
+    const savedUrl = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || '';
+    if (savedUrl) {
+      const sep = url.includes('?') ? '&' : '?';
+      url += `${sep}sheetUrl=${encodeURIComponent(savedUrl)}`;
+    }
 
     const greeting = (isBroadcast || !invoice || !invoice.tenantName) 
       ? 'เรียนผู้เช่าทุกท่าน' 

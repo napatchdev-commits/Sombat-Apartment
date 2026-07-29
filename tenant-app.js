@@ -261,6 +261,14 @@ class MyBillsApp {
     const apartmentName = (this.state.settings && this.state.settings.apartmentName) || 'หอพักสมบัติ นนทบุรี';
     const rooms = this.state.rooms || [];
 
+    const hasSheetUrl = !!localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || !!(new URLSearchParams(window.location.search).get('sheetUrl'));
+    const warningBanner = hasSheetUrl ? '' : `
+      <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:0.85rem; font-size:0.82rem; color:#b45309; text-align:center; margin-bottom:1.25rem; line-height:1.5;">
+        ⚠️ <strong>ระบบยังไม่ได้เชื่อมต่อกับ Google Sheets</strong><br>
+        คุณกำลังดู <u>ข้อมูลตัวอย่าง (Demo/Mock)</u> เนื่องจากเปิดใช้งานหน้าเว็บโดยตรงโดยไม่ได้ผ่านลิงก์ของหอพัก กรุณาเข้าใช้งานผ่านลิงก์ที่แอดมินส่งให้ทาง LINE เพื่อดูบิลจริงครับ
+      </div>
+    `;
+
     return `
       <div class="tenant-card animate-fade-in">
         <div class="brand-header">
@@ -268,6 +276,8 @@ class MyBillsApp {
           <h1>MyBills - ระบบแจ้งบิลห้องเช่า</h1>
           <p>${apartmentName}</p>
         </div>
+
+        ${warningBanner}
 
         <form id="tenant-login-form">
           <div class="form-group" style="margin-bottom:1rem;">
@@ -459,8 +469,17 @@ class MyBillsApp {
     const isPaid = latestInvoice.status === 'paid';
     const amountToPay = latestInvoice.outstandingAmount || latestInvoice.totalAmount;
 
+    const hasSheetUrl = !!localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || !!(new URLSearchParams(window.location.search).get('sheetUrl'));
+    const warningBanner = hasSheetUrl ? '' : `
+      <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:0.85rem; font-size:0.82rem; color:#b45309; text-align:center; margin-bottom:1.25rem; line-height:1.5;">
+        ⚠️ <strong>คำเตือน: กำลังแสดงข้อมูลตัวอย่าง (Demo/Mock)</strong><br>
+        บิลนี้ไม่ใช่บิลจริง เนื่องจากหน้านี้ไม่ได้เชื่อมต่อกับ Google Sheets กรุณาเข้าใช้งานผ่านลิงก์เต็มรูปแบบที่คุณได้รับจากแอดมิน เพื่อเปิดบิลจริงของคุณครับ
+      </div>
+    `;
+
     return `
       <div class="tenant-card animate-fade-in">
+        ${warningBanner}
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e2e8f0; padding-bottom:1rem; margin-bottom:1.25rem;">
           <div>
             <span class="badge-pill badge-primary" style="font-size:0.8rem;"><i class="fa-solid fa-house-user"></i> ห้อง ${room.name || 'S101'} (ชั้น ${room.floor || 1})</span>
