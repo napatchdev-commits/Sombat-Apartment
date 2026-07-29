@@ -136,6 +136,34 @@ class TenantDBService {
     if (!state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
       state.rooms = this.getInitialRooms();
     }
+    if (state.invoices && Array.isArray(state.invoices)) {
+      let migrated = false;
+      state.invoices.forEach(inv => {
+        if (inv.monthKey && inv.dueDate && inv.dueDate.slice(0, 7) === inv.monthKey) {
+          const [year, month] = inv.monthKey.split('-').map(Number);
+          let nextMonth = month + 1;
+          let nextYear = year;
+          if (nextMonth > 12) {
+            nextMonth = 1;
+            nextYear++;
+          }
+          const nextMonthFormatted = String(nextMonth).padStart(2, '0');
+          inv.dueDate = `${nextYear}-${nextMonthFormatted}-05`;
+          migrated = true;
+        }
+      });
+      if (migrated) {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+        const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+        if (url) {
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'sync', data: state })
+          }).catch(() => {});
+        }
+      }
+    }
     return state;
   }
 

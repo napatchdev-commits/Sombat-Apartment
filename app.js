@@ -390,6 +390,29 @@ class DBService {
     }
     if (state.invoices && Array.isArray(state.invoices)) {
       state.invoices = this.getUniqueInvoices(state.invoices);
+      let migrated = false;
+      state.invoices.forEach(inv => {
+        if (inv.monthKey && inv.dueDate && inv.dueDate.slice(0, 7) === inv.monthKey) {
+          const [year, month] = inv.monthKey.split('-').map(Number);
+          let nextMonth = month + 1;
+          let nextYear = year;
+          if (nextMonth > 12) {
+            nextMonth = 1;
+            nextYear++;
+          }
+          const nextMonthFormatted = String(nextMonth).padStart(2, '0');
+          inv.dueDate = `${nextYear}-${nextMonthFormatted}-05`;
+          migrated = true;
+        }
+      });
+      if (migrated) {
+        // Save immediately to persist and trigger cloud sync with corrected dates
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+        const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
+        if (url) {
+          this.syncToGoogleSheets(url, state).catch(() => {});
+        }
+      }
     }
     // Ensure googleSheetUrl is populated from persistent fallback
     const savedUrl = this.getSavedSheetUrl();
