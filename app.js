@@ -3233,7 +3233,7 @@ class App {
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> จดเลขมิเตอร์ไฟฟ้า (เรท ฿${this.state.rates.electricityRate}/ยูนิต)</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="bill-elec-prev" class="form-control" value="${initialMeters.elecPrev}"></div>
-              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="${initialMeters.elecPrev + 50}" required></div>
+              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="" placeholder="กรอกเลขมิเตอร์ไฟล่าสุด..." required></div>
             </div>
           </div>
 
@@ -3241,7 +3241,7 @@ class App {
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> จดเลขมิเตอร์น้ำประปา (เรท ฿${this.state.rates.waterRate}/ยูนิต)</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="bill-water-prev" class="form-control" value="${initialMeters.waterPrev}"></div>
-              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="${initialMeters.waterPrev + 10}" required></div>
+              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="" placeholder="กรอกเลขมิเตอร์น้ำล่าสุด..." required></div>
             </div>
           </div>
 
@@ -3262,9 +3262,9 @@ class App {
         if (selectedRoom) {
           const meters = getRoomPrevMeters(selectedRoom);
           document.getElementById('bill-elec-prev').value = meters.elecPrev;
-          document.getElementById('bill-elec-curr').value = meters.elecPrev + 50;
+          document.getElementById('bill-elec-curr').value = "";
           document.getElementById('bill-water-prev').value = meters.waterPrev;
-          document.getElementById('bill-water-curr').value = meters.waterPrev + 10;
+          document.getElementById('bill-water-curr').value = "";
           
           const rentLabel = document.getElementById('bill-room-rent-label');
           if (rentLabel) {
