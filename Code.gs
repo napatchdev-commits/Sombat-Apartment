@@ -114,8 +114,8 @@ function readAndMergeSheetTabs(ss, data) {
   if (!data.rates) data.rates = { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, customFees: [] };
   if (!data.settings) data.settings = {};
 
-  // Read SETTINGS Tab
-  var setSheet = ss.getSheetByName("SETTINGS");
+  // Read SETTINGS / ตั้งค่าระบบ Tab
+  var setSheet = ss.getSheetByName("ตั้งค่าระบบ") || ss.getSheetByName("SETTINGS") || ss.getSheetByName("ตั้งค่า_LINE_Bot");
   if (setSheet) {
     var setValues = setSheet.getRange("A2:C50").getValues();
     setValues.forEach(function(row) {
@@ -127,8 +127,8 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // A. Read ROOM_TYPES Tab
-  var rtSheet = ss.getSheetByName("ROOM_TYPES");
+  // A. Read ROOM_TYPES / ประเภทห้องพัก Tab
+  var rtSheet = ss.getSheetByName("ประเภทห้องพัก") || ss.getSheetByName("ROOM_TYPES");
   if (rtSheet) {
     var rtValues = rtSheet.getRange("A2:E100").getValues();
     rtValues.forEach(function(row) {
@@ -146,8 +146,8 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // B. Read RATES_AND_FEES Tab
-  var ratesSheet = ss.getSheetByName("RATES_AND_FEES");
+  // B. Read RATES_AND_FEES / อัตราค่าบริการ Tab
+  var ratesSheet = ss.getSheetByName("อัตราค่าบริการ") || ss.getSheetByName("RATES_AND_FEES");
   if (ratesSheet) {
     var rateValues = ratesSheet.getRange("A2:E100").getValues();
     rateValues.forEach(function(row) {
@@ -168,8 +168,8 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // C. Read ROOMS Tab
-  var rSheet = ss.getSheetByName("ROOMS");
+  // C. Read ROOMS / ข้อมูลห้องพัก Tab
+  var rSheet = ss.getSheetByName("ข้อมูลห้องพัก") || ss.getSheetByName("ROOMS") || ss.getSheetByName("ข้อมูลห้องเช่า");
   if (rSheet) {
     var rValues = rSheet.getRange("A2:H100").getValues();
     rValues.forEach(function(row) {
@@ -189,8 +189,8 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // D. Read TENANTS Tab
-  var tSheet = ss.getSheetByName("TENANTS");
+  // D. Read TENANTS / ข้อมูลผู้เช่า Tab
+  var tSheet = ss.getSheetByName("ข้อมูลผู้เช่า") || ss.getSheetByName("TENANTS");
   if (tSheet) {
     var tValues = tSheet.getRange("A2:J200").getValues();
     tValues.forEach(function(row) {
@@ -209,8 +209,8 @@ function readAndMergeSheetTabs(ss, data) {
     });
   }
 
-  // E. Read INVOICES Tab
-  var invSheet = ss.getSheetByName("INVOICES");
+  // E. Read INVOICES / รายการบิล Tab
+  var invSheet = ss.getSheetByName("รายการบิล") || ss.getSheetByName("INVOICES");
   if (invSheet) {
     var invValues = invSheet.getRange("A2:P300").getValues();
     invValues.forEach(function(row) {
@@ -259,11 +259,19 @@ function formatDateString(val) {
 // 2. WRITE STRUCTURED SHEETS
 // ==========================================================================
 function writeAllStructuredSheets(ss, data) {
-  // Delete legacy duplicate tab "รายการบิล" if present to consolidate on single INVOICES tab
-  var legacySheet = ss.getSheetByName("รายการบิล");
-  if (legacySheet && ss.getSheets().length > 1) {
-    try { ss.deleteSheet(legacySheet); } catch(e) {}
-  }
+  // Delete legacy duplicate English and conflicting sheets to keep only Thai tabs
+  var legacySheets = [
+    "SETTINGS", "ROOM_TYPES", "RATES_AND_FEES", "DASHBOARD_SUMMARY", 
+    "ROOMS", "TENANTS", "CONTRACTS", "INVOICES", "REPAIRS", 
+    "ACCOUNTING_LEDGER", "CALENDAR_EVENTS", "USERS",
+    "ตั้งค่า_LINE_Bot", "ข้อมูลห้องเช่า", "ทะเบียนสัญญา", "ตั้งค่าระบบ", "รายการบิล_เก่า"
+  ];
+  legacySheets.forEach(function(name) {
+    var legacySheet = ss.getSheetByName(name);
+    if (legacySheet && ss.getSheets().length > 1) {
+      try { ss.deleteSheet(legacySheet); } catch(e) {}
+    }
+  });
 
   writeDashboardSheet(ss, data);
   writeRoomTypesSheet(ss, data.roomTypes || []);
@@ -280,8 +288,8 @@ function writeAllStructuredSheets(ss, data) {
 }
 
 function writeSettingsSheet(ss, settings) {
-  var sheet = ss.getSheetByName("SETTINGS");
-  if (!sheet) sheet = ss.insertSheet("SETTINGS");
+  var sheet = ss.getSheetByName("ตั้งค่าระบบ");
+  if (!sheet) sheet = ss.insertSheet("ตั้งค่าระบบ");
   sheet.clear();
 
   var headers = ["คีย์ตั้งค่า (Key)", "ค่าที่บันทึก (Value)", "คำอธิบาย (Description)"];
@@ -303,8 +311,8 @@ function writeSettingsSheet(ss, settings) {
 }
 
 function writeRoomTypesSheet(ss, roomTypes) {
-  var sheet = ss.getSheetByName("ROOM_TYPES");
-  if (!sheet) sheet = ss.insertSheet("ROOM_TYPES");
+  var sheet = ss.getSheetByName("ประเภทห้องพัก");
+  if (!sheet) sheet = ss.insertSheet("ประเภทห้องพัก");
   sheet.clear();
 
   var headers = ["ID ประเภท", "ชื่อประเภทห้องเช่า", "รูปแบบสัญญา", "อัตราค่าเช่า (บาท)", "รายละเอียด"];
@@ -320,8 +328,8 @@ function writeRoomTypesSheet(ss, roomTypes) {
 }
 
 function writeRatesSheet(ss, rates) {
-  var sheet = ss.getSheetByName("RATES_AND_FEES");
-  if (!sheet) sheet = ss.insertSheet("RATES_AND_FEES");
+  var sheet = ss.getSheetByName("อัตราค่าบริการ");
+  if (!sheet) sheet = ss.insertSheet("อัตราค่าบริการ");
   sheet.clear();
 
   var headers = ["ID รายการ", "ชื่อรายการค่าใช้จ่าย", "ประเภทการคิดเงิน", "อัตราค่าบริการ (บาท)", "หมายเหตุ"];
@@ -343,8 +351,8 @@ function writeRatesSheet(ss, rates) {
 }
 
 function writeDashboardSheet(ss, data) {
-  var sheet = ss.getSheetByName("DASHBOARD_SUMMARY");
-  if (!sheet) sheet = ss.insertSheet("DASHBOARD_SUMMARY");
+  var sheet = ss.getSheetByName("สรุปภาพรวม");
+  if (!sheet) sheet = ss.insertSheet("สรุปภาพรวม");
   sheet.clear();
 
   var headers = ["รายการสรุปภาพรวม", "จำนวน / มูลค่า (บาท)", "อัปเดตล่าสุด"];
@@ -377,8 +385,8 @@ function writeDashboardSheet(ss, data) {
 }
 
 function writeRoomsSheet(ss, rooms) {
-  var sheet = ss.getSheetByName("ROOMS");
-  if (!sheet) sheet = ss.insertSheet("ROOMS");
+  var sheet = ss.getSheetByName("ข้อมูลห้องพัก");
+  if (!sheet) sheet = ss.insertSheet("ข้อมูลห้องพัก");
   sheet.clear();
 
   var headers = ["ID ห้อง", "เลขห้อง/ชื่อห้อง", "ชั้นที่", "ค่าเช่า (บาท)", "ผู้เช่าปัจจุบัน", "มิเตอร์ไฟล่าสุด", "มิเตอร์น้ำล่าสุด", "สถานะ"];
@@ -396,8 +404,8 @@ function writeRoomsSheet(ss, rooms) {
 }
 
 function writeTenantsSheet(ss, tenants, rooms) {
-  var sheet = ss.getSheetByName("TENANTS");
-  if (!sheet) sheet = ss.insertSheet("TENANTS");
+  var sheet = ss.getSheetByName("ข้อมูลผู้เช่า");
+  if (!sheet) sheet = ss.insertSheet("ข้อมูลผู้เช่า");
   sheet.clear();
 
   var headers = ["ID ผู้เช่า", "ชื่อ-นามสกุล", "เลขบัตรประชาชน", "เบอร์โทร", "ห้องพัก", "วันเริ่มสัญญา", "วันหมดสัญญา", "เงินประกัน (บาท)", "รูปบัตรประชาชน", "รูปทะเบียนบ้าน"];
@@ -424,8 +432,8 @@ function writeTenantsSheet(ss, tenants, rooms) {
 }
 
 function writeContractsSheet(ss, tenants, rooms) {
-  var sheet = ss.getSheetByName("CONTRACTS");
-  if (!sheet) sheet = ss.insertSheet("CONTRACTS");
+  var sheet = ss.getSheetByName("ทะเบียนสัญญา");
+  if (!sheet) sheet = ss.insertSheet("ทะเบียนสัญญา");
   sheet.clear();
 
   var headers = ["ID สัญญา", "ชื่อผู้เช่า", "เลขบัตรประชาชน", "เบอร์โทร", "ห้องพัก", "วันเริ่มสัญญา", "วันหมดสัญญา", "เงินประกันสัญญา", "สถานะ"];
@@ -452,8 +460,8 @@ function writeContractsSheet(ss, tenants, rooms) {
 }
 
 function writeInvoicesSheet(ss, invoices) {
-  var sheet = ss.getSheetByName("INVOICES");
-  if (!sheet) sheet = ss.insertSheet("INVOICES");
+  var sheet = ss.getSheetByName("รายการบิล");
+  if (!sheet) sheet = ss.insertSheet("รายการบิล");
   sheet.clear();
 
   var headers = [
@@ -479,13 +487,13 @@ function writeInvoicesSheet(ss, invoices) {
 }
 
 function writeRepairsSheet(ss, repairs) {
-  var sheet = ss.getSheetByName("REPAIRS");
-  if (!sheet) {
-    sheet = ss.insertSheet("REPAIRS");
-    sheet.appendRow(["เลขที่แจ้งซ่อม", "ห้องพัก", "ผู้แจ้ง/ผู้เช่า", "หัวข้อแจ้งซ่อม", "รายละเอียด", "ค่าใช้จ่าย (บาท)", "ช่างรับผิดชอบ", "วันที่แจ้ง", "สถานะ"]);
-  }
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 9).clearContent();
+  var sheet = ss.getSheetByName("รายการแจ้งซ่อม");
+  if (!sheet) sheet = ss.insertSheet("รายการแจ้งซ่อม");
+  sheet.clear();
+
+  var headers = ["เลขที่แจ้งซ่อม", "ห้องพัก", "ผู้แจ้ง/ผู้เช่า", "หัวข้อแจ้งซ่อม", "รายละเอียด", "ค่าใช้จ่าย (บาท)", "ช่างรับผิดชอบ", "วันที่แจ้ง", "สถานะ"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
+
   if (!repairs || repairs.length === 0) return;
 
   var rows = repairs.map(function(rep) {
@@ -495,17 +503,17 @@ function writeRepairsSheet(ss, repairs) {
     ];
   });
 
-  sheet.getRange(2, 1, rows.length, 9).setValues(rows);
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
 
 function writeLedgerSheet(ss, ledger) {
-  var sheet = ss.getSheetByName("ACCOUNTING_LEDGER");
-  if (!sheet) {
-    sheet = ss.insertSheet("ACCOUNTING_LEDGER");
-    sheet.appendRow(["ID รายการ", "วันที่", "ประเภท", "หมวดหมู่", "รายละเอียดรายการ", "จำนวนเงิน (บาท)", "บันทึกโดย"]);
-  }
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 7).clearContent();
+  var sheet = ss.getSheetByName("บัญชีรายรับรายจ่าย");
+  if (!sheet) sheet = ss.insertSheet("บัญชีรายรับรายจ่าย");
+  sheet.clear();
+
+  var headers = ["ID รายการ", "วันที่", "ประเภท", "หมวดหมู่", "รายละเอียดรายการ", "จำนวนเงิน (บาท)", "บันทึกโดย"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
+
   if (!ledger || ledger.length === 0) return;
 
   var rows = ledger.map(function(l) {
@@ -514,41 +522,41 @@ function writeLedgerSheet(ss, ledger) {
     ];
   });
 
-  sheet.getRange(2, 1, rows.length, 7).setValues(rows);
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
 
 function writeEventsSheet(ss, events) {
-  var sheet = ss.getSheetByName("CALENDAR_EVENTS");
-  if (!sheet) {
-    sheet = ss.insertSheet("CALENDAR_EVENTS");
-    sheet.appendRow(["ID กิจกรรม", "วันที่นัดหมาย", "หัวข้อนัดหมาย/กิจกรรม", "หมวดหมู่", "ห้องที่เกี่ยวข้อง"]);
-  }
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 5).clearContent();
+  var sheet = ss.getSheetByName("ปฏิทินกิจกรรม");
+  if (!sheet) sheet = ss.insertSheet("ปฏิทินกิจกรรม");
+  sheet.clear();
+
+  var headers = ["ID กิจกรรม", "วันที่นัดหมาย", "หัวข้อนัดหมาย/กิจกรรม", "หมวดหมู่", "ห้องที่เกี่ยวข้อง"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
+
   if (!events || events.length === 0) return;
 
   var rows = events.map(function(evt) {
     return [evt.id || "", evt.date || "", evt.title || "", evt.category || "", evt.roomName || "-"];
   });
 
-  sheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
 
 function writeUsersSheet(ss, users) {
-  var sheet = ss.getSheetByName("USERS");
-  if (!sheet) {
-    sheet = ss.insertSheet("USERS");
-    sheet.appendRow(["ID ผู้ใช้งาน", "Username", "ชื่อที่แสดง", "บทบาทสิทธิ์"]);
-  }
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 4).clearContent();
+  var sheet = ss.getSheetByName("ผู้ใช้งานระบบ");
+  if (!sheet) sheet = ss.insertSheet("ผู้ใช้งานระบบ");
+  sheet.clear();
+
+  var headers = ["ID ผู้ใช้งาน", "Username", "ชื่อที่แสดง", "บทบาทสิทธิ์"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
+
   if (!users || users.length === 0) return;
 
   var rows = users.map(function(u) {
     return [u.id || "", u.username || "", u.displayName || "", u.role || "staff"];
   });
 
-  sheet.getRange(2, 1, rows.length, 4).setValues(rows);
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
 
 // ==========================================================================
