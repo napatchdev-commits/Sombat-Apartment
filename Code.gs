@@ -5,7 +5,7 @@
 
 /**
  * ฟังก์ชันสำหรับกดปุ่ม "เรียกใช้" (Run) ใน Apps Script Editor 1 ครั้ง 
- * เพื่อกดปุ่ม "อนุญาตสิทธิ์" (Grant Authorization) ให้สคริปต์สามารถส่งข้อความไปหา LINE API ได้
+ * เพื่อกดปุ่ม "อนุญาตสิทธิ์" (Grant Authorization) ให้สคริปต์สามารถทำงานได้
  */
 function testAuth() {
   UrlFetchApp.fetch("https://api.line.me", { muteHttpExceptions: true });
@@ -25,7 +25,7 @@ function doGet(e) {
     var data = {};
     try { data = JSON.parse(raw || "{}"); } catch(err) { data = {}; }
 
-    // Automatically read and merge any manual edits made directly in Google Sheets tabs!
+    // ดึงการแก้ไขด้วยมือจากหน้าชีตต่างๆ รวมกลับเข้าฐานข้อมูลหลัก
     data = readAndMergeSheetTabs(ss, data);
 
     return ContentService.createTextOutput(JSON.stringify(data))
@@ -48,12 +48,12 @@ function doPost(e) {
     var action = requestData ? requestData.action : "";
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 1. Handle LINE Messaging API Webhook events
+    // 1. ตอบกลับ Webhook ของ LINE Messaging API
     if (requestData.events && Array.isArray(requestData.events)) {
       return handleLineWebhook(requestData.events, ss);
     }
 
-    // 2. Handle Direct LINE Push Notification from Admin Web App
+    // 2. ส่งการแจ้งเตือนค่าเช่าทาง LINE จาก Admin Web App
     if (action === "linePushNotify") {
       var msgText = requestData.messageText;
       var invId = requestData.invoiceId;
@@ -77,8 +77,8 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 3. Handle Cloud Data Sync from Admin Portal
-    var sheet = ss.getSheetByName("DB_STATE") || ss.getSheetByName("DB_STORE");
+    // 3. ซิงค์และบันทึกข้อมูลหลักจากหน้าเว็บแอดมิน
+    var sheet = ss.getSheetByName("DB_STATE");
     if (!sheet) {
       sheet = ss.insertSheet("DB_STATE");
     }
@@ -259,11 +259,11 @@ function formatDateString(val) {
 // 2. WRITE STRUCTURED SHEETS
 // ==========================================================================
 function writeAllStructuredSheets(ss, data) {
-  // Delete legacy duplicate English and conflicting sheets to keep only Thai tabs
+  // ล้างลบแท็บเก่าภาษาอังกฤษและแท็บที่ซ้ำซ้อนทั้งหมดออกจาก Google Sheets เพื่อจัดระเบียบใหม่
   var legacySheets = [
     "SETTINGS", "ROOM_TYPES", "RATES_AND_FEES", "DASHBOARD_SUMMARY", 
     "ROOMS", "TENANTS", "CONTRACTS", "INVOICES", "REPAIRS", 
-    "ACCOUNTING_LEDGER", "CALENDAR_EVENTS", "USERS",
+    "ACCOUNTING_LEDGER", "CALENDAR_EVENTS", "USERS", "DB_STORE",
     "ตั้งค่า_LINE_Bot", "ข้อมูลห้องเช่า", "ทะเบียนสัญญา", "ตั้งค่าระบบ", "รายการบิล_เก่า"
   ];
   legacySheets.forEach(function(name) {
@@ -574,9 +574,9 @@ function handleLineWebhook(events, ss) {
       var userMsg = event.message.text ? event.message.text.trim() : "";
       var msgType = event.message.type;
 
-      // 1. กรณีผู้เช่าส่งรูปภาพ (เช่น รูปสลิปการโอนเงิน)
+      // 1. กรณีผู้เช่าส่งรูปสลิป
       if (msgType === "image") {
-        var replyText = "🙏 ขอบคุณสำหรับสลิปการโอนเงินครับ/ค่ะ!\n\nระบบได้รับรูปภาพสลิปเรียบร้อยแล้ว เจ้าหน้าที่จะทำการตรวจสอบและอัปเดทสถานะบิลให้อย่างเร่งด่วนครับ\n\n📲 ตรวจสอบสถานะและรายละเอียดบิลล่าสุด:\nhttps://sombat-apartment.vercel.app/tenant.html";
+        var replyText = "🙏 ขอบคุณสำหรับสลิปการโอนเงินครับ!\n\nระบบได้รับรูปภาพสลิปเรียบร้อยแล้ว เจ้าหน้าที่จะทำการตรวจสอบและอัปเดตสถานะบิลให้อย่างเร่งด่วนครับ\n\n📲 ตรวจสอบสถานะบิลล่าสุดของคุณได้ทันที:\nhttps://sombat-apartment.vercel.app/tenant.html";
         sendLineReply(replyToken, replyText, channelToken);
         return;
       }
@@ -587,7 +587,7 @@ function handleLineWebhook(events, ss) {
         var data = getLatestDbData(ss);
         var invoices = data.invoices || [];
 
-        // ค้นหาบิลประจำห้อง (เช่น 101, S101, s101, 46/2)
+        // ค้นหาบิลประจำห้อง
         var matchedInv = invoices.find(function(inv) {
           var rName = String(inv.roomName || "").toLowerCase().replace(/ห้อง|\s+/g, "");
           var rId = String(inv.roomId || "").toLowerCase().replace(/ห้อง|\s+/g, "");
@@ -659,7 +659,7 @@ function sendLineReply(replyToken, textMessage, channelToken) {
 }
 
 function getLatestDbData(ss) {
-  var sheet = ss.getSheetByName("DB_STORE") || ss.getSheetByName("DB_STATE");
+  var sheet = ss.getSheetByName("DB_STATE");
   if (!sheet) return {};
   var raw = sheet.getRange(1, 1).getValue();
   try {
