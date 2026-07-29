@@ -170,7 +170,7 @@ class TenantDBService {
 
   static saveState(state) {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
-    const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbz_3Cy1zi83UFqpFUIQPhAt4_SahTOKXR-Oq5IU/exec";
     if (url) {
       fetch(url, {
         method: 'POST',
@@ -187,7 +187,9 @@ class TenantDBService {
       const urlParams = new URLSearchParams(window.location.search);
       url = urlParams.get('sheetUrl');
     }
-    if (!url) return null;
+    if (!url) {
+      url = "https://script.google.com/macros/s/AKfycbz_3Cy1zi83UFqpFUIQPhAt4_SahTOKXR-Oq5IU/exec";
+    }
     try {
       const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
       const res = await fetch(fetchUrl);
@@ -228,6 +230,7 @@ class MyBillsApp {
   static state;
   static currentTenant = null;
   static currentSlipDataUrl = '';
+  static currentPayMethod = 'transfer';
 
   static async init() {
     this.state = TenantDBService.getState();
@@ -566,35 +569,58 @@ class MyBillsApp {
             <i class="fa-solid fa-file-pdf text-danger" style="font-size:1.2rem;"></i> เปิดดูฟอร์มใบแจ้งหนี้ฉบับเต็ม (PDF Printable Bill)
           </button>
 
-          <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:1rem; text-align:center; margin-bottom:1.25rem;">
-            <div style="font-size:0.92rem; color:#334155; line-height:1.6;">
-              <i class="fa-solid fa-building-columns text-primary"></i> <strong>โอนชำระเงินผ่านบัญชีธนาคาร:</strong><br>
-              ธนาคารกรุงศรีอยุธยา (BAY) เลขที่บัญชี: <strong style="font-size:1.15rem; color:#2563eb;">240-1-34666-3</strong><br>
-              ชื่อบัญชี: <strong>นางสมผิว น้ำวน</strong> | ยอดโอนสุทธิ: <strong style="font-size:1.15rem; color:#dc2626;">${Formatters.currency(amountToPay)}</strong>
-            </div>
+          <!-- ตัวเลือกช่องทางการชำระเงิน -->
+          <div style="display:flex; border:1px solid #cbd5e1; border-radius:10px; overflow:hidden; margin-bottom:1.25rem; font-family:inherit; box-shadow:var(--shadow-sm);">
+            <button type="button" id="pay-method-transfer" style="flex:1; border:none; padding:0.75rem; font-weight:700; cursor:pointer; font-size:0.92rem; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:0.4rem; ${MyBillsApp.currentPayMethod === 'transfer' ? 'background:#2563eb; color:#ffffff;' : 'background:#f8fafc; color:#475569;'}">
+              <i class="fa-solid fa-credit-card"></i> โอนเงิน (PromptPay)
+            </button>
+            <button type="button" id="pay-method-cash" style="flex:1; border:none; padding:0.75rem; font-weight:700; cursor:pointer; font-size:0.92rem; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:0.4rem; ${MyBillsApp.currentPayMethod === 'cash' ? 'background:#059669; color:#ffffff;' : 'background:#f8fafc; color:#475569;'}">
+              <i class="fa-solid fa-money-bill-wave"></i> ชำระเงินสด
+            </button>
           </div>
 
-          <form id="slip-upload-form">
-            <div class="form-group">
-              <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.5rem;">
-                <i class="fa-solid fa-file-arrow-up text-primary"></i> อัปโหลดสลิปหลักฐานการโอนเงิน *
-              </label>
-              
-              <div class="slip-upload-area" id="slip-drop-area">
-                <i class="fa-solid fa-cloud-arrow-up" style="font-size:2.2rem; color:#2563eb; margin-bottom:0.5rem;"></i>
-                <div style="font-weight:600; color:#334155;">กดที่นี่เพื่อเลือกไฟล์รูปสลิปเงินโอน</div>
-                <small class="text-muted">รองรับไฟล์ภาพ JPG, PNG (ไม่เกิน 10MB)</small>
-                <input type="file" id="input-slip-file" accept="image/*" style="display:none;" required>
-                <div id="slip-preview-container" style="display:none; margin-top:0.75rem;">
-                  <img id="slip-preview-img" class="slip-preview-img" src="" alt="Preview Slip">
-                </div>
+          ${MyBillsApp.currentPayMethod === 'transfer' ? `
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:1rem; text-align:center; margin-bottom:1.25rem;">
+              <div style="font-size:0.92rem; color:#334155; line-height:1.6;">
+                <i class="fa-solid fa-building-columns text-primary"></i> <strong>โอนชำระเงินผ่านบัญชีธนาคาร:</strong><br>
+                ธนาคารกรุงศรีอยุธยา (BAY) เลขที่บัญชี: <strong style="font-size:1.15rem; color:#2563eb;">240-1-34666-3</strong><br>
+                ชื่อบัญชี: <strong>นางสมผิว น้ำวน</strong> | ยอดโอนสุทธิ: <strong style="font-size:1.15rem; color:#dc2626;">${Formatters.currency(amountToPay)}</strong>
               </div>
             </div>
 
-            <button type="submit" id="btn-submit-pay" class="btn btn-primary btn-full" style="padding:0.85rem; font-size:1.1rem; font-weight:800; border-radius:12px; box-shadow:0 8px 20px rgba(37,99,235,0.35);">
-              <i class="fa-solid fa-paper-plane"></i> ชำระบริการและแนบสลิป
-            </button>
-          </form>
+            <form id="slip-upload-form">
+              <div class="form-group">
+                <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.5rem;">
+                  <i class="fa-solid fa-file-arrow-up text-primary"></i> อัปโหลดสลิปหลักฐานการโอนเงิน *
+                </label>
+                
+                <div class="slip-upload-area" id="slip-drop-area">
+                  <i class="fa-solid fa-cloud-arrow-up" style="font-size:2.2rem; color:#2563eb; margin-bottom:0.5rem;"></i>
+                  <div style="font-weight:600; color:#334155;">กดที่นี่เพื่อเลือกไฟล์รูปสลิปเงินโอน</div>
+                  <small class="text-muted">รองรับไฟล์ภาพ JPG, PNG (ไม่เกิน 10MB)</small>
+                  <input type="file" id="input-slip-file" accept="image/*" style="display:none;" required>
+                  <div id="slip-preview-container" style="display:none; margin-top:0.75rem;">
+                    <img id="slip-preview-img" class="slip-preview-img" src="" alt="Preview Slip">
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" id="btn-submit-pay" class="btn btn-primary btn-full" style="padding:0.85rem; font-size:1.1rem; font-weight:800; border-radius:12px; box-shadow:0 8px 20px rgba(37,99,235,0.35);">
+                <i class="fa-solid fa-paper-plane"></i> ชำระบริการและแนบสลิป
+              </button>
+            </form>
+          ` : `
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:1.25rem; margin-bottom:1.5rem; text-align:center;">
+              <i class="fa-solid fa-money-bill-wave" style="font-size:2.5rem; color:#16a34a; margin-bottom:0.5rem;"></i>
+              <h4 style="color:#14532d; font-size:1rem; font-weight:700; margin-bottom:0.5rem;">ชำระเงินด้วยเงินสด</h4>
+              <p style="font-size:0.88rem; color:#166534; line-height:1.6; margin:0 0 1.25rem 0;">
+                คุณต้องการแจ้งชำระเงินด้วยเงินสดใช่หรือไม่?<br>เมื่อกดปุ่มยืนยัน ระบบจะตั้งสถานะบิลของห้องคุณเป็น <strong>"ชำระแล้ว"</strong> และส่งข้อความแจ้งเตือนเจ้าหน้าที่โดยอัตโนมัติ
+              </p>
+              <button type="button" id="btn-submit-cash-pay" class="btn btn-success btn-full" style="padding:0.85rem; font-size:1.1rem; font-weight:800; border-radius:12px; background:#059669; border-color:#059669; box-shadow:0 8px 20px rgba(5,150,105,0.35); cursor:pointer;">
+                <i class="fa-solid fa-circle-check"></i> ยืนยันการชำระด้วยเงินสด
+              </button>
+            </div>
+          `}
         `}
       </div>
     `;
@@ -689,6 +715,73 @@ class MyBillsApp {
         
         this.render();
         this.openReceiptModal(invoices[invIdx]);
+      });
+    }
+
+    // Toggle Payment Method
+    const btnMethodTransfer = document.getElementById('pay-method-transfer');
+    const btnMethodCash = document.getElementById('pay-method-cash');
+    if (btnMethodTransfer && btnMethodCash) {
+      btnMethodTransfer.addEventListener('click', () => {
+        if (MyBillsApp.currentPayMethod !== 'transfer') {
+          MyBillsApp.currentPayMethod = 'transfer';
+          MyBillsApp.render();
+        }
+      });
+      btnMethodCash.addEventListener('click', () => {
+        if (MyBillsApp.currentPayMethod !== 'cash') {
+          MyBillsApp.currentPayMethod = 'cash';
+          MyBillsApp.render();
+        }
+      });
+    }
+
+    // Cash Payment Submission
+    const btnSubmitCashPay = document.getElementById('btn-submit-cash-pay');
+    if (btnSubmitCashPay) {
+      btnSubmitCashPay.addEventListener('click', () => {
+        const tenant = this.currentTenant;
+        const rooms = this.state.rooms || [];
+        const room = rooms.find(r => r.id === tenant.assignedRoomId || r.currentTenantName === tenant.name) || { name: 'ยังไม่ระบุ' };
+        const invoices = this.state.invoices || [];
+        const invIdx = invoices.findIndex(i => i.invoiceNumber === MyBillsApp.activeInvoiceNumber);
+        const todayStr = new Date().toISOString().slice(0, 10);
+
+        if (invIdx !== -1) {
+          invoices[invIdx].status = 'paid';
+          invoices[invIdx].paidAmount = invoices[invIdx].totalAmount;
+          invoices[invIdx].outstandingAmount = 0;
+          invoices[invIdx].paymentDate = todayStr;
+          invoices[invIdx].slipUrl = 'cash'; // Mark slipUrl as 'cash' to denote cash payment
+        }
+
+        const roomObj = rooms.find(r => r.id === room.id);
+        if (roomObj && roomObj.status === 'overdue') {
+          roomObj.status = 'occupied';
+        }
+
+        // Save and Sync
+        TenantDBService.saveState(this.state);
+
+        // LINE Notify - No amount listed
+        const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbz_3Cy1zi83UFqpFUIQPhAt4_SahTOKXR-Oq5IU/exec";
+        if (url && invoices[invIdx]) {
+          const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoices[invIdx].roomName} (${invoices[invIdx].tenantName || 'ผู้เช่า'}) ได้ชำระเงินด้วยเงินสดเรียบร้อยแล้ว!`;
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'linePushNotify',
+              invoiceId: 'ALL',
+              messageText: messageText
+            }),
+            redirect: 'follow'
+          }).catch(() => {});
+        }
+
+        alert('🟢 บันทึกข้อมูลชำระเงินสดเรียบร้อยแล้ว!\n\nระบบได้รับการชำระเงินและแจ้งไปยังเจ้าหน้าที่เรียบร้อยแล้วครับ');
+        this.render();
+        if (invoices[invIdx]) this.openReceiptModal(invoices[invIdx]);
       });
     }
   }

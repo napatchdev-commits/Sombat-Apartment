@@ -380,7 +380,7 @@ class DBService {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', fromParam);
       return fromParam;
     }
-    return '';
+    return 'https://script.google.com/macros/s/AKfycbz_3Cy1zi83UFqpFUIQPhAt4_SahTOKXR-Oq5IU/exec';
   }
 
   static getState() {
@@ -1229,11 +1229,15 @@ class BillingComponent {
                       <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : 'btn-danger'} btn-toggle-pay-status" data-id="${inv.id}">
                         ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : '🔴 ค้างชำระ'}
                       </button>
-                      ${inv.slipUrl ? `
+                      ${inv.slipUrl ? (inv.slipUrl === 'cash' ? `
+                        <span class="badge-pill" style="margin-top:0.35rem; display:block; text-align:center; font-size:0.72rem; background-color:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-weight:700; padding:2px 4px; border-radius:4px;">
+                          💵 ชำระเงินสด
+                        </span>
+                      ` : `
                         <button class="btn btn-info btn-xs btn-view-slip" data-id="${inv.id}" style="margin-top:0.35rem; display:block; width:100%; border-radius:6px; font-weight:600;">
                           <i class="fa-solid fa-image"></i> ดูสลิป
                         </button>
-                      ` : ''}
+                      `) : ''}
                     </td>
                     <td>
                       <div class="action-buttons">
