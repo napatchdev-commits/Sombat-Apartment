@@ -3109,8 +3109,23 @@ class App {
       return { elecPrev, waterPrev };
     };
 
+    const getNextMonth05 = (monthStr) => {
+      if (!monthStr) return "";
+      const [year, month] = monthStr.split('-').map(Number);
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear++;
+      }
+      const nextMonthFormatted = String(nextMonth).padStart(2, '0');
+      return `${nextYear}-${nextMonthFormatted}-05`;
+    };
+
     const initialRoom = preselectedRoom || (this.state.rooms.length > 0 ? this.state.rooms[0] : null);
     const initialMeters = getRoomPrevMeters(initialRoom);
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+    const defaultDueDate = getNextMonth05(currentMonthStr);
 
     dialog.innerHTML = `
       <div class="modal-header">
@@ -3130,11 +3145,11 @@ class App {
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
               <label>รอบเดือน *</label>
-              <input type="month" id="bill-month" class="form-control" value="${new Date().toISOString().slice(0, 7)}" required>
+              <input type="month" id="bill-month" class="form-control" value="${currentMonthStr}" required>
             </div>
             <div class="form-group">
               <label>กำหนดชำระ *</label>
-              <input type="date" id="bill-due-date" class="form-control" value="${new Date().toISOString().slice(0, 7)}-05" required>
+              <input type="date" id="bill-due-date" class="form-control" value="${defaultDueDate}" required>
             </div>
           </div>
 
@@ -3174,6 +3189,18 @@ class App {
           document.getElementById('bill-elec-curr').value = meters.elecPrev + 50;
           document.getElementById('bill-water-prev').value = meters.waterPrev;
           document.getElementById('bill-water-curr').value = meters.waterPrev + 10;
+        }
+      });
+    }
+
+    const monthInput = document.getElementById('bill-month');
+    if (monthInput) {
+      monthInput.addEventListener('change', (e) => {
+        const selectedMonth = e.target.value;
+        const newDueDate = getNextMonth05(selectedMonth);
+        const dueDateInput = document.getElementById('bill-due-date');
+        if (dueDateInput) {
+          dueDateInput.value = newDueDate;
         }
       });
     }

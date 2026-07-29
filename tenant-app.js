@@ -40,6 +40,19 @@ class Formatters {
     if (clean.length !== 13) return idCard || '-';
     return `${clean.substring(0, 1)}-${clean.substring(1, 5)}-${clean.substring(5, 10)}-${clean.substring(10, 12)}-${clean.substring(12)}`;
   }
+
+  static getNextMonth05(monthStr) {
+    if (!monthStr) return "";
+    const [year, month] = monthStr.split('-').map(Number);
+    let nextMonth = month + 1;
+    let nextYear = year;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear++;
+    }
+    const nextMonthFormatted = String(nextMonth).padStart(2, '0');
+    return `${nextYear}-${nextMonthFormatted}-05`;
+  }
 }
 
 class PromptPayService {
@@ -397,7 +410,7 @@ class MyBillsApp {
         roomName: room.name || 'S101',
         tenantName: realTenantName,
         issueDate: new Date().toISOString().slice(0, 10),
-        dueDate: `${monthKey}-05`,
+        dueDate: Formatters.getNextMonth05(monthKey),
         elecPrev: room.lastElecMeter || 1000, elecCurr: (room.lastElecMeter || 1000) + 65, elecAmount: elecAmt,
         waterPrev: room.lastWaterMeter || 100, waterCurr: (room.lastWaterMeter || 100) + 10, waterAmount: waterAmt,
         rentAmount: rentAmt,
@@ -645,7 +658,7 @@ class MyBillsApp {
     const inv = invParam || invoices.find(i => i.invoiceNumber === MyBillsApp.activeInvoiceNumber) || invoices.find(i => i.roomId === room.id || i.roomName === room.name || i.tenantName === tenant.name) || {
       invoiceNumber: 'INV' + new Date().toISOString().slice(0, 7).replace('-', '') + '-' + (room.name || 'S101'),
       monthKey: new Date().toISOString().slice(0, 7), roomName: room.name || 'S101', tenantName: tenant ? tenant.name : 'ผู้เช่า',
-      issueDate: new Date().toISOString().slice(0, 10), dueDate: new Date().toISOString().slice(0, 7) + '-05',
+      issueDate: new Date().toISOString().slice(0, 10), dueDate: Formatters.getNextMonth05(new Date().toISOString().slice(0, 7)),
       rentAmount: room.baseRent || 2500, elecPrev: room.lastElecMeter || 1000, elecCurr: (room.lastElecMeter || 1000) + 65, elecAmount: 520,
       waterPrev: room.lastWaterMeter || 100, waterCurr: (room.lastWaterMeter || 100) + 10, waterAmount: 200, trashFee: 20, totalAmount: 3240
     };
