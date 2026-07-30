@@ -362,6 +362,8 @@ function readAndMergeSheetTabs(ss, data) {
             }
           }
         }
+      });
+    }
   }
 
   // Read meter readings from "จดเลขอ่านน้ำไฟ"
