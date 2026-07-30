@@ -1076,10 +1076,7 @@ function verifyPaymentSlip(inv, syncData) {
   
   // ตรวจสอบข้อผิดพลาดในการเรียกใช้บริการ OCR (เช่น ยังไม่ได้เปิดบริการ Drive API)
   if (ocrError) {
-    if (ocrError.indexOf("Drive") !== -1 || ocrError.indexOf("API") !== -1 || ocrError.indexOf("ReferenceError") !== -1) {
-      return { error: true, message: "ระบบตรวจจับสลิปขัดข้อง: กรุณาเข้าไปเปิดบริการ 'Drive API' ในแถบซ้าย (Services) ของสคริปต์ Google Apps Script" };
-    }
-    return { error: true, message: "ระบบไม่สามารถประมวลผลสแกนสลิปได้ (เกิดข้อผิดพลาด: " + ocrError + ")" };
+    return { error: true, message: "ระบบตรวจจับสลิปขัดข้อง (ข้อความ Error: " + ocrError + ") กรุณาตรวจสอบการเปิดบริการ 'Drive API' ในแถบซ้าย (Services) ของ Apps Script และกดบันทึก+ปรับใช้รุ่นใหม่" };
   }
   
   // หากรูปภาพไม่มีข้อความใดๆ เลย (อัปโหลดภาพวิว ภาพถ่าย หรือภาพที่ไม่ใช่สลิป)
