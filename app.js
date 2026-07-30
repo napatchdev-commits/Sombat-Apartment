@@ -381,7 +381,7 @@ class DBService {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', fromParam);
       return fromParam;
     }
-    return 'https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec';
+    return 'https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec';
   }
 
   static getState() {

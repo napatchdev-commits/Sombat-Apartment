@@ -175,7 +175,7 @@ class TenantDBService {
       url = null;
     }
     if (!url) {
-      url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+      url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
     }
     if (url) {
       // Show blocking loader during sync
@@ -227,7 +227,7 @@ class TenantDBService {
       url = urlParams.get('sheetUrl');
     }
     if (!url) {
-      url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+      url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
     }
     try {
       const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;

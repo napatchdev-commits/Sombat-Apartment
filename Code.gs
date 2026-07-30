@@ -322,7 +322,7 @@ function readAndMergeSheetTabs(ss, data) {
   // E. Read INVOICES / รายการบิล Tab
   var invSheet = ss.getSheetByName("รายการบิล") || ss.getSheetByName("INVOICES") || ss.getSheetByName("รายการบิลค่าเช่า");
   if (invSheet) {
-    var invValues = invSheet.getRange("A2:P300").getValues();
+    var invValues = invSheet.getRange("A2:Q300").getValues();
     invValues.forEach(function(row) {
       var invNum = String(row[0]).trim();
       if (invNum) {
@@ -643,6 +643,9 @@ function writeRepairsSheet(ss, repairs) {
   sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
 
+// ==========================================================================
+// บัญชีรายรับรายจ่าย
+// ==========================================================================
 function writeLedgerSheet(ss, ledger) {
   var sheet = ss.getSheetByName("บัญชีรายรับรายจ่าย");
   if (!sheet) sheet = ss.insertSheet("บัญชีรายรับรายจ่าย");
@@ -823,14 +826,14 @@ function sendLinePushOrBroadcast(channelToken, messageText, isBroadcast) {
 
     var response = UrlFetchApp.fetch(url, options);
     var respCode = response.getResponseCode();
-    var respText = response.getContentText();
+    var responseText = response.getContentText();
 
     if (respCode === 200) {
       return { status: "success", message: "⚡ ส่งข้อความ LINE แจ้งเตือนเข้าโทรศัพท์ผู้เช่าเรียบร้อยแล้ว!" };
     } else {
       var errJson = {};
-      try { errJson = JSON.parse(respText); } catch(e){}
-      return { status: "error", message: "LINE API Error (" + respCode + "): " + (errJson.message || respText) };
+      try { errJson = JSON.parse(responseText); } catch(e){}
+      return { status: "error", message: "LINE API Error (" + respCode + "): " + (errJson.message || responseText) };
     }
   } catch(err) {
     return { status: "error", message: err.toString() };
