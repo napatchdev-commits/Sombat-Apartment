@@ -544,8 +544,8 @@ function writeTenantsSheet(ss, tenants, rooms) {
   var rows = tenants.map(function(t) {
     var room = rooms.find(function(r) { return r.id === t.assignedRoomId; });
     var roomName = room ? room.name : (t.assignedRoomId || "-");
-    var idCardDoc = (t.documents || []).find(function(d) { return d.category === 'idcard' || d.title.indexOf('บัตรประชาชน') !== -1; });
-    var houseRegDoc = (t.documents || []).find(function(d) { return d.category === 'housereg' || d.title.indexOf('ทะเบียนบ้าน') !== -1; });
+    var idCardDoc = (t.documents || []).find(function(d) { return d.category === 'idcard' || (d.title && d.title.indexOf('บัตรประชาชน') !== -1); });
+    var houseRegDoc = (t.documents || []).find(function(d) { return d.category === 'housereg' || (d.title && d.title.indexOf('ทะเบียนบ้าน') !== -1); });
     var idCardLink = idCardDoc ? (idCardDoc.dataUrl || idCardDoc.fileName || "มีไฟล์แนบ") : "-";
     var houseRegLink = houseRegDoc ? (houseRegDoc.dataUrl || houseRegDoc.fileName || "มีไฟล์แนบ") : "-";
 
