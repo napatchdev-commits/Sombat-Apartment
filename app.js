@@ -2298,9 +2298,10 @@ class App {
           const waterUnits = waterCurr - waterPrev;
           const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
           const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
-          const rentAmt = room.baseRent || 3500;
+          const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
           const trashFee = this.state.rates.trashFee || 20;
-          const total = rentAmt + elecAmt + waterAmt + trashFee;
+          const fineAmt = Number(reading.fineAmount || 0);
+          const total = rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
 
           // Update room's meter records
           room.lastElecMeter = elecCurr;
@@ -2328,6 +2329,7 @@ class App {
             elecAmount: elecAmt,
             rentAmount: rentAmt,
             trashFee: trashFee,
+            fineAmount: fineAmt,
             totalAmount: total,
             paidAmount: 0,
             outstandingAmount: total,
@@ -2436,7 +2438,7 @@ class App {
       const name = document.getElementById('rm-name').value.trim();
       const floor = parseInt(document.getElementById('rm-floor').value, 10) || 1;
       const typeId = document.getElementById('rm-type').value;
-      const baseRent = parseFloat(document.getElementById('rm-rent').value) || 3500;
+      const baseRent = document.getElementById('rm-rent').value !== "" ? parseFloat(document.getElementById('rm-rent').value) : 3500;
       const status = document.getElementById('rm-status').value;
 
       if (isEdit) {
@@ -3099,14 +3101,18 @@ class App {
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem; margin-top:0.75rem;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:1rem; margin-top:0.75rem;">
             <div class="form-group">
               <label>ค่าเช่าห้องพัก (บาท) *</label>
               <input type="number" id="edit-inv-rent" class="form-control" value="${inv.rentAmount}" required>
             </div>
             <div class="form-group">
-              <label>ค่าขยะ / สาธารณูปโภค *</label>
+              <label>ค่าขยะ *</label>
               <input type="number" id="edit-inv-trash" class="form-control" value="${inv.trashFee || 20}" required>
+            </div>
+            <div class="form-group">
+              <label>ค่าปรับ (บาท) *</label>
+              <input type="number" id="edit-inv-fine" class="form-control" value="${inv.fineAmount || 0}" required>
             </div>
             <div class="form-group">
               <label>สถานะชำระเงิน *</label>
@@ -3156,12 +3162,13 @@ class App {
       const waterCurr = parseFloat(document.getElementById('edit-water-curr').value) || 0;
       const rentAmount = parseFloat(document.getElementById('edit-inv-rent').value) || 0;
       const trashFee = parseFloat(document.getElementById('edit-inv-trash').value) || 20;
+      const fineAmount = parseFloat(document.getElementById('edit-inv-fine').value) || 0;
 
       const elecUnits = Math.max(0, elecCurr - elecPrev);
       const waterUnits = Math.max(0, waterCurr - waterPrev);
       const elecAmount = elecUnits * (this.state.rates ? (this.state.rates.electricityRate || 8) : 8);
       const waterAmount = waterUnits * (this.state.rates ? (this.state.rates.waterRate || 20) : 20);
-      const totalAmount = rentAmount + elecAmount + waterAmount + trashFee;
+      const totalAmount = rentAmount + elecAmount + waterAmount + trashFee + fineAmount;
 
       const idx = this.state.invoices.findIndex(i => i.id === inv.id);
       if (idx !== -1) {
@@ -3173,7 +3180,7 @@ class App {
           tenantName: document.getElementById('edit-inv-tenant').value.trim(),
           elecPrev, elecCurr, elecAmount,
           waterPrev, waterCurr, waterAmount,
-          rentAmount, trashFee, totalAmount,
+          rentAmount, trashFee, fineAmount, totalAmount,
           status: document.getElementById('edit-inv-status').value,
           paidAmount: document.getElementById('edit-inv-status').value === 'paid' ? totalAmount : 0,
           outstandingAmount: document.getElementById('edit-inv-status').value === 'paid' ? 0 : totalAmount
@@ -3737,7 +3744,7 @@ class App {
               <span style="font-size:0.78rem; color:#64748b;">(ดึงข้อมูลราคาค่าห้องจากระบบอัตโนมัติ)</span>
             </div>
             <div style="font-size:1.15rem; font-weight:800; color:var(--primary);" id="bill-room-rent-label">
-              ฿${(initialRoom ? (initialRoom.baseRent || 3500) : 3500).toLocaleString()}
+              ฿${(initialRoom ? (initialRoom.baseRent !== undefined ? initialRoom.baseRent : 3500) : 3500).toLocaleString()}
             </div>
           </div>
 
@@ -3754,6 +3761,14 @@ class App {
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="bill-water-prev" class="form-control" value="${initialMeters.waterPrev}"></div>
               <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="" placeholder="กรอกเลขมิเตอร์น้ำล่าสุด..." required></div>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
+            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> ค่าปรับเพิ่มเติม</h4>
+            <div class="form-group">
+              <label>ค่าปรับ / อื่นๆ (บาท):</label>
+              <input type="number" id="bill-fine" class="form-control" value="0" placeholder="ระบุค่าปรับ (ถ้ามี)...">
             </div>
           </div>
 
@@ -3780,7 +3795,7 @@ class App {
           
           const rentLabel = document.getElementById('bill-room-rent-label');
           if (rentLabel) {
-            rentLabel.textContent = `฿${(selectedRoom.baseRent || 3500).toLocaleString()}`;
+            rentLabel.textContent = `฿${(selectedRoom.baseRent !== undefined ? selectedRoom.baseRent : 3500).toLocaleString()}`;
           }
         }
       });
@@ -3819,9 +3834,10 @@ class App {
       const waterUnits = Math.max(0, waterCurr - waterPrev);
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
-      const rentAmt = room.baseRent || 3500;
+      const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
       const trashFee = 20;
-      const total = rentAmt + elecAmt + waterAmt + trashFee;
+      const fineAmt = parseFloat(document.getElementById('bill-fine').value) || 0;
+      const total = rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
 
       const newInv = {
         id: 'inv_' + Date.now(),
@@ -3833,6 +3849,7 @@ class App {
         dueDate,
         waterPrev, waterCurr, elecPrev, elecCurr,
         rentAmount: rentAmt, waterAmount: waterAmt, elecAmount: elecAmt, trashFee: trashFee,
+        fineAmount: fineAmt,
         totalAmount: total, paidAmount: 0, outstandingAmount: total,
         status: 'unpaid'
       };
@@ -4670,8 +4687,8 @@ class App {
       const updateRentAndDeposit = () => {
         const room = this.state.rooms.find(r => r.id === roomSelect.value);
         if (room) {
-          rentInput.value = room.baseRent || 3500;
-          depositInput.value = (room.baseRent || 3500) * 2; // Default deposit is 2 months rent
+          rentInput.value = room.baseRent !== undefined ? room.baseRent : 3500;
+          depositInput.value = (room.baseRent !== undefined ? room.baseRent : 3500) * 2; // Default deposit is 2 months rent
         }
       };
       // Set initial values on load
@@ -4747,7 +4764,7 @@ class App {
       startDateMonth: tenant.startDate ? Formatters.thaiMonthBE(tenant.startDate.slice(0, 7)).split(' ')[0] : 'พฤษภาคม',
       startDateYear: tenant.startDate ? (parseInt(tenant.startDate.split('-')[0], 10) + 543).toString() : '2568',
       monthlyRentAmt: room ? room.baseRent.toLocaleString() : '3,500',
-      monthlyRentThai: Formatters.thaiBahtText(room ? room.baseRent : 3500),
+      monthlyRentThai: Formatters.thaiBahtText(room ? (room.baseRent !== undefined ? room.baseRent : 3500) : 3500),
       depositAmt: tenant.deposit ? tenant.deposit.initialBail.toLocaleString() : '7,000',
       depositThai: Formatters.thaiBahtText(tenant.deposit ? tenant.deposit.initialBail : 7000),
       witness1: witness1Input,

@@ -369,12 +369,12 @@ function readAndMergeSheetTabs(ss, data) {
   // E. Read INVOICES / รายการบิล Tab
   var invSheet = ss.getSheetByName("รายการบิล") || ss.getSheetByName("INVOICES") || ss.getSheetByName("รายการบิลค่าเช่า");
   if (invSheet) {
-    var invValues = invSheet.getRange("A2:Q300").getValues();
+    var invValues = invSheet.getRange("A2:R300").getValues();
     invValues.forEach(function(row) {
       var invNum = String(row[0]).trim();
       if (invNum) {
         var inv = data.invoices.find(function(i) { return i.invoiceNumber === invNum; });
-        var statusStr = String(row[15] || "").trim().toLowerCase();
+        var statusStr = String(row[16] || "").trim().toLowerCase();
         if (inv) {
           if (row[6] !== "") inv.elecPrev = Number(row[6]);
           if (row[7] !== "") inv.elecCurr = Number(row[7]);
@@ -384,8 +384,9 @@ function readAndMergeSheetTabs(ss, data) {
           if (row[11] !== "") inv.waterAmount = Number(row[11]);
           if (row[12] !== "") inv.rentAmount = Number(row[12]);
           if (row[13] !== "") inv.trashFee = Number(row[13]);
-          if (row[14] !== "") inv.totalAmount = Number(row[14]);
-          if (row[15]) {
+          if (row[14] !== "") inv.fineAmount = Number(row[14]);
+          if (row[15] !== "") inv.totalAmount = Number(row[15]);
+          if (row[16]) {
             if (statusStr === 'paid' || statusStr === 'ชำระแล้ว') {
               inv.status = 'paid';
               inv.paidAmount = inv.totalAmount;
@@ -397,7 +398,7 @@ function readAndMergeSheetTabs(ss, data) {
             }
           }
         } else {
-          var totalAmt = Number(row[14]) || 0;
+          var totalAmt = Number(row[15]) || 0;
           var newInv = {
             id: "inv_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
             invoiceNumber: invNum,
@@ -414,11 +415,12 @@ function readAndMergeSheetTabs(ss, data) {
             waterAmount: Number(row[11]) || 0,
             rentAmount: Number(row[12]) || 0,
             trashFee: Number(row[13]) || 0,
+            fineAmount: Number(row[14]) || 0,
             totalAmount: totalAmt,
             status: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? 'paid' : 'unpaid',
             paidAmount: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? totalAmt : 0,
             outstandingAmount: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? 0 : totalAmt,
-            slipUrl: String(row[16] || "")
+            slipUrl: String(row[17] || "")
           };
           data.invoices.push(newInv);
         }
@@ -429,7 +431,7 @@ function readAndMergeSheetTabs(ss, data) {
   // Read meter readings from "จดเลขอ่านน้ำไฟ"
   var readingsSheet = ss.getSheetByName("จดเลขอ่านน้ำไฟ");
   if (readingsSheet && readingsSheet.getLastRow() > 1) {
-    var readingsValues = readingsSheet.getRange(2, 1, readingsSheet.getLastRow() - 1, 4).getValues();
+    var readingsValues = readingsSheet.getRange(2, 1, readingsSheet.getLastRow() - 1, 5).getValues();
     data.tempMeterReadings = [];
     readingsValues.forEach(function(row) {
       var rName = String(row[0]).trim();
@@ -438,7 +440,8 @@ function readAndMergeSheetTabs(ss, data) {
           roomName: rName,
           elecCurr: row[1] !== "" ? Number(row[1]) : null,
           waterCurr: row[2] !== "" ? Number(row[2]) : null,
-          monthKey: String(row[3]).trim()
+          monthKey: String(row[3]).trim(),
+          fineAmount: row[4] !== "" ? Number(row[4]) : 0
         });
       }
     });
@@ -690,7 +693,7 @@ function writeInvoicesSheet(ss, invoices) {
     "เลขที่บิล", "รอบเดือน", "ห้องพัก", "ชื่อผู้เช่า", "วันที่ออกบิล", "กำหนดชำระ",
     "ไฟครั้งก่อน", "ไฟครั้งนี้", "ค่าไฟฟ้า",
     "น้ำครั้งก่อน", "น้ำครั้งนี้", "ค่าน้ำประปา",
-    "ค่าเช่าห้อง", "ค่าขยะ", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ", "หลักฐานการโอนเงิน (สลิป)"
+    "ค่าเช่าห้อง", "ค่าขยะ", "ค่าปรับ", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ", "หลักฐานการโอนเงิน (สลิป)"
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
 
@@ -710,7 +713,7 @@ function writeInvoicesSheet(ss, invoices) {
       inv.invoiceNumber || "", inv.monthKey || "", inv.roomName || "", inv.tenantName || "", inv.issueDate || "", inv.dueDate || "",
       inv.elecPrev || 0, inv.elecCurr || 0, inv.elecAmount || 0,
       inv.waterPrev || 0, inv.waterCurr || 0, inv.waterAmount || 0,
-      inv.rentAmount || 0, inv.trashFee || 20, inv.totalAmount || 0, statusStr, slipVal
+      inv.rentAmount || 0, inv.trashFee || 20, inv.fineAmount || 0, inv.totalAmount || 0, statusStr, slipVal
     ];
   });
 
@@ -1160,19 +1163,19 @@ function writeMeterReadingsSheet(ss, rooms) {
   var sheet = ss.getSheetByName("จดเลขอ่านน้ำไฟ");
   if (!sheet) sheet = ss.insertSheet("จดเลขอ่านน้ำไฟ");
   
-  var headers = ["เลขห้อง", "มิเตอร์ไฟครั้งนี้ (ใหม่)", "มิเตอร์น้ำครั้งนี้ (ใหม่)", "รอบเดือน (เช่น 2026-07)"];
+  var headers = ["เลขห้อง", "มิเตอร์ไฟครั้งนี้ (ใหม่)", "มิเตอร์น้ำครั้งนี้ (ใหม่)", "รอบเดือน (เช่น 2026-07)", "ค่าปรับ (ถ้ามี)"];
   
   // ดึงค่าปัจจุบันที่แอดมินกรอกค้างไว้ในชีตก่อนเพื่อนำมาซิงค์ป้องกันข้อมูลเดิมหาย
   var currentValues = [];
   if (sheet.getLastRow() > 1) {
-    currentValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+    currentValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
   }
   
   var existingMap = {};
   currentValues.forEach(function(row) {
     var rName = String(row[0]).trim();
     if (rName) {
-      existingMap[rName] = { elec: row[1], water: row[2], month: row[3] };
+      existingMap[rName] = { elec: row[1], water: row[2], month: row[3], fine: row[4] };
     }
   });
   
@@ -1185,7 +1188,8 @@ function writeMeterReadingsSheet(ss, rooms) {
       r.name,
       existing.elec !== undefined ? existing.elec : "",
       existing.water !== undefined ? existing.water : "",
-      existing.month !== undefined ? existing.month : ""
+      existing.month !== undefined ? existing.month : "",
+      existing.fine !== undefined ? existing.fine : ""
     ];
   });
   
