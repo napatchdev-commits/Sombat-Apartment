@@ -1922,7 +1922,8 @@ class App {
     syncBtn.disabled = true;
     syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary"></i> <span class="desktop-only">กำลังดึงข้อมูล...</span>';
     try {
-      const cloudState = await DBService.pullFromGoogleSheets(url);
+      const mergeUrl = url.includes('?') ? `${url}&merge=true` : `${url}?merge=true`;
+      const cloudState = await DBService.pullFromGoogleSheets(mergeUrl);
       if (cloudState) {
         this.state = cloudState;
         this.switchTab(this.activeTab);

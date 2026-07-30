@@ -57,6 +57,7 @@ function testAuth() {
 
 function doGet(e) {
   var action = (e && e.parameter) ? e.parameter.action : "get";
+  var mergeParam = (e && e.parameter) ? e.parameter.merge : "";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("DB_STATE");
   if (!sheet) {
@@ -68,8 +69,12 @@ function doGet(e) {
     var data = {};
     try { data = JSON.parse(raw || "{}"); } catch(err) { data = {}; }
 
-    // ดึงการแก้ไขด้วยมือจากหน้าชีตต่างๆ รวมกลับเข้าฐานข้อมูลหลัก
-    data = readAndMergeSheetTabs(ss, data);
+    // ทำการดึงและผสานข้อมูลจากแผ่นงานด้วยมือ เฉพาะเมื่อกดปุ่มดึงข้อมูลโดยระบุ &merge=true
+    if (mergeParam === "true" || mergeParam === true) {
+      data = readAndMergeSheetTabs(ss, data);
+      // เซฟข้อมูลที่ผสานกลับเข้าไปใน DB_STATE เสมอ
+      sheet.getRange(1, 1).setValue(JSON.stringify(data));
+    }
 
     return ContentService.createTextOutput(JSON.stringify(data))
       .setMimeType(ContentService.MimeType.JSON);
