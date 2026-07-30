@@ -440,16 +440,35 @@ class DBService {
     return state;
   }
 
-  static saveState(state) {
+  static async saveState(state) {
     if (state.settings && state.settings.googleSheetUrl) {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', state.settings.googleSheetUrl);
     }
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
-    // Background Real-time Auto Sync to Google Sheets if URL is set
     const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
     if (url) {
-      this.syncToGoogleSheets(url, state).catch(() => {});
+      // Show blocking loader during sync
+      const syncLoader = document.createElement('div');
+      syncLoader.id = 'app-sync-loader';
+      syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
+      syncLoader.innerHTML = `
+        <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+        <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังบันทึกข้อมูลไปยัง Google Sheets...</div>
+        <div style="font-size:0.88rem; color:#cbd5e1;">กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูล</div>
+        <style>
+          @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+      `;
+      document.body.appendChild(syncLoader);
+
+      try {
+        await this.syncToGoogleSheets(url, state);
+      } catch (e) {
+        console.error("Failed to sync to Google Sheets, state will be saved to local cache:", e);
+      } finally {
+        syncLoader.remove();
+      }
     }
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
   }
 
   static async pullFromGoogleSheets(url) {
@@ -1616,18 +1635,56 @@ class App {
   static activeTab = 'dashboard';
 
   static async init() {
-    this.state = DBService.getState();
-
     // 1. Check URL query parameters for sheetUrl shared link (?sheetUrl=...)
     const urlParams = new URLSearchParams(window.location.search);
     const paramUrl = urlParams.get('sheetUrl');
     if (paramUrl) {
-      if (!this.state.settings) this.state.settings = {};
-      this.state.settings.googleSheetUrl = paramUrl;
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', paramUrl);
     }
+    const savedUrl = DBService.getSavedSheetUrl();
 
-    // 2. Render UI INSTANTLY from local storage (0ms delay - no blocking network waiting)
+    // Show a modern startup loading screen
+    const loader = document.createElement('div');
+    loader.id = 'app-startup-loader';
+    loader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:#0f172a; color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; transition: opacity 0.3s;';
+    loader.innerHTML = `
+      <div style="width:50px; height:50px; border:4px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+      <div style="font-weight:700; font-size:1.1rem; margin-bottom:0.5rem;">กำลังโหลดข้อมูลล่าสุด...</div>
+      <div style="font-size:0.9rem; color:#94a3b8;">หอพักสมบัติ นนทบุรี Enterprise Edition</div>
+      <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+      </style>
+    `;
+    document.body.appendChild(loader);
+
+    if (savedUrl) {
+      try {
+        const cloudState = await DBService.pullFromGoogleSheets(savedUrl);
+        if (cloudState) {
+          this.state = cloudState;
+          console.log('✅ Real-time Cloud state fetched successfully on start');
+        } else {
+          this.state = DBService.getState();
+        }
+      } catch (err) {
+        console.warn('Startup pull warning, falling back to local cache:', err);
+        this.state = DBService.getState();
+      }
+    } else {
+      this.state = DBService.getState();
+    }
+
+    // Ensure state settings contains savedUrl
+    if (savedUrl && (!this.state.settings || !this.state.settings.googleSheetUrl)) {
+      if (!this.state.settings) this.state.settings = {};
+      this.state.settings.googleSheetUrl = savedUrl;
+    }
+
+    // Remove loading overlay
+    loader.style.opacity = '0';
+    setTimeout(() => loader.remove(), 300);
+
+    // 2. Render UI
     let currentUser = AuthService.getCurrentUser();
 
     this.renderShell();
@@ -1636,27 +1693,11 @@ class App {
     this.setupGlobalEvents();
     this.switchTab(this.activeTab);
 
-    // 3. Asynchronously pull latest cloud state from Google Sheets in background
-    const savedUrl = DBService.getSavedSheetUrl();
-    if (savedUrl) {
-      if (!this.state.settings) this.state.settings = {};
-      this.state.settings.googleSheetUrl = savedUrl;
-      DBService.pullFromGoogleSheets(savedUrl).then(cloudState => {
-        if (cloudState) {
-          this.state = cloudState;
-          if (AuthService.getCurrentUser()) {
-            this.switchTab(this.activeTab);
-          }
-          console.log('✅ Real-time Cloud state synced in background');
-        }
-      }).catch(err => console.warn('Background sync warning:', err));
-    }
-
     // Auto background poll every 15 seconds for live edits in Google Sheets
-    if (!window.sheetPollInterval) {
+    if (!window.sheetPollInterval && savedUrl) {
       window.sheetPollInterval = setInterval(async () => {
         const url = DBService.getSavedSheetUrl();
-        if (url) {
+        if (url && AuthService.getCurrentUser()) {
           try {
             const cloudState = await DBService.pullFromGoogleSheets(url);
             if (cloudState && JSON.stringify(cloudState) !== JSON.stringify(this.state)) {
@@ -1664,7 +1705,9 @@ class App {
               this.switchTab(this.activeTab);
               console.log('⚡ Live 2-way synced edits from Google Sheets');
             }
-          } catch (e) {}
+          } catch (e) {
+            console.warn('Live background sync failed:', e);
+          }
         }
       }, 15000);
     }

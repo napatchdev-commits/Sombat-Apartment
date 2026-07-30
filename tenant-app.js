@@ -168,17 +168,37 @@ class TenantDBService {
     return state;
   }
 
-  static saveState(state) {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+  static async saveState(state) {
     const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbz_3Cy1zi83UFqpFUIQPhAt4_SahTOKXR-Oq5IU/exec";
     if (url) {
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'sync', data: state }),
-        redirect: 'follow'
-      }).catch(() => {});
+      // Show blocking loader during sync
+      const syncLoader = document.createElement('div');
+      syncLoader.id = 'app-sync-loader';
+      syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
+      syncLoader.innerHTML = `
+        <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+        <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังส่งข้อมูลการชำระเงินไปยัง Google Sheets...</div>
+        <div style="font-size:0.88rem; color:#cbd5e1;">กรุณารอสักครู่ ระบบกำลังยืนยันยอดบิล</div>
+        <style>
+          @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+      `;
+      document.body.appendChild(syncLoader);
+
+      try {
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'sync', data: state }),
+          redirect: 'follow'
+        });
+      } catch (e) {
+        console.error("Failed to sync to Google Sheets, state will be saved to local cache:", e);
+      } finally {
+        syncLoader.remove();
+      }
     }
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
   }
 
   static async pullLatestFromCloud() {
@@ -233,19 +253,48 @@ class MyBillsApp {
   static currentPayMethod = 'transfer';
 
   static async init() {
-    this.state = TenantDBService.getState();
-    this.currentTenant = TenantDBService.getLoggedInTenant();
+    // 1. Resolve sheet url from query parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramUrl = urlParams.get('sheetUrl');
+    if (paramUrl) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', paramUrl);
+    }
 
-    // Render screen instantly
-    this.render();
+    // Show a modern startup loading screen
+    const loader = document.createElement('div');
+    loader.id = 'app-startup-loader';
+    loader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:#0f172a; color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; transition: opacity 0.3s;';
+    loader.innerHTML = `
+      <div style="width:50px; height:50px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+      <div style="font-weight:700; font-size:1.1rem; margin-bottom:0.5rem;">กำลังโหลดข้อมูลล่าสุด...</div>
+      <div style="font-size:0.9rem; color:#94a3b8;">ระบบผู้เช่า หอพักสมบัติ นนทบุรี</div>
+      <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+      </style>
+    `;
+    document.body.appendChild(loader);
 
-    // Pull background updates from Google Sheets
-    TenantDBService.pullLatestFromCloud().then(cloudData => {
+    try {
+      const cloudData = await TenantDBService.pullLatestFromCloud();
       if (cloudData) {
         this.state = cloudData;
-        this.render();
+        console.log('✅ Real-time Cloud state fetched successfully on start');
+      } else {
+        this.state = TenantDBService.getState();
       }
-    });
+    } catch (err) {
+      console.warn('Startup pull warning, falling back to local cache:', err);
+      this.state = TenantDBService.getState();
+    }
+
+    this.currentTenant = TenantDBService.getLoggedInTenant();
+
+    // Remove loading overlay
+    loader.style.opacity = '0';
+    setTimeout(() => loader.remove(), 300);
+
+    // Render screen
+    this.render();
   }
 
   static render() {
