@@ -186,14 +186,22 @@ class TenantDBService {
       document.body.appendChild(syncLoader);
 
       try {
-        await fetch(url, {
+        const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({ action: 'sync', data: state }),
           redirect: 'follow'
         });
+        if (!response.ok) {
+          throw new Error(`Server status ${response.status}`);
+        }
+        const resJson = await response.json();
+        if (resJson && resJson.status === 'error') {
+          throw new Error(resJson.message || 'Unknown server error');
+        }
       } catch (e) {
-        console.error("Failed to sync to Google Sheets, state will be saved to local cache:", e);
+        console.error("Failed to sync to Google Sheets:", e);
+        throw e;
       } finally {
         syncLoader.remove();
       }
@@ -725,7 +733,7 @@ class MyBillsApp {
 
     const slipForm = document.getElementById('slip-upload-form');
     if (slipForm) {
-      slipForm.addEventListener('submit', (e) => {
+      slipForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!this.currentSlipDataUrl) {
           alert('กรุณาอัปโหลดรูปภาพสลิปหลักฐานการโอนเงินก่อนกดชำระบริการ');
@@ -755,17 +763,29 @@ class MyBillsApp {
           roomObj.status = 'occupied';
         }
 
-        // Save state locally and background sync to Google Sheets
-        TenantDBService.saveState(this.state);
+        try {
+          // Save state and block screen during sync to Google Sheets
+          await TenantDBService.saveState(this.state);
 
-        // Notify via LINE Bot / LINE Message Log
-        this.sendLineNotify(invoices[invIdx] || { roomName: room.name, tenantName: tenant.name, totalAmount: 3500 });
+          // Notify via LINE Bot / LINE Message Log
+          this.sendLineNotify(invoices[invIdx] || { roomName: room.name, tenantName: tenant.name, totalAmount: 3500 });
 
-        // Show Success Alert Popup & Open Receipt Modal
-        alert('🟢 บันทึกข้อมูลชำระเงินเรียบร้อยแล้ว!\n\nระบบได้รับสลิปการโอนเงินและส่งการแจ้งเตือนไปยังเจ้าของหอพักเรียบร้อยแล้วครับ');
-        
-        this.render();
-        this.openReceiptModal(invoices[invIdx]);
+          // Show Success Alert Popup & Open Receipt Modal
+          alert('🟢 บันทึกข้อมูลชำระเงินเรียบร้อยแล้ว!\n\nระบบได้รับสลิปการโอนเงินและส่งการแจ้งเตือนไปยังเจ้าของหอพักเรียบร้อยแล้วครับ');
+          
+          this.render();
+          this.openReceiptModal(invoices[invIdx]);
+        } catch (err) {
+          // Revert status on failure so it doesn't trick the user
+          if (invIdx !== -1) {
+            invoices[invIdx].status = 'unpaid';
+            invoices[invIdx].paidAmount = 0;
+            invoices[invIdx].outstandingAmount = invoices[invIdx].totalAmount;
+            invoices[invIdx].paymentDate = null;
+            invoices[invIdx].slipUrl = null;
+          }
+          alert('❌ เกิดข้อผิดพลาดในการส่งข้อมูลไปยัง Google Sheets: ' + err.message + '\n\nกรุณาตรวจการตั้งค่าสิทธิ์ หรืออัปเดตสคริปต์ Code.gs ตามขั้นตอน');
+        }
       });
     }
 
@@ -790,7 +810,7 @@ class MyBillsApp {
     // Cash Payment Submission
     const btnSubmitCashPay = document.getElementById('btn-submit-cash-pay');
     if (btnSubmitCashPay) {
-      btnSubmitCashPay.addEventListener('click', () => {
+      btnSubmitCashPay.addEventListener('click', async () => {
         const tenant = this.currentTenant;
         const rooms = this.state.rooms || [];
         const room = rooms.find(r => r.id === tenant.assignedRoomId || r.currentTenantName === tenant.name) || { name: 'ยังไม่ระบุ' };
@@ -811,28 +831,40 @@ class MyBillsApp {
           roomObj.status = 'occupied';
         }
 
-        // Save and Sync
-        TenantDBService.saveState(this.state);
+        try {
+          // Save and Sync to Google Sheets
+          await TenantDBService.saveState(this.state);
 
-        // LINE Notify - No amount listed
-        const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbwwYDHKDgwoJBYLqEEDW4SDRovLKC1GFl2WYGeXNfjJuV3QE-5Iw_iJMMoVRvwNqp7k/exec";
-        if (url && invoices[invIdx]) {
-          const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoices[invIdx].roomName} (${invoices[invIdx].tenantName || 'ผู้เช่า'}) ได้ชำระเงินด้วยเงินสดเรียบร้อยแล้ว!`;
-          fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'linePushNotify',
-              invoiceId: 'ALL',
-              messageText: messageText
-            }),
-            redirect: 'follow'
-          }).catch(() => {});
+          // LINE Notify - No amount listed
+          const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbwwYDHKDgwoJBYLqEEDW4SDRovLKC1GFl2WYGeXNfjJuV3QE-5Iw_iJMMoVRvwNqp7k/exec";
+          if (url && invoices[invIdx]) {
+            const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoices[invIdx].roomName} (${invoices[invIdx].tenantName || 'ผู้เช่า'}) ได้ชำระเงินด้วยเงินสดเรียบร้อยแล้ว!`;
+            fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify({
+                action: 'linePushNotify',
+                invoiceId: 'ALL',
+                messageText: messageText
+              }),
+              redirect: 'follow'
+            }).catch(() => {});
+          }
+
+          alert('🟢 บันทึกข้อมูลชำระเงินสดเรียบร้อยแล้ว!\n\nระบบได้รับการชำระเงินและแจ้งไปยังเจ้าหน้าที่เรียบร้อยแล้วครับ');
+          this.render();
+          if (invoices[invIdx]) this.openReceiptModal(invoices[invIdx]);
+        } catch (err) {
+          // Revert status on failure
+          if (invIdx !== -1) {
+            invoices[invIdx].status = 'unpaid';
+            invoices[invIdx].paidAmount = 0;
+            invoices[invIdx].outstandingAmount = invoices[invIdx].totalAmount;
+            invoices[invIdx].paymentDate = null;
+            invoices[invIdx].slipUrl = null;
+          }
+          alert('❌ เกิดข้อผิดพลาดในการส่งข้อมูลไปยัง Google Sheets: ' + err.message + '\n\nกรุณาตรวจการตั้งค่าสิทธิ์ หรืออัปเดตสคริปต์ Code.gs ตามขั้นตอน');
         }
-
-        alert('🟢 บันทึกข้อมูลชำระเงินสดเรียบร้อยแล้ว!\n\nระบบได้รับการชำระเงินและแจ้งไปยังเจ้าหน้าที่เรียบร้อยแล้วครับ');
-        this.render();
-        if (invoices[invIdx]) this.openReceiptModal(invoices[invIdx]);
       });
     }
   }
