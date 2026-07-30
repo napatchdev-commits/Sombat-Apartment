@@ -2172,17 +2172,8 @@ class App {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
 
-    // Generate month options
     const today = new Date();
-    const monthsOptions = [];
-    for (let i = -2; i <= 1; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
-      const val = d.toISOString().slice(0, 7); // yyyy-MM
-      const label = Formatters.thaiMonthBE(val);
-      const selected = i === 0 ? 'selected' : '';
-      monthsOptions.push(`<option value="${val}" ${selected}>${label}</option>`);
-    }
-
+    const defaultMonth = today.toISOString().slice(0, 7); // yyyy-MM
     const defaultIssue = today.toISOString().slice(0, 10);
     const defaultDue = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 5).toISOString().slice(0, 10);
 
@@ -2198,9 +2189,7 @@ class App {
         <form id="bulk-billing-form">
           <div class="form-group">
             <label>เลือกรอบเดือนสำหรับออกบิล *</label>
-            <select id="bulk-month" class="form-control" required>
-              ${monthsOptions.join('')}
-            </select>
+            <input type="month" id="bulk-month" class="form-control" value="${defaultMonth}" required>
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
