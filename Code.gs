@@ -52,7 +52,9 @@ function clearAllDatabaseState() {
  */
 function testAuth() {
   UrlFetchApp.fetch("https://api.line.me", { muteHttpExceptions: true });
-  Logger.log("ได้รับอนุญาตสิทธิ์ UrlFetchApp.fetch เรียบร้อยแล้ว!");
+  DriveApp.getRootFolder(); // บังคับให้ระบบแสดงหน้าต่างอนุญาตสิทธิ์เข้าถึง Google Drive
+  SpreadsheetApp.getActiveSpreadsheet(); // บังคับให้ระบบแสดงหน้าต่างอนุญาตสิทธิ์เข้าถึง Google Sheets
+  Logger.log("ได้รับอนุญาตสิทธิ์การใช้งาน Google Drive, Google Sheets และ LINE API เรียบร้อยแล้ว!");
 }
 
 function doGet(e) {
