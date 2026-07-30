@@ -3187,7 +3187,7 @@ class App {
       roomInput.addEventListener('change', autofillRoomData);
     }
 
-    document.getElementById('edit-invoice-form').addEventListener('submit', (e) => {
+    document.getElementById('edit-invoice-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const elecPrev = parseFloat(document.getElementById('edit-elec-prev').value) || 0;
       const elecCurr = parseFloat(document.getElementById('edit-elec-curr').value) || 0;
@@ -3218,10 +3218,26 @@ class App {
           paidAmount: document.getElementById('edit-inv-status').value === 'paid' ? totalAmount : 0,
           outstandingAmount: document.getElementById('edit-inv-status').value === 'paid' ? 0 : totalAmount
         };
-        DBService.saveState(this.state);
-        modal.classList.remove('active');
-        alert('✅ แก้ไขข้อมูลบิลค่าเช่าและซิงค์ลง Google Sheets เรียบร้อยแล้ว!');
-        this.switchTab('billing');
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูลลง Google Sheets...`;
+        }
+
+        try {
+          await DBService.saveState(this.state);
+          modal.classList.remove('active');
+          alert('✅ แก้ไขข้อมูลบิลค่าเช่าและซิงค์ลง Google Sheets เรียบร้อยแล้ว!');
+          this.switchTab('billing');
+        } catch (err) {
+          alert(`❌ เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${err.message}`);
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<i class="fa-solid fa-save"></i> บันทึกการแก้ไขใบแจ้งหนี้ลงชีต`;
+          }
+        }
       }
     });
   }
