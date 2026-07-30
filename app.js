@@ -363,7 +363,11 @@ class DBService {
       } catch (e) {}
     }
     if (fromState) return fromState;
-    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    let fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (fromStorage && (fromStorage.includes('AKfycbww') || fromStorage.includes('AKfycbz_'))) {
+      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+      fromStorage = null;
+    }
     if (fromStorage) return fromStorage;
     const urlParams = new URLSearchParams(window.location.search);
     const fromParam = urlParams.get('sheetUrl');

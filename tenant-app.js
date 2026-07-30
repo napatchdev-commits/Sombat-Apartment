@@ -169,7 +169,14 @@ class TenantDBService {
   }
 
   static async saveState(state) {
-    const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+    let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+      url = null;
+    }
+    if (!url) {
+      url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+    }
     if (url) {
       // Show blocking loader during sync
       const syncLoader = document.createElement('div');
@@ -211,6 +218,10 @@ class TenantDBService {
 
   static async pullLatestFromCloud() {
     let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+      url = null;
+    }
     if (!url) {
       const urlParams = new URLSearchParams(window.location.search);
       url = urlParams.get('sheetUrl');
@@ -836,7 +847,14 @@ class MyBillsApp {
           await TenantDBService.saveState(this.state);
 
           // LINE Notify - No amount listed
-          const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+          let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+          if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+            localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+            url = null;
+          }
+          if (!url) {
+            url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+          }
           if (url && invoices[invIdx]) {
             const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoices[invIdx].roomName} (${invoices[invIdx].tenantName || 'ผู้เช่า'}) ได้ชำระเงินด้วยเงินสดเรียบร้อยแล้ว!`;
             fetch(url, {
@@ -870,7 +888,14 @@ class MyBillsApp {
   }
 
   static sendLineNotify(invoice) {
-    const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+      url = null;
+    }
+    if (!url) {
+      url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+    }
     if (!url) {
       console.log("LINE Notify skipped: Google Sheets Web App URL not found.");
       return;
