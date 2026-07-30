@@ -395,26 +395,28 @@ class MyBillsApp {
       const tenants = this.state.tenants || [];
       const rooms = this.state.rooms || [];
       
-      const tenantMatch = tenants.find(t => String(t.idCard || '').replace(/\D/g, '') === cleanInput);
-      let finalRoomId = selectedRoomId;
-      let finalTenantName = '';
-
-      if (tenantMatch) {
-        finalRoomId = tenantMatch.assignedRoomId || selectedRoomId;
-        finalTenantName = tenantMatch.name;
-      } else {
-        const matchedRoom = rooms.find(r => r.id === selectedRoomId) || rooms[0] || { id: 's101', name: 'S101', floor: 1, baseRent: 2500 };
-        finalTenantName = (matchedRoom && matchedRoom.currentTenantName && matchedRoom.currentTenantName !== 'ไม่มีผู้เข้าเช่า')
-          ? matchedRoom.currentTenantName
-          : ('ผู้เช่าห้อง ' + (matchedRoom ? matchedRoom.name : 'S101'));
+      // 1. ค้นหาผู้เช่าที่ลงทะเบียนกับห้องพักที่เลือก
+      const tenantForRoom = tenants.find(t => t.assignedRoomId === selectedRoomId);
+      
+      if (!tenantForRoom) {
+        alert('❌ ไม่พบข้อมูลผู้เช่าลงทะเบียนในห้องพักนี้ กรุณาติดต่อผู้ดูแลระบบ');
+        return;
+      }
+      
+      // 2. ตรวจสอบเลขบัตรประชาชนว่าตรงกันหรือไม่
+      const cleanTenantIdCard = String(tenantForRoom.idCard || '').replace(/\D/g, '');
+      if (cleanTenantIdCard !== cleanInput) {
+        alert('❌ เลขบัตรประชาชนไม่ถูกต้องสำหรับห้องพักที่เลือก กรุณาตรวจสอบอีกครั้ง');
+        return;
       }
 
+      // 3. ผ่านการยืนยันตัวตน
       const matched = {
-        id: 't_user_' + cleanInput + '_' + finalRoomId,
-        name: finalTenantName,
+        id: tenantForRoom.id,
+        name: tenantForRoom.name,
         idCard: Formatters.formatIdCard(cleanInput),
-        tel: '080-5991691',
-        assignedRoomId: finalRoomId
+        tel: tenantForRoom.tel || '080-5991691',
+        assignedRoomId: selectedRoomId
       };
 
       this.currentTenant = matched;
