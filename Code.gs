@@ -1201,8 +1201,17 @@ function writeMeterReadingsSheet(ss, rooms) {
  * และชื่อห้องภาษาไทย (เช่น กรรณิการ์, แสงเงินแสงทอง) อยู่ลำดับถัดไป เพื่อให้ตรงกับแผงควบคุมระบบแอดมิน
  */
 function sortRoomsCustom(a, b) {
-  var nameA = String(a.name);
-  var nameB = String(b.name);
+  var nameA = String(a.name || '').trim();
+  var nameB = String(b.name || '').trim();
+  
+  var isSA = /^s/i.test(nameA);
+  var isSB = /^s/i.test(nameB);
+  
+  if (isSA && !isSB) return -1;
+  if (!isSA && isSB) return 1;
+  if (isSA && isSB) {
+    return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+  }
   
   var isNamedA = /^[^A-Za-z0-9]/i.test(nameA) || nameA.indexOf("บ้าน") === 0 || nameA.indexOf("เรือน") === 0;
   var isNamedB = /^[^A-Za-z0-9]/i.test(nameB) || nameB.indexOf("บ้าน") === 0 || nameB.indexOf("เรือน") === 0;
