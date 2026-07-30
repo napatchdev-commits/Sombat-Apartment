@@ -127,8 +127,19 @@ function doPost(e) {
     }
     
     if (action === "sync" || requestData.data) {
-      sheet.getRange(1, 1).setValue(JSON.stringify(requestData.data));
-      writeAllStructuredSheets(ss, requestData.data);
+      var syncData = requestData.data;
+      if (syncData && syncData.invoices && Array.isArray(syncData.invoices)) {
+        syncData.invoices.forEach(function(inv) {
+          if (inv.slipUrl && inv.slipUrl.indexOf("data:") === 0) {
+            var filename = "slip_" + (inv.roomName || "room") + "_" + (inv.monthKey || "month") + "_" + Date.now();
+            var driveUrl = saveBase64ImageToDrive(inv.slipUrl, filename);
+            inv.slipUrl = driveUrl; // Replace base64 with Drive URL
+          }
+        });
+      }
+
+      sheet.getRange(1, 1).setValue(JSON.stringify(syncData));
+      writeAllStructuredSheets(ss, syncData);
 
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "All data synced to Google Sheets successfully!" }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -526,7 +537,7 @@ function writeInvoicesSheet(ss, invoices) {
     "เลขที่บิล", "รอบเดือน", "ห้องพัก", "ชื่อผู้เช่า", "วันที่ออกบิล", "กำหนดชำระ",
     "ไฟครั้งก่อน", "ไฟครั้งนี้", "ค่าไฟฟ้า",
     "น้ำครั้งก่อน", "น้ำครั้งนี้", "ค่าน้ำประปา",
-    "ค่าเช่าห้อง", "ค่าขยะ", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ"
+    "ค่าเช่าห้อง", "ค่าขยะ", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ", "หลักฐานการโอนเงิน (สลิป)"
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
 
@@ -534,11 +545,19 @@ function writeInvoicesSheet(ss, invoices) {
 
   var rows = invoices.map(function(inv) {
     var statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : 'ค้างชำระ';
+    var slipVal = "";
+    if (inv.slipUrl) {
+      if (inv.slipUrl === 'cash') {
+        slipVal = "ชำระเงินสด";
+      } else {
+        slipVal = inv.slipUrl;
+      }
+    }
     return [
       inv.invoiceNumber || "", inv.monthKey || "", inv.roomName || "", inv.tenantName || "", inv.issueDate || "", inv.dueDate || "",
       inv.elecPrev || 0, inv.elecCurr || 0, inv.elecAmount || 0,
       inv.waterPrev || 0, inv.waterCurr || 0, inv.waterAmount || 0,
-      inv.rentAmount || 0, inv.trashFee || 20, inv.totalAmount || 0, statusStr
+      inv.rentAmount || 0, inv.trashFee || 20, inv.totalAmount || 0, statusStr, slipVal
     ];
   });
 
@@ -756,5 +775,40 @@ function sendLinePushOrBroadcast(channelToken, messageText, isBroadcast) {
     }
   } catch(err) {
     return { status: "error", message: err.toString() };
+  }
+}
+
+/**
+ * ฟังก์ชันแปลงสลิปโอนเงิน Base64 เป็นไฟล์ใน Google Drive
+ * และคืนค่าเป็น Direct URL ที่สามารถกดเปิดดูรูปและลิงก์โดยตรงได้จากหน้าชีตแอดมิน
+ */
+function saveBase64ImageToDrive(base64Data, filename) {
+  try {
+    var split = base64Data.split(',');
+    var contentType = split[0].match(/:(.*?);/)[1];
+    var byteString = split[1];
+    
+    var decoded = Utilities.base64Decode(byteString);
+    var blob = Utilities.newBlob(decoded, contentType, filename);
+    
+    // ค้นหาหรือสร้างโฟลเดอร์ชื่อ Sombat_Apartment_Slips ใน Google Drive
+    var folderName = "Sombat_Apartment_Slips";
+    var folders = DriveApp.getFoldersByName(folderName);
+    var folder;
+    if (folders.hasNext()) {
+      folder = folders.next();
+    } else {
+      folder = DriveApp.createFolder(folderName);
+    }
+    
+    var file = folder.createFile(blob);
+    // ตั้งค่าสิทธิ์ให้ผู้ที่มีลิงก์เข้าดูรูปภาพได้โดยตรง
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    // คืนค่าเป็น Direct Image URL เพื่อให้นำไปแสดงในแท็ก <img> ของระบบแอดมินได้ทันที
+    return "https://docs.google.com/uc?export=download&id=" + file.getId();
+  } catch (e) {
+    Logger.log("Error saving base64 to Drive: " + e.toString());
+    return base64Data; // คืนค่าตัวเดิมหากเกิดข้อผิดพลาด
   }
 }
