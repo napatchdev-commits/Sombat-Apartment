@@ -1098,8 +1098,21 @@ function verifyPaymentSlip(inv, syncData) {
   }
   
   // 4.2 ตรวจสอบยอดเงินโอน (ต้องตรงกับยอดจริงในบิล 100%)
-  if (amountFound > 0 && Math.abs(amountFound - invoiceAmount) > 0.01) {
-    return { error: true, message: "ยอดเงินโอนบนสลิป (฿" + amountFound.toFixed(2) + ") ไม่ตรงกับยอดค้างชำระของบิลนี้ (฿" + invoiceAmount.toFixed(2) + ")" };
+  var amountVerified = false;
+  if (amountFound > 0) {
+    if (Math.abs(amountFound - invoiceAmount) < 0.01) {
+      amountVerified = true;
+    }
+  }
+  
+  // หากการสกัดตัวเลขทศนิยมหลักไม่เจอ ให้ตรวจสอบหาจำนวนเงินที่ถูกต้องในข้อความ OCR
+  if (!amountVerified && ocrText) {
+    amountVerified = checkAmountInText(ocrText, invoiceAmount);
+  }
+  
+  // หากสามารถอ่านข้อความจากสลิปได้สำเร็จ แต่ยอดเงินโอนไม่ตรงกับยอดบิล
+  if (ocrText && !amountVerified) {
+    return { error: true, message: "ยอดเงินโอนบนสลิปไม่ถูกต้อง หรือไม่ตรงกับยอดที่ค้างชำระของบิลนี้ (฿" + invoiceAmount.toFixed(2) + ") กรุณาตรวจสอบและอัปโหลดสลิปที่ถูกต้อง" };
   }
   
   // 4.3 ตรวจสอบผู้รับโอนเงินปลายทาง (นางสมผิว น้ำวน หรือ ธ.กรุงศรี 240-1-34666-3)
@@ -1217,6 +1230,35 @@ function extractAmountFromText(text, targetAmount) {
     return maxNum;
   }
   return 0;
+}
+
+/**
+ * ฟังก์ชันช่วยตรวจสอบหาจำนวนยอดเงินบิลที่ถูกต้องในข้อความ OCR ของรูปภาพสลิป
+ * รองรับการเขียนยอดเงินหลากหลายรูปแบบ เช่น 3,500.00, 3500, 350000 (กรณีตัวเชื่อมจุดทศนิยมหายไป)
+ */
+function checkAmountInText(ocrText, targetAmount) {
+  if (!ocrText) return false;
+  
+  // ลบช่องว่างและเครื่องหมายจุลภาค (Comma) ออกทั้งหมดเพื่อเปรียบเทียบในรูปแบบตัวเลขเพียวๆ
+  var cleanText = ocrText.replace(/[\s,]/g, "");
+  
+  // รูปแบบที่ 1: ตรวจหาทศนิยมตรงๆ เช่น "3500.00"
+  var amtString = targetAmount.toFixed(2);
+  var escapedAmt = amtString.replace(".", "\\.");
+  var pattern1 = new RegExp(escapedAmt);
+  
+  // รูปแบบที่ 2: ตรวจหาตัวเลขจำนวนเต็ม เช่น "3500"
+  var intAmt = Math.floor(targetAmount).toString();
+  var pattern2 = new RegExp(intAmt);
+  
+  // รูปแบบที่ 3: ตรวจหาแบบไม่มีจุดทศนิยมแต่ลงท้ายด้วย 00 หรือทศนิยมอื่นๆ เช่น "350000" (กรณีจุดทศนิยมอ่านตกหล่น)
+  var pattern3 = new RegExp(intAmt + "\\d{2}");
+  
+  if (pattern1.test(cleanText) || pattern2.test(cleanText) || pattern3.test(cleanText)) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**
