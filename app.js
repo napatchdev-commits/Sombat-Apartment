@@ -116,10 +116,6 @@ class AuthService {
   static STORAGE_KEY = 'SOMBAT_APARTMENT_CURRENT_USER';
 
   static getCurrentUser() {
-    const rawLocal = localStorage.getItem(this.STORAGE_KEY);
-    if (rawLocal) {
-      try { return JSON.parse(rawLocal); } catch {}
-    }
     const rawSession = sessionStorage.getItem(this.STORAGE_KEY);
     if (rawSession) {
       try { return JSON.parse(rawSession); } catch {}
@@ -127,15 +123,10 @@ class AuthService {
     return null;
   }
 
-  static setCurrentUser(user, rememberMe = true) {
+  static setCurrentUser(user, rememberMe = false) {
     if (user) {
-      if (rememberMe) {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
-        sessionStorage.removeItem(this.STORAGE_KEY);
-      } else {
-        sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
-        localStorage.removeItem(this.STORAGE_KEY);
-      }
+      sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(user));
+      localStorage.removeItem(this.STORAGE_KEY);
     } else {
       localStorage.removeItem(this.STORAGE_KEY);
       sessionStorage.removeItem(this.STORAGE_KEY);
@@ -550,12 +541,7 @@ class LoginComponent {
               <small class="text-muted" style="font-size:0.8rem; margin-top:0.35rem; display:block;">💡 รหัสผ่านเริ่มต้นคือ: <code>admin</code></small>
             </div>
 
-            <div class="form-group" style="margin-bottom:1.5rem;">
-              <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; color:#475569; user-select:none;">
-                <input type="checkbox" id="login-remember-me" checked style="width:16px; height:16px; accent-color:#2563eb;">
-                <span>จดจำการเข้าสู่ระบบ (Remember Me)</span>
-              </label>
-            </div>
+
 
             <button type="submit" class="btn btn-primary btn-full" style="padding:0.85rem; font-size:1rem; font-weight:600; border-radius:8px; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
               <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ (Log In)
