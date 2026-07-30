@@ -168,6 +168,11 @@ class TenantDBService {
     return state;
   }
 
+  static cleanUrl(url) {
+    if (!url) return '';
+    return url.split('?')[0].trim();
+  }
+
   static async saveState(state) {
     let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
@@ -177,6 +182,7 @@ class TenantDBService {
     if (!url) {
       url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
     }
+    url = this.cleanUrl(url);
     if (url) {
       // Show blocking loader during sync
       const syncLoader = document.createElement('div');
@@ -229,8 +235,9 @@ class TenantDBService {
     if (!url) {
       url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
     }
+    url = this.cleanUrl(url);
     try {
-      const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
+      const fetchUrl = `${url}?action=get`;
       const res = await fetch(fetchUrl);
       const data = await res.json();
       

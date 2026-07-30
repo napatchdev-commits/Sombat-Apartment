@@ -380,6 +380,11 @@ class DBService {
     };
   }
 
+  static cleanUrl(url) {
+    if (!url) return '';
+    return url.split('?')[0].trim();
+  }
+
   static getSavedSheetUrl() {
     const rawState = localStorage.getItem(this.STORAGE_KEY);
     let fromState = '';
@@ -392,7 +397,7 @@ class DBService {
             delete parsed.settings.googleSheetUrl;
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(parsed));
           } else {
-            fromState = url;
+            fromState = this.cleanUrl(url);
           }
         }
       } catch (e) {}
@@ -403,12 +408,13 @@ class DBService {
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       fromStorage = null;
     }
-    if (fromStorage) return fromStorage;
+    if (fromStorage) return this.cleanUrl(fromStorage);
     const urlParams = new URLSearchParams(window.location.search);
     const fromParam = urlParams.get('sheetUrl');
     if (fromParam) {
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', fromParam);
-      return fromParam;
+      const cleaned = this.cleanUrl(fromParam);
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
+      return cleaned;
     }
     return 'https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec';
   }
@@ -4401,7 +4407,9 @@ class App {
         e.preventDefault();
         const urlInput = document.getElementById('sheets-url-input');
         if (urlInput) {
-          this.state.settings.googleSheetUrl = urlInput.value;
+          const cleaned = DBService.cleanUrl(urlInput.value);
+          this.state.settings.googleSheetUrl = cleaned;
+          urlInput.value = cleaned; // Update the input field value visually too!
           DBService.saveState(this.state);
           alert('บันทึก Google Sheets Web App URL เรียบร้อยแล้ว!');
         }
