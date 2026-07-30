@@ -3369,13 +3369,58 @@ class App {
           const result = await response.json();
           
           if (result && result.status === 'success') {
+            // Generate and trigger local CSV download
+            const headers = [
+              "เลขที่บิล", "รอบเดือน", "ห้องพัก", "ชื่อผู้เช่า", "วันที่ออกบิล", "กำหนดชำระ",
+              "ไฟครั้งก่อน", "ไฟครั้งนี้", "หน่วยที่ใช้ (ไฟ)", "ค่าไฟฟ้า",
+              "น้ำครั้งก่อน", "น้ำครั้งนี้", "หน่วยที่ใช้ (น้ำ)", "ค่าน้ำประปา",
+              "ค่าเช่าห้อง", "ค่าขยะ", "ค่าใช้จ่ายอื่น", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ"
+            ];
+            
+            const rows = targetInvoices.map(inv => {
+              const statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : 'ค้างชำระ';
+              const elecUnits = (inv.elecCurr || 0) - (inv.elecPrev || 0);
+              const waterUnits = (inv.waterCurr || 0) - (inv.waterPrev || 0);
+              let otherAmt = 0;
+              if (inv.customFees && Array.isArray(inv.customFees)) {
+                otherAmt = inv.customFees.reduce((sum, f) => sum + (f.amount || 0), 0);
+              }
+              return [
+                inv.invoiceNumber || "",
+                inv.monthKey || "",
+                inv.roomName || "",
+                inv.tenantName || "",
+                inv.issueDate || "",
+                inv.dueDate || "",
+                inv.elecPrev || 0,
+                inv.elecCurr || 0,
+                elecUnits >= 0 ? elecUnits : 0,
+                inv.elecAmount || 0,
+                inv.waterPrev || 0,
+                inv.waterCurr || 0,
+                waterUnits >= 0 ? waterUnits : 0,
+                inv.waterAmount || 0,
+                inv.rentAmount || 0,
+                inv.trashFee || 0,
+                otherAmt,
+                inv.totalAmount || 0,
+                statusStr
+              ];
+            });
+            
+            try {
+              ExportService.exportToCSV(`สำรองบิล_${selectedMonth}.csv`, headers, rows);
+            } catch (csvErr) {
+              console.error("Local CSV download failed:", csvErr);
+            }
+
             // Delete invoices from active state client-side
             this.state.invoices = this.state.invoices.filter(i => i.monthKey !== selectedMonth);
             
             // Save state, which syncs the clean invoices database state to DB_STATE and active sheet
             await DBService.saveState(this.state);
             
-            alert(`📦 สำรองบิลรอบเดือน ${Formatters.thaiMonthBE(selectedMonth)} ลงแผ่นงานสำเร็จ และนำออกจากตารางหลักเรียบร้อยครับ!`);
+            alert(`📦 สำรองบิลรอบเดือน ${Formatters.thaiMonthBE(selectedMonth)} สำเร็จ!\n\n1. ดาวน์โหลดเป็นไฟล์ Excel (.csv) ลงเครื่องเรียบร้อย\n2. สำรองประวัติลงแท็บใหม่ใน Google Sheets เรียบร้อย\n3. ลบรายการออกจากระบบบิลหลักเรียบร้อยครับ`);
             modal.classList.remove('active');
             this.switchTab('billing');
           } else {
