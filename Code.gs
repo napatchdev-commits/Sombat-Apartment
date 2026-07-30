@@ -614,7 +614,9 @@ function writeRoomsSheet(ss, rooms) {
 
   if (!rooms || rooms.length === 0) return;
 
-  var rows = rooms.map(function(r) {
+  var sortedRooms = rooms.slice().sort(sortRoomsCustom);
+
+  var rows = sortedRooms.map(function(r) {
     var lastElec = r.lastElecMeter !== undefined ? r.lastElecMeter : 1000;
     var lastWater = r.lastWaterMeter !== undefined ? r.lastWaterMeter : 100;
     return [r.id || "", r.name || "", r.floor || 1, r.baseRent || 0, r.currentTenantName || "-", lastElec, lastWater, r.status || "vacant"];
@@ -1174,10 +1176,8 @@ function writeMeterReadingsSheet(ss, rooms) {
     }
   });
   
-  // เรียงลำดับเลขห้องใหม่ให้สวยงาม
-  var sortedRooms = (rooms || []).slice().sort(function(a, b) {
-    return String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: 'base' });
-  });
+  // เรียงลำดับห้องพักตามรูปแบบเดียวกันกับหน้าเว็บแอดมิน
+  var sortedRooms = (rooms || []).slice().sort(sortRoomsCustom);
   
   var rows = sortedRooms.map(function(r) {
     var existing = existingMap[r.name] || {};
@@ -1194,4 +1194,21 @@ function writeMeterReadingsSheet(ss, rooms) {
   if (rows.length > 0) {
     sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
+}
+
+/**
+ * ฟังก์ชันเรียงลำดับห้องพักตามลำดับตัวอักษรของชื่อห้อง โดยให้กลุ่มห้องพักมาตรฐาน (S01, S02) ขึ้นก่อน
+ * และชื่อห้องภาษาไทย (เช่น กรรณิการ์, แสงเงินแสงทอง) อยู่ลำดับถัดไป เพื่อให้ตรงกับแผงควบคุมระบบแอดมิน
+ */
+function sortRoomsCustom(a, b) {
+  var nameA = String(a.name);
+  var nameB = String(b.name);
+  
+  var isNamedA = /^[^A-Za-z0-9]/i.test(nameA) || nameA.indexOf("บ้าน") === 0 || nameA.indexOf("เรือน") === 0;
+  var isNamedB = /^[^A-Za-z0-9]/i.test(nameB) || nameB.indexOf("บ้าน") === 0 || nameB.indexOf("เรือน") === 0;
+  
+  if (isNamedA && !isNamedB) return 1;
+  if (!isNamedA && isNamedB) return -1;
+  
+  return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
 }
