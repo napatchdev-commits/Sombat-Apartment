@@ -3249,7 +3249,7 @@ class App {
     dialog.innerHTML = `
       <div class="modal-header">
         <h3><i class="fa-solid fa-image text-success"></i> หลักฐานการชำระเงิน (สลิปโอนเงิน)</h3>
-        <button class="close-modal-btn">&times;</button>
+        <button type="button" class="close-modal-btn" onclick="document.getElementById('app-modal').classList.remove('active')">&times;</button>
       </div>
       <div class="modal-body" style="text-align:center; padding:1.5rem;">
         <p style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem; color:#0f172a;">ห้อง ${inv.roomName} - คุณ ${inv.tenantName}</p>
@@ -3263,13 +3263,16 @@ class App {
           <a href="${inv.slipUrl}" download="slip_${inv.roomName}_${inv.monthKey}.png" class="btn btn-primary" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px; display:inline-flex; align-items:center; gap:0.5rem; text-decoration:none;">
             <i class="fa-solid fa-download"></i> ดาวน์โหลดรูปสลิป
           </a>
-          <button class="btn btn-secondary close-modal-btn" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px;">ปิดหน้าต่าง</button>
+          <button type="button" class="btn btn-secondary close-modal-btn" onclick="document.getElementById('app-modal').classList.remove('active')" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px;">ปิดหน้าต่าง</button>
         </div>
       </div>
     `;
     modal.classList.add('active');
     modal.querySelectorAll('.close-modal-btn').forEach(btn => {
-      btn.addEventListener('click', () => modal.classList.remove('active'));
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        modal.classList.remove('active');
+      });
     });
   }
 

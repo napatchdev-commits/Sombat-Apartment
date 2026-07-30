@@ -1152,7 +1152,7 @@ class MyBillsApp {
     dialog.innerHTML = `
       <div class="modal-header">
         <h3><i class="fa-solid fa-receipt text-success"></i> ใบเสร็จรับเงิน (Official Payment Receipt)</h3>
-        <button class="close-modal-btn">&times;</button>
+        <button type="button" class="close-modal-btn" onclick="document.getElementById('app-modal').classList.remove('active')">&times;</button>
       </div>
       <div class="modal-body">
         <div style="background:#ffffff; border:2px solid #e2e8f0; border-radius:12px; padding:1.5rem;">
@@ -1204,7 +1204,10 @@ class MyBillsApp {
     `;
 
     modal.classList.add('active');
-    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+    modal.querySelector('.close-modal-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      modal.classList.remove('active');
+    });
   }
 }
 
