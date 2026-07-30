@@ -1065,11 +1065,26 @@ function verifyPaymentSlip(inv, syncData) {
   
   // 2. ดึงข้อมูลตัวหนังสือจากภาพ (OCR) โดยแปลงภาพเป็น Google Doc ชั่วคราว
   var ocrText = "";
+  var ocrError = null;
   try {
     var blob = dataURItoBlob(inv.slipUrl);
     ocrText = performOcrOnImageBlob(blob);
   } catch (e) {
-    Logger.log("OCR failed: " + e.toString());
+    ocrError = e.toString();
+    Logger.log("OCR failed: " + ocrError);
+  }
+  
+  // ตรวจสอบข้อผิดพลาดในการเรียกใช้บริการ OCR (เช่น ยังไม่ได้เปิดบริการ Drive API)
+  if (ocrError) {
+    if (ocrError.indexOf("Drive") !== -1 || ocrError.indexOf("API") !== -1 || ocrError.indexOf("ReferenceError") !== -1) {
+      return { error: true, message: "ระบบตรวจจับสลิปขัดข้อง: กรุณาเข้าไปเปิดบริการ 'Drive API' ในแถบซ้าย (Services) ของสคริปต์ Google Apps Script" };
+    }
+    return { error: true, message: "ระบบไม่สามารถประมวลผลสแกนสลิปได้ (เกิดข้อผิดพลาด: " + ocrError + ")" };
+  }
+  
+  // หากรูปภาพไม่มีข้อความใดๆ เลย (อัปโหลดภาพวิว ภาพถ่าย หรือภาพที่ไม่ใช่สลิป)
+  if (!ocrText || ocrText.trim() === "") {
+    return { error: true, message: "ไม่พบข้อมูลตัวหนังสือบนภาพสลิปนี้ กรุณาอัปโหลดรูปภาพสลิปโอนเงินที่คมชัดและถูกต้องของธนาคาร" };
   }
   
   // ตรวจสอบชื่อบัญชีปลายทางผู้รับโอน ("สมผิว" หรือ "น้ำวน")
@@ -1081,14 +1096,12 @@ function verifyPaymentSlip(inv, syncData) {
   var refId = "";
   var amountFound = 0;
   
-  // 3.1 ดึงจาก QR Code (ถ้ามี)
   if (qrPayload) {
     var parsedQr = parseThaiQrPayload(qrPayload);
     if (parsedQr.refId) refId = parsedQr.refId;
     if (parsedQr.amount) amountFound = parsedQr.amount;
   }
   
-  // 3.2 ดึงจาก OCR (กรณีเป็นไฟล์ PDF หรือหา QR ไม่เจอ)
   if (!refId) {
     refId = extractReferenceIdFromText(ocrText);
   }
@@ -1098,7 +1111,7 @@ function verifyPaymentSlip(inv, syncData) {
   
   // 4. ตรวจสอบความถูกต้องเปรียบเทียบกับเงื่อนไขในระบบ
   
-  // 4.1 ตรวจสอบ Reference ID ซ้ำ (ป้องกันผู้เช่าใช้ QR หรือเลขอ้างอิงเดียวกันมาจ่ายซ้ำ)
+  // 4.1 ตรวจสอบ Reference ID ซ้ำ
   if (refId) {
     if (syncData.settings.usedReferenceIds.indexOf(refId) !== -1) {
       return { error: true, message: "เลขที่อ้างอิงธุรกรรมธนาคารนี้ (" + refId + ") เคยใช้ชำระเงินแล้ว (ตรวจจับการใช้สลิปซ้ำ)" };
@@ -1113,19 +1126,19 @@ function verifyPaymentSlip(inv, syncData) {
     }
   }
   
-  // หากการสกัดตัวเลขทศนิยมหลักไม่เจอ ให้ตรวจสอบหาจำนวนเงินที่ถูกต้องในข้อความ OCR
-  if (!amountVerified && ocrText) {
+  // หากการสกัดตัวเลขทศนิยมหลักไม่เจอ ให้ตรวจสอบคำสำคัญหรือความคุ้มครองจำนวนเงินเพิ่มในข้อความ OCR
+  if (!amountVerified) {
     amountVerified = checkAmountInText(ocrText, invoiceAmount);
   }
   
-  // หากสามารถอ่านข้อความจากสลิปได้สำเร็จ แต่ยอดเงินโอนไม่ตรงกับยอดบิล
-  if (ocrText && !amountVerified) {
-    return { error: true, message: "ยอดเงินโอนบนสลิปไม่ถูกต้อง หรือไม่ตรงกับยอดที่ค้างชำระของบิลนี้ (฿" + invoiceAmount.toFixed(2) + ") กรุณาตรวจสอบและอัปโหลดสลิปที่ถูกต้อง" };
+  // หากยอดเงินโอนไม่ผ่านการยืนยัน (เช่น อัปโหลดสลิป 1 บาทเพื่อจะจ่ายบิลค่าห้อง) ให้เด้งปฏิเสธทันที
+  if (!amountVerified) {
+    return { error: true, message: "ปฏิเสธการชำระเงิน: ยอดเงินโอนบนสลิปไม่ถูกต้อง หรือไม่พบยอดโอนที่ตรงกับบิลนี้ (฿" + invoiceAmount.toLocaleString(undefined, {minimumFractionDigits:2}) + ") กรุณาตรวจสอบและอัปโหลดสลิปที่ถูกต้อง" };
   }
   
   // 4.3 ตรวจสอบผู้รับโอนเงินปลายทาง (นางสมผิว น้ำวน หรือ ธ.กรุงศรี 240-1-34666-3)
-  if (ocrText && !hasReceiverName && !hasReceiverAccount) {
-    return { error: true, message: "ไม่พบข้อมูลชื่อบัญชี 'นางสมผิว น้ำวน' หรือเลขบัญชีปลายทาง '240-1-34666-3' บนสลิปนี้ กรุณาโอนเงินเข้าบัญชีที่ถูกต้องของหอพัก" };
+  if (!hasReceiverName && !hasReceiverAccount) {
+    return { error: true, message: "ปฏิเสธการชำระเงิน: ไม่พบข้อมูลชื่อบัญชีปลายทาง 'นางสมผิว น้ำวน' หรือเลขบัญชีหอพัก '240-1-34666-3' บนรูปภาพสลิปนี้" };
   }
   
   // 5. บันทึกเข้าระบบประวัติสำเร็จ
