@@ -1288,15 +1288,16 @@ function sortRoomsCustom(a, b) {
  * - หากยังไม่เลยกำหนดชำระ: ปรับ 0 บาท
  */
 function getLateFeeAmount(dueDateStr, status, currentFine) {
+  var currentFineNum = Number(currentFine || 0);
   if (status === 'paid') {
-    return Number(currentFine || 0);
+    return currentFineNum;
   }
   
-  if (!dueDateStr) return 0;
+  if (!dueDateStr) return currentFineNum;
   
   try {
     var dueParts = dueDateStr.split('-');
-    if (dueParts.length < 3) return 0;
+    if (dueParts.length < 3) return currentFineNum;
     var dueYear = parseInt(dueParts[0], 10);
     var dueMonth = parseInt(dueParts[1], 10);
     var dueDay = parseInt(dueParts[2], 10);
@@ -1308,27 +1309,35 @@ function getLateFeeAmount(dueDateStr, status, currentFine) {
     today.setHours(0, 0, 0, 0);
     
     if (today <= dueDate) {
-      return 0; // ยังไม่เลยวันครบกำหนดจ่าย
+      return currentFineNum; // ยังไม่เลยวันครบกำหนดจ่าย ให้ใช้ค่าปรับที่ระบุไว้ในจดเลข (ถ้ามี)
     }
     
     var todayYear = today.getFullYear();
     var todayMonth = today.getMonth() + 1;
     
+    var lateFee = 0;
     // หากข้ามเดือนมาแล้ว ถือว่าเลยวันที่ 16 ของรอบบิลนั้นๆ แน่นอน ให้คิดค่าปรับสูงสุด 300 บาท
     if (todayYear > dueYear || (todayYear === dueYear && todayMonth > dueMonth)) {
-      return 300;
+      lateFee = 300;
+    } else {
+      var todayDay = today.getDate();
+      if (todayDay >= 5 && todayDay <= 15) {
+        lateFee = 200;
+      } else if (todayDay >= 16) {
+        lateFee = 300;
+      } else {
+        lateFee = 200; // กรณีพิเศษ: เลยกำหนดแต่วันปัจจุบันเป็นวันที่ 1-4
+      }
     }
     
-    var todayDay = today.getDate();
-    if (todayDay >= 5 && todayDay <= 15) {
-      return 200;
-    } else if (todayDay >= 16) {
-      return 300;
+    // อัปเดตเฉพาะเมื่อค่าปรับสะสมปัจจุบันน้อยกว่าเกณฑ์ค่าปรับจ่ายล่าช้า
+    // ป้องกันการสะสมเพิ่มขึ้นเรื่อยๆ ทุกครั้งที่ซิงค์ และยังเคารพค่าปรับอื่นๆ ที่แอดมินใส่ไว้สูงกว่าด้วย
+    if (currentFineNum < lateFee) {
+      return lateFee;
     }
     
-    // กรณีพิเศษ: เลยกำหนดแต่วันที่ในปัจจุบันอยู่ช่วงวันที่ 1-4 (เช่น กำหนดจ่ายวันที่ 1 แล้ววันนี้วันที่ 3)
-    return 200;
+    return currentFineNum;
   } catch(e) {
-    return 0;
+    return currentFineNum;
   }
 }
