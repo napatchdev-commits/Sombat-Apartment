@@ -3,6 +3,21 @@
 // Deploy this script inside Google Sheets Apps Script editor (Extensions -> Apps Script)
 // ==========================================================================
 
+function AAA_AUTHORIZE_DRIVE_API() {
+  Logger.log("เริ่มกระตุ้นการยืนยันสิทธิ์...");
+  try {
+    var folders = DriveApp.getFolders();
+    if (folders.hasNext()) {
+      Logger.log("สิทธิ์การใช้งาน DriveApp ปกติ: เรียบร้อย");
+    }
+    if (typeof Drive !== 'undefined' && Drive.Files) {
+      Logger.log("สิทธิ์การใช้งาน Drive API ขั้นสูง: เรียบร้อย");
+    }
+  } catch (e) {
+    Logger.log("พบข้อผิดพลาด: " + e.toString());
+  }
+}
+
 /**
  * ฟังก์ชันสำหรับล้างข้อมูลในระบบและ Google Sheets ทั้งหมดให้ว่างเปล่าเริ่มใหม่
  * ให้คุณเลือกฟังก์ชัน "clearAllDatabaseState" ในแถบเครื่องมือด้านบนของ Apps Script Editor แล้วกดปุ่ม "เรียกใช้" (Run)
