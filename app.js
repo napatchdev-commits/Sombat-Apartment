@@ -359,7 +359,7 @@ class DBService {
         const parsed = JSON.parse(rawState);
         if (parsed.settings && parsed.settings.googleSheetUrl) {
           const url = parsed.settings.googleSheetUrl;
-          if (url.includes('AKfycbww') || url.includes('AKfycbz_')) {
+          if (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj')) {
             delete parsed.settings.googleSheetUrl;
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(parsed));
           } else {
@@ -370,7 +370,7 @@ class DBService {
     }
     if (fromState) return fromState;
     let fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (fromStorage && (fromStorage.includes('AKfycbww') || fromStorage.includes('AKfycbz_'))) {
+    if (fromStorage && (fromStorage.includes('AKfycbww') || fromStorage.includes('AKfycbz_') || fromStorage.includes('AKfycbxj'))) {
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       fromStorage = null;
     }

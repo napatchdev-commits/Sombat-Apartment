@@ -170,7 +170,7 @@ class TenantDBService {
 
   static async saveState(state) {
     let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       url = null;
     }
@@ -218,7 +218,7 @@ class TenantDBService {
 
   static async pullLatestFromCloud() {
     let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       url = null;
     }
@@ -848,12 +848,12 @@ class MyBillsApp {
 
           // LINE Notify - No amount listed
           let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-          if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+          if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
             localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
             url = null;
           }
           if (!url) {
-            url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+            url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
           }
           if (url && invoices[invIdx]) {
             const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoices[invIdx].roomName} (${invoices[invIdx].tenantName || 'ผู้เช่า'}) ได้ชำระเงินด้วยเงินสดเรียบร้อยแล้ว!`;
@@ -889,12 +889,12 @@ class MyBillsApp {
 
   static sendLineNotify(invoice) {
     let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_'))) {
+    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       url = null;
     }
     if (!url) {
-      url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
+      url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
     }
     if (!url) {
       console.log("LINE Notify skipped: Google Sheets Web App URL not found.");
