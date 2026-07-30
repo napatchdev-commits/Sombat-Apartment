@@ -362,6 +362,22 @@ function readAndMergeSheetTabs(ss, data) {
             }
           }
         }
+  }
+
+  // Read meter readings from "จดเลขอ่านน้ำไฟ"
+  var readingsSheet = ss.getSheetByName("จดเลขอ่านน้ำไฟ");
+  if (readingsSheet && readingsSheet.getLastRow() > 1) {
+    var readingsValues = readingsSheet.getRange(2, 1, readingsSheet.getLastRow() - 1, 4).getValues();
+    data.tempMeterReadings = [];
+    readingsValues.forEach(function(row) {
+      var rName = String(row[0]).trim();
+      if (rName) {
+        data.tempMeterReadings.push({
+          roomName: rName,
+          elecCurr: row[1] !== "" ? Number(row[1]) : null,
+          waterCurr: row[2] !== "" ? Number(row[2]) : null,
+          monthKey: String(row[3]).trim()
+        });
       }
     });
   }
@@ -381,7 +397,7 @@ function formatDateString(val) {
 // 2. WRITE STRUCTURED SHEETS
 // ==========================================================================
 function writeAllStructuredSheets(ss, data) {
-  // รายชื่อแผ่นงานมาตรฐานที่เราต้องการเก็บไว้ใช้งานจริง (ภาษาไทยล้วน 12 แท็บ + DB_STATE 1 แท็บ)
+  // รายชื่อแผ่นงานมาตรฐานที่เราต้องการเก็บไว้ใช้งานจริง (ภาษาไทยล้วน 12 แท็บ + DB_STATE 1 แท็บ + จดเลขอ่านน้ำไฟ 1 แท็บ)
   var canonicalSheets = {
     "DB_STATE": true,
     "สรุปภาพรวม": true,
@@ -395,7 +411,8 @@ function writeAllStructuredSheets(ss, data) {
     "ปฏิทินกิจกรรม": true,
     "ผู้ใช้งานระบบ": true,
     "อัตราค่าบริการ": true,
-    "ตั้งค่าระบบ": true
+    "ตั้งค่าระบบ": true,
+    "จดเลขอ่านน้ำไฟ": true
   };
 
   // วนลูปตรวจสอบแผ่นงานทั้งหมดใน Google Sheets 
@@ -425,6 +442,7 @@ function writeAllStructuredSheets(ss, data) {
   writeUsersSheet(ss, data.users || []);
   writeRatesSheet(ss, data.rates || {});
   writeSettingsSheet(ss, data.settings || {});
+  writeMeterReadingsSheet(ss, data.rooms || []);
 }
 
 function writeSettingsSheet(ss, settings) {
@@ -1069,4 +1087,49 @@ function extractAmountFromText(text, targetAmount) {
     return maxNum;
   }
   return 0;
+}
+
+/**
+ * ฟังก์ชันสร้างและอัปเดตแท็บแผ่นงาน "จดเลขอ่านน้ำไฟ" เพื่อรองรับการจดมิเตอร์มือถือ
+ */
+function writeMeterReadingsSheet(ss, rooms) {
+  var sheet = ss.getSheetByName("จดเลขอ่านน้ำไฟ");
+  if (!sheet) sheet = ss.insertSheet("จดเลขอ่านน้ำไฟ");
+  
+  var headers = ["เลขห้อง", "มิเตอร์ไฟครั้งนี้ (ใหม่)", "มิเตอร์น้ำครั้งนี้ (ใหม่)", "รอบเดือน (เช่น 2026-07)"];
+  
+  // ดึงค่าปัจจุบันที่แอดมินกรอกค้างไว้ในชีตก่อนเพื่อนำมาซิงค์ป้องกันข้อมูลเดิมหาย
+  var currentValues = [];
+  if (sheet.getLastRow() > 1) {
+    currentValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+  }
+  
+  var existingMap = {};
+  currentValues.forEach(function(row) {
+    var rName = String(row[0]).trim();
+    if (rName) {
+      existingMap[rName] = { elec: row[1], water: row[2], month: row[3] };
+    }
+  });
+  
+  // เรียงลำดับเลขห้องใหม่ให้สวยงาม
+  var sortedRooms = (rooms || []).slice().sort(function(a, b) {
+    return String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: 'base' });
+  });
+  
+  var rows = sortedRooms.map(function(r) {
+    var existing = existingMap[r.name] || {};
+    return [
+      r.name,
+      existing.elec !== undefined ? existing.elec : "",
+      existing.water !== undefined ? existing.water : "",
+      existing.month !== undefined ? existing.month : ""
+    ];
+  });
+  
+  sheet.clear();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#e2e8f0");
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
 }

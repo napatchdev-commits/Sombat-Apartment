@@ -1088,7 +1088,8 @@ class RoomsComponent {
             <h2><i class="fa-solid fa-building-user text-primary"></i> ข้อมูลห้องพัก (Room Card Layout)</h2>
             <p>จัดการห้องพัก ปรับสถานะ 4 สี ย้ายผู้เช่า และกำหนดราคาเช่าแยกรายห้อง</p>
           </div>
-          <div class="header-actions">
+          <div class="header-actions" style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+            <button id="btn-bulk-invoices" class="btn btn-secondary" style="background:#f97316; color:#fff; border:none; box-shadow: 0 4px 10px rgba(249,115,22,0.2);"><i class="fa-solid fa-bolt"></i> ออกบิลทุกห้อง (Bulk)</button>
             <button id="btn-add-room" class="btn btn-primary"><i class="fa-solid fa-plus"></i> เพิ่มห้องพักใหม่</button>
           </div>
         </div>
@@ -2013,6 +2014,11 @@ class App {
       addRoomBtn.addEventListener('click', () => this.openRoomModal());
     }
 
+    const bulkInvoicesBtn = document.getElementById('btn-bulk-invoices');
+    if (bulkInvoicesBtn) {
+      bulkInvoicesBtn.addEventListener('click', () => this.openBulkInvoicesModal());
+    }
+
     const addRoomBtnEmpty = document.getElementById('btn-add-room-empty');
     if (addRoomBtnEmpty) {
       addRoomBtnEmpty.addEventListener('click', () => this.openRoomModal());
@@ -2159,6 +2165,224 @@ class App {
       DBService.saveState(this.state);
       modal.classList.remove('active');
       this.switchTab('roomtypes');
+    });
+  }
+
+  static openBulkInvoicesModal() {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    // Generate month options
+    const today = new Date();
+    const monthsOptions = [];
+    for (let i = -2; i <= 1; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      const val = d.toISOString().slice(0, 7); // yyyy-MM
+      const label = Formatters.thaiMonthBE(val);
+      const selected = i === 0 ? 'selected' : '';
+      monthsOptions.push(`<option value="${val}" ${selected}>${label}</option>`);
+    }
+
+    const defaultIssue = today.toISOString().slice(0, 10);
+    const defaultDue = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 5).toISOString().slice(0, 10);
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-bolt text-warning"></i> ออกใบแจ้งหนี้แบบกลุ่ม (Bulk Billing)</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
+        <div style="background:#eff6ff; border: 1px solid #bfdbfe; color:#1e3a8a; padding:1rem; border-radius:8px; margin-bottom:1.25rem; font-size:0.9rem; line-height:1.4;">
+          <i class="fa-solid fa-circle-info"></i> ระบบจะไปดึงเลขอ่านมิเตอร์น้ำและไฟล่าสุดประจำเดือนที่คุณกรอกลงใน Google Sheets แท็บ <strong>"จดเลขอ่านน้ำไฟ"</strong> มาคำนวณและออกใบแจ้งหนี้ให้กับทุกห้องที่มีสถานะ "มีผู้เช่า" โดยอัตโนมัติ
+        </div>
+        <form id="bulk-billing-form">
+          <div class="form-group">
+            <label>เลือกรอบเดือนสำหรับออกบิล *</label>
+            <select id="bulk-month" class="form-control" required>
+              ${monthsOptions.join('')}
+            </select>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>วันที่ออกบิล *</label>
+              <input type="date" id="bulk-issue-date" class="form-control" value="${defaultIssue}" required>
+            </div>
+            <div class="form-group">
+              <label>วันครบกำหนดชำระ *</label>
+              <input type="date" id="bulk-due-date" class="form-control" value="${defaultDue}" required>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
+            <button type="button" class="btn btn-secondary btn-close-modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" style="background:#f97316; border:none; color:white;"><i class="fa-solid fa-bolt"></i> ดึงค่ามิเตอร์และออกบิลทันที</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+
+    // Bind close
+    const closeModal = () => modal.classList.remove('active');
+    dialog.querySelector('.close-modal-btn').addEventListener('click', closeModal);
+    dialog.querySelector('.btn-close-modal').addEventListener('click', closeModal);
+
+    // Bind submit
+    const form = document.getElementById('bulk-billing-form');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const monthKey = document.getElementById('bulk-month').value;
+      const issueDate = document.getElementById('bulk-issue-date').value;
+      const dueDate = document.getElementById('bulk-due-date').value;
+
+      // Add a loading status spinner inside the modal
+      const body = dialog.querySelector('.modal-body');
+      const originalContent = body.innerHTML;
+      body.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem 1rem;">
+          <div style="width:45px; height:45px; border:4px solid #cbd5e1; border-top-color:#f97316; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+          <div style="font-weight:bold; font-size:1.1rem; color:#334155;">กำลังดึงเลขอ่านน้ำไฟล่าสุดจาก Google Sheets...</div>
+          <div style="font-size:0.85rem; color:#64748b; margin-top:0.25rem;">ระบบกำลังดึงข้อมูลแท็บ "จดเลขอ่านน้ำไฟ" เพื่อประมวลผล</div>
+          <style>
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        </div>
+      `;
+
+      try {
+        // Sync and pull the latest state with merge option from Google Sheets
+        const savedUrl = DBService.getSavedSheetUrl();
+        const syncUrl = savedUrl + (savedUrl.includes('?') ? '&merge=true' : '?merge=true');
+        const freshState = await DBService.pullFromGoogleSheets(syncUrl);
+        
+        if (freshState) {
+          this.state = freshState;
+        }
+
+        const readings = this.state.tempMeterReadings || [];
+        if (readings.length === 0) {
+          throw new Error('ไม่พบข้อมูลมิเตอร์น้ำไฟในแท็บ "จดเลขอ่านน้ำไฟ" ของ Google Sheets กรุณากรอกและบันทึกในชีตก่อน');
+        }
+
+        const rooms = this.state.rooms || [];
+        const occupiedRooms = rooms.filter(r => r.status === 'occupied' || r.status === 'overdue');
+        
+        if (occupiedRooms.length === 0) {
+          throw new Error('ไม่มีห้องพักที่มีสถานะ "มีผู้เช่า" หรือ "ค้างชำระ" ในระบบที่จะออกบิลได้');
+        }
+
+        let successCount = 0;
+        let skipCount = 0;
+        let errorMessages = [];
+
+        occupiedRooms.forEach(room => {
+          // Find meter reading for this room
+          const reading = readings.find(r => r.roomName === room.name);
+          if (!reading) {
+            skipCount++;
+            return;
+          }
+
+          // Check if both electricity and water new meters are provided
+          if (reading.elecCurr === null || reading.waterCurr === null || reading.elecCurr === "" || reading.waterCurr === "") {
+            skipCount++;
+            return;
+          }
+
+          const elecPrev = room.lastElecMeter || 0;
+          const elecCurr = Number(reading.elecCurr);
+          const waterPrev = room.lastWaterMeter || 0;
+          const waterCurr = Number(reading.waterCurr);
+
+          if (isNaN(elecCurr) || isNaN(waterCurr)) {
+            skipCount++;
+            return;
+          }
+
+          if (elecCurr < elecPrev || waterCurr < waterPrev) {
+            errorMessages.push(`ห้อง ${room.name}: ตัวเลขมิเตอร์ใหม่น้อยกว่ามิเตอร์เดิม (ไฟ: ${elecCurr} < ${elecPrev}, น้ำ: ${waterCurr} < ${waterPrev})`);
+            return;
+          }
+
+          const elecUnits = elecCurr - elecPrev;
+          const waterUnits = waterCurr - waterPrev;
+          const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
+          const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
+          const rentAmt = room.baseRent || 3500;
+          const trashFee = this.state.rates.trashFee || 20;
+          const total = rentAmt + elecAmt + waterAmt + trashFee;
+
+          // Update room's meter records
+          room.lastElecMeter = elecCurr;
+          room.lastWaterMeter = waterCurr;
+
+          // Check if invoice already exists for this room in this month to avoid duplicates
+          const invoiceNum = `INV${monthKey.replace('-', '')}-${room.name}`;
+          const existingIdx = this.state.invoices.findIndex(i => i.invoiceNumber === invoiceNum);
+
+          const invoiceObj = {
+            id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            invoiceNumber: invoiceNum,
+            monthKey: monthKey,
+            roomId: room.id,
+            roomName: room.name,
+            tenantId: room.currentTenantId || 't1',
+            tenantName: room.currentTenantName || 'ผู้เช่า',
+            issueDate: issueDate,
+            dueDate: dueDate,
+            waterPrev: waterPrev,
+            waterCurr: waterCurr,
+            waterAmount: waterAmt,
+            elecPrev: elecPrev,
+            elecCurr: elecCurr,
+            elecAmount: elecAmt,
+            rentAmount: rentAmt,
+            trashFee: trashFee,
+            totalAmount: total,
+            paidAmount: 0,
+            outstandingAmount: total,
+            status: 'unpaid',
+            slipUrl: ''
+          };
+
+          if (existingIdx !== -1) {
+            // Overwrite existing invoice
+            this.state.invoices[existingIdx] = invoiceObj;
+          } else {
+            // Insert new invoice at the beginning
+            this.state.invoices.unshift(invoiceObj);
+          }
+
+          successCount++;
+        });
+
+        if (successCount === 0) {
+          let errMsg = 'ไม่มีการออกบิลเพิ่มเติม';
+          if (errorMessages.length > 0) {
+            errMsg += '\n\nข้อผิดพลาดตัวเลขมิเตอร์:\n' + errorMessages.join('\n');
+          }
+          throw new Error(errMsg);
+        }
+
+        // Save State
+        await DBService.saveState(this.state);
+
+        modal.classList.remove('active');
+        this.switchTab('billing');
+
+        let msg = `🟢 ออกบิลแบบกลุ่มสำเร็จ!\n\nสร้างใบแจ้งหนี้เสร็จเรียบร้อยทั้งหมด ${successCount} ห้อง`;
+        if (skipCount > 0) msg += `\n(ข้าม ${skipCount} ห้องที่ไม่มีข้อมูลเลขอ่านใน Google Sheets)`;
+        if (errorMessages.length > 0) msg += `\n\n⚠️ ห้องที่เกิดข้อผิดพลาดและถูกข้าม:\n` + errorMessages.join('\n');
+
+        alert(msg);
+
+      } catch (err) {
+        body.innerHTML = originalContent; // Restore form
+        alert('❌ เกิดข้อผิดพลาดในการออกบิลแบบกลุ่ม: ' + err.message);
+        // Bind events again since we overwrote innerHTML
+        this.openBulkInvoicesModal();
+      }
     });
   }
 
