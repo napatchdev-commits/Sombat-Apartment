@@ -1195,6 +1195,10 @@ class BillingComponent {
     const invoices = DBService.getUniqueInvoices(rawInvoices);
     state.invoices = invoices;
 
+    // Get list of unique months in descending order
+    const months = Array.from(new Set(invoices.map(i => i.monthKey))).filter(Boolean).sort((a, b) => b.localeCompare(a));
+    const latestMonth = months.length > 0 ? months[0] : '';
+
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
@@ -1213,6 +1217,19 @@ class BillingComponent {
           </div>
         </div>
 
+        <!-- Month Filter Dropdown -->
+        <div style="display:flex; justify-content:flex-end; align-items:center; gap:0.65rem; margin-bottom:1.25rem; background:rgba(255,255,255,0.6); padding:0.75rem 1.25rem; border-radius:12px; border:1px solid #e2e8f0; backdrop-filter:blur(8px);">
+          <span style="font-weight:700; color:#334155; font-size:0.92rem; display:flex; align-items:center; gap:0.35rem;">
+            <i class="fa-solid fa-filter text-primary"></i> ค้นหาบิลตามรอบเดือน:
+          </span>
+          <select id="filter-billing-month" class="form-control" style="width:220px; padding:0.5rem 0.85rem; border-radius:8px; font-size:0.95rem; font-weight:600; cursor:pointer; border-color:#cbd5e1; height:38px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            ${months.map(m => `
+              <option value="${m}" ${latestMonth === m ? 'selected' : ''}>บิลรอบเดือน ${Formatters.thaiMonthBE(m)} (${m})</option>
+            `).join('')}
+            <option value="ALL">-- แสดงบิลทุกเดือน --</option>
+          </select>
+        </div>
+
         <div class="glass-card style-table-card">
           <div class="table-responsive">
             <table class="custom-table">
@@ -1227,10 +1244,12 @@ class BillingComponent {
                 </tr>
               </thead>
               <tbody>
-                ${invoices.map(inv => `
-                  <tr>
-                    <td><strong>${inv.invoiceNumber}</strong><div class="text-muted text-sm">${Formatters.thaiMonthBE(inv.monthKey)}</div></td>
-                    <td><span class="badge-pill badge-primary">ห้อง ${inv.roomName}</span></td>
+                ${invoices.map(inv => {
+                  const displayStyle = (inv.monthKey === latestMonth || !latestMonth) ? '' : 'none';
+                  return `
+                    <tr class="billing-table-row" data-month="${inv.monthKey}" style="display: ${displayStyle}">
+                      <td><strong>${inv.invoiceNumber}</strong><div class="text-muted text-sm">${Formatters.thaiMonthBE(inv.monthKey)}</div></td>
+                      <td><span class="badge-pill badge-primary">ห้อง ${inv.roomName}</span></td>
                     <td><strong>${inv.tenantName}</strong></td>
                     <td><strong class="text-primary">${Formatters.currency(inv.totalAmount)}</strong></td>
                     <td>
@@ -1257,7 +1276,8 @@ class BillingComponent {
                       </div>
                     </td>
                   </tr>
-                `).join('')}
+                `;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -2530,6 +2550,22 @@ class App {
     const archiveBillsBtn = document.getElementById('btn-archive-bills');
     if (archiveBillsBtn) {
       archiveBillsBtn.addEventListener('click', () => this.openArchiveBillsModal());
+    }
+
+    const monthFilter = document.getElementById('filter-billing-month');
+    if (monthFilter) {
+      monthFilter.addEventListener('change', (e) => {
+        const selected = e.target.value;
+        const rows = document.querySelectorAll('.billing-table-row');
+        rows.forEach(row => {
+          const month = row.getAttribute('data-month');
+          if (selected === 'ALL' || month === selected) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
     }
 
     document.querySelectorAll('.btn-toggle-pay-status').forEach(btn => {
