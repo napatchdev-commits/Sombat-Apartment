@@ -309,8 +309,8 @@ function readAndMergeSheetTabs(ss, data) {
       if (id || name) {
         var room = data.rooms.find(function(r) { return r.id === id || r.name === name; });
         if (room) {
-          if (row[2]) room.floor = Number(row[2]);
-          if (row[3]) room.baseRent = Number(row[3]);
+          if (row[2] !== "") room.floor = Number(row[2]);
+          if (row[3] !== "") room.baseRent = Number(row[3]);
           if (row[4] && row[4] !== "-") room.currentTenantName = String(row[4]);
           if (row[5] !== "") room.lastElecMeter = Number(row[5]);
           if (row[6] !== "") room.lastWaterMeter = Number(row[6]);
@@ -320,9 +320,9 @@ function readAndMergeSheetTabs(ss, data) {
           var newRoom = {
             id: id || name || ("rm_" + Date.now()),
             name: name || id,
-            floor: Number(row[2]) || 1,
+            floor: (row[2] !== "") ? Number(row[2]) : 1,
             typeId: defaultTypeId,
-            baseRent: Number(row[3]) || 3500,
+            baseRent: (row[3] !== "") ? Number(row[3]) : 3500,
             status: String(row[7]).trim() || "vacant",
             currentTenantName: (row[4] && row[4] !== "-") ? String(row[4]) : "",
             lastElecMeter: Number(row[5]) || 0,
