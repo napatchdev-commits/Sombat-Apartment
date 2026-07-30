@@ -3141,7 +3141,7 @@ class App {
             </div>
             <div class="form-group">
               <label>ค่าขยะ *</label>
-              <input type="number" id="edit-inv-trash" class="form-control" value="${inv.trashFee || 20}" required>
+              <input type="number" id="edit-inv-trash" class="form-control" value="${inv.trashFee !== undefined ? inv.trashFee : 20}" required>
             </div>
             <div class="form-group">
               <label>ค่าปรับ (บาท) *</label>
@@ -3194,7 +3194,8 @@ class App {
       const waterPrev = parseFloat(document.getElementById('edit-water-prev').value) || 0;
       const waterCurr = parseFloat(document.getElementById('edit-water-curr').value) || 0;
       const rentAmount = parseFloat(document.getElementById('edit-inv-rent').value) || 0;
-      const trashFee = parseFloat(document.getElementById('edit-inv-trash').value) || 20;
+      const trashVal = document.getElementById('edit-inv-trash').value;
+      const trashFee = trashVal !== "" ? parseFloat(trashVal) : 20;
       const fineAmount = parseFloat(document.getElementById('edit-inv-fine').value) || 0;
 
       const elecUnits = Math.max(0, elecCurr - elecPrev);
@@ -3367,7 +3368,7 @@ class App {
                   <td style="text-align:right;">฿${waterRate.toFixed(2)}</td>
                   <td style="text-align:right;"><strong>฿${(inv.waterAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
                 </tr>
-                ${(inv.trashFee || 20) > 0 ? `
+                ${(inv.trashFee !== undefined ? inv.trashFee : 20) > 0 ? `
                   <tr>
                     <td style="text-align:center;">4</td>
                     <td><strong>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</strong></td>
@@ -3375,7 +3376,7 @@ class App {
                     <td style="text-align:center;">-</td>
                     <td style="text-align:center;">-</td>
                     <td style="text-align:right;">-</td>
-                    <td style="text-align:right;"><strong>฿${(inv.trashFee || 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                    <td style="text-align:right;"><strong>฿${(inv.trashFee !== undefined ? inv.trashFee : 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
                   </tr>
                 ` : ''}
                 ${(inv.fineAmount || 0) > 0 ? `
@@ -3502,7 +3503,7 @@ class App {
                 <td style="text-align:right;">฿${waterRate.toFixed(2)}</td>
                 <td style="text-align:right;">฿${(inv.waterAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
               </tr>
-              ${(inv.trashFee || 20) > 0 ? `
+              ${(inv.trashFee !== undefined ? inv.trashFee : 20) > 0 ? `
                 <tr>
                   <td style="text-align:center;">4</td>
                   <td>ค่าบริการสาธารณูปโภค / ขยะ</td>
@@ -3510,7 +3511,7 @@ class App {
                   <td style="text-align:center;">-</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:right;">-</td>
-                  <td style="text-align:right;">฿${(inv.trashFee || 20).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                  <td style="text-align:right;">฿${(inv.trashFee !== undefined ? inv.trashFee : 20).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                 </tr>
               ` : ''}
               <tr style="font-weight:bold; background:#f5f5f5;">

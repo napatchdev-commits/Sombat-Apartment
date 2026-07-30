@@ -636,7 +636,7 @@ class MyBillsApp {
                 <tr><td style="text-align:center;">1</td><td>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(latestInvoice.monthKey)})</td><td style="text-align:right;">${Formatters.currency(latestInvoice.rentAmount || 2500)}</td></tr>
                 <tr><td style="text-align:center;">2</td><td>ค่าไฟฟ้า (${latestInvoice.elecPrev} ➔ ${latestInvoice.elecCurr})</td><td style="text-align:right;">${Formatters.currency(latestInvoice.elecAmount || 0)}</td></tr>
                 <tr><td style="text-align:center;">3</td><td>ค่าน้ำประปา (${latestInvoice.waterPrev} ➔ ${latestInvoice.waterCurr})</td><td style="text-align:right;">${Formatters.currency(latestInvoice.waterAmount || 0)}</td></tr>
-                <tr><td style="text-align:center;">4</td><td>ค่าขยะ / สาธารณูปโภค</td><td style="text-align:right;">${Formatters.currency(latestInvoice.trashFee || 20)}</td></tr>
+                <tr><td style="text-align:center;">4</td><td>ค่าขยะ / สาธารณูปโภค</td><td style="text-align:right;">${Formatters.currency(latestInvoice.trashFee !== undefined ? latestInvoice.trashFee : 20)}</td></tr>
                 <tr style="background:#f8fafc; font-weight:bold;"><td colspan="2" style="text-align:right;">ยอดรวมชำระทั้งสิ้น:</td><td style="text-align:right; color:#10b981; font-size:1.1rem;">${Formatters.currency(latestInvoice.paidAmount || latestInvoice.totalAmount)}</td></tr>
               </tbody>
             </table>
@@ -671,7 +671,7 @@ class MyBillsApp {
             </div>
 
             <div class="bill-row"><span>ค่าเช่าห้องพัก:</span><strong>${Formatters.currency(latestInvoice.rentAmount)}</strong></div>
-            <div class="bill-row"><span>ค่าขยะ / สาธารณูปโภค:</span><strong>${Formatters.currency(latestInvoice.trashFee || 20)}</strong></div>
+            <div class="bill-row"><span>ค่าขยะ / สาธารณูปโภค:</span><strong>${Formatters.currency(latestInvoice.trashFee !== undefined ? latestInvoice.trashFee : 20)}</strong></div>
 
             <div class="total-row">
               <span style="font-weight:700; color:#1e40af; font-size:1.05rem;">ยอดบิลรวมสุทธิ:</span>
@@ -1099,7 +1099,7 @@ class MyBillsApp {
                   <td style="text-align:center;">-</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:center;">-</td>
-                  <td style="text-align:right;"><strong>${Formatters.currency(inv.trashFee || 20)}</strong></td>
+                  <td style="text-align:right;"><strong>${Formatters.currency(inv.trashFee !== undefined ? inv.trashFee : 20)}</strong></td>
                 </tr>
               </tbody>
               <tfoot>
@@ -1187,7 +1187,7 @@ class MyBillsApp {
               <tr><td style="text-align:center;">1</td><td>ค่าเช่าห้องพักประจำเดือน (${Formatters.thaiMonthBE(inv.monthKey)})</td><td style="text-align:right;">${Formatters.currency(inv.rentAmount || 3500)}</td></tr>
               <tr><td style="text-align:center;">2</td><td>ค่าไฟฟ้า (Electricity)</td><td style="text-align:right;">${Formatters.currency(inv.elecAmount || 0)}</td></tr>
               <tr><td style="text-align:center;">3</td><td>ค่าน้ำประปา (Water)</td><td style="text-align:right;">${Formatters.currency(inv.waterAmount || 0)}</td></tr>
-              <tr><td style="text-align:center;">4</td><td>ค่าขยะ / สาธารณูปโภค</td><td style="text-align:right;">${Formatters.currency(inv.trashFee || 20)}</td></tr>
+              <tr><td style="text-align:center;">4</td><td>ค่าขยะ / สาธารณูปโภค</td><td style="text-align:right;">${Formatters.currency(inv.trashFee !== undefined ? inv.trashFee : 20)}</td></tr>
               <tr style="background:#f8fafc; font-weight:bold;"><td colspan="2" style="text-align:right;">ยอดรวมชำระทั้งสิ้น:</td><td style="text-align:right; color:#10b981; font-size:1.05rem;">${Formatters.currency(inv.paidAmount || inv.totalAmount)}</td></tr>
             </tbody>
           </table>

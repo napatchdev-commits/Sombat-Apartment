@@ -38,7 +38,7 @@ function clearAllDatabaseState() {
   if (!stateSheet) {
     stateSheet = ss.insertSheet("DB_STATE");
   }
-  stateSheet.getRange(1, 1).setValue(JSON.stringify(emptyData));
+  saveStateSafely(stateSheet, emptyData);
   
   // 3. เขียนและสร้างโครงสร้างแผ่นงานภาษาไทยเปล่า (และลบแท็บอื่นๆ ที่ซ้ำซ้อนทิ้งทั้งหมด)
   writeAllStructuredSheets(ss, emptyData);
@@ -75,7 +75,7 @@ function doGet(e) {
     if (mergeParam === "true" || mergeParam === true) {
       data = readAndMergeSheetTabs(ss, data);
       // เซฟข้อมูลที่ผสานกลับเข้าไปใน DB_STATE เสมอ
-      sheet.getRange(1, 1).setValue(JSON.stringify(data));
+      saveStateSafely(sheet, data);
     }
 
     return ContentService.createTextOutput(JSON.stringify(data))
@@ -166,7 +166,7 @@ function doPost(e) {
             inv.invoiceNumber || "", inv.monthKey || "", inv.roomName || "", inv.tenantName || "", inv.issueDate || "", inv.dueDate || "",
             inv.elecPrev || 0, inv.elecCurr || 0, inv.elecAmount || 0,
             inv.waterPrev || 0, inv.waterCurr || 0, inv.waterAmount || 0,
-            inv.rentAmount || 0, inv.trashFee || 20, inv.totalAmount || 0, statusStr, slipVal
+            inv.rentAmount || 0, inv.trashFee !== undefined ? inv.trashFee : 20, inv.totalAmount || 0, statusStr, slipVal
           ];
         });
         archiveSheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
@@ -214,7 +214,7 @@ function doPost(e) {
         }
       }
 
-      sheet.getRange(1, 1).setValue(JSON.stringify(syncData));
+      saveStateSafely(sheet, syncData);
       writeAllStructuredSheets(ss, syncData);
 
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "All data synced to Google Sheets successfully!" }))
@@ -300,10 +300,11 @@ function readAndMergeSheetTabs(ss, data) {
     rateValues.forEach(function(row) {
       var id = String(row[0]).trim();
       var name = String(row[1]).trim();
-      var val = Number(row[3]);
-      if (id === 'RATE_ELEC') data.rates.electricityRate = val || 8.0;
-      else if (id === 'RATE_WATER') data.rates.waterRate = val || 20.0;
-      else if (id === 'RATE_TRASH') data.rates.trashFee = val || 20.0;
+      var rawVal = row[3];
+      var val = Number(rawVal);
+      if (id === 'RATE_ELEC') data.rates.electricityRate = (rawVal !== "" ? val : 8.0);
+      else if (id === 'RATE_WATER') data.rates.waterRate = (rawVal !== "" ? val : 20.0);
+      else if (id === 'RATE_TRASH') data.rates.trashFee = (rawVal !== "" ? val : 20.0);
       else if (id.indexOf('fee_') === 0 && name) {
         var existing = (data.rates.customFees || []).find(function(f) { return f.id === id; });
         if (existing) {
@@ -768,7 +769,7 @@ function writeInvoicesSheet(ss, invoices) {
       inv.invoiceNumber || "", inv.monthKey || "", inv.roomName || "", inv.tenantName || "", inv.issueDate || "", inv.dueDate || "",
       inv.elecPrev || 0, inv.elecCurr || 0, inv.elecAmount || 0,
       inv.waterPrev || 0, inv.waterCurr || 0, inv.waterAmount || 0,
-      inv.rentAmount || 0, inv.trashFee || 20, inv.fineAmount || 0, inv.totalAmount || 0, statusStr, slipVal
+      inv.rentAmount || 0, inv.trashFee !== undefined ? inv.trashFee : 20, inv.fineAmount || 0, inv.totalAmount || 0, statusStr, slipVal
     ];
   });
 
