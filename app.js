@@ -3707,10 +3707,20 @@ class App {
       return `${nextYear}-${nextMonthFormatted}-05`;
     };
 
+    const getTempReading = (roomObj) => {
+      if (!roomObj || !this.state.tempMeterReadings) return null;
+      return this.state.tempMeterReadings.find(tr => tr.roomName === roomObj.name);
+    };
+
     const initialRoom = preselectedRoom || (this.state.rooms.length > 0 ? this.state.rooms[0] : null);
     const initialMeters = getRoomPrevMeters(initialRoom);
     const currentMonthStr = new Date().toISOString().slice(0, 7);
-    const defaultDueDate = getNextMonth05(currentMonthStr);
+    const initialTemp = getTempReading(initialRoom);
+    const initialElecCurr = (initialTemp && initialTemp.elecCurr !== null && initialTemp.elecCurr !== undefined) ? initialTemp.elecCurr : "";
+    const initialWaterCurr = (initialTemp && initialTemp.waterCurr !== null && initialTemp.waterCurr !== undefined) ? initialTemp.waterCurr : "";
+    const initialMonth = (initialTemp && initialTemp.monthKey) ? initialTemp.monthKey : currentMonthStr;
+    const defaultDueDate = getNextMonth05(initialMonth);
+    const initialFine = (initialTemp && initialTemp.fineAmount !== undefined) ? initialTemp.fineAmount : 0;
 
     dialog.innerHTML = `
       <div class="modal-header">
@@ -3730,7 +3740,7 @@ class App {
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
               <label>รอบเดือน *</label>
-              <input type="month" id="bill-month" class="form-control" value="${currentMonthStr}" required>
+              <input type="month" id="bill-month" class="form-control" value="${initialMonth}" required>
             </div>
             <div class="form-group">
               <label>กำหนดชำระ *</label>
@@ -3752,7 +3762,7 @@ class App {
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> จดเลขมิเตอร์ไฟฟ้า (เรท ฿${this.state.rates.electricityRate}/ยูนิต)</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="bill-elec-prev" class="form-control" value="${initialMeters.elecPrev}"></div>
-              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="" placeholder="กรอกเลขมิเตอร์ไฟล่าสุด..." required></div>
+              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="${initialElecCurr}" placeholder="กรอกเลขมิเตอร์ไฟล่าสุด..." required></div>
             </div>
           </div>
 
@@ -3760,7 +3770,7 @@ class App {
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> จดเลขมิเตอร์น้ำประปา (เรท ฿${this.state.rates.waterRate}/ยูนิต)</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="bill-water-prev" class="form-control" value="${initialMeters.waterPrev}"></div>
-              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="" placeholder="กรอกเลขมิเตอร์น้ำล่าสุด..." required></div>
+              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="${initialWaterCurr}" placeholder="กรอกเลขมิเตอร์น้ำล่าสุด..." required></div>
             </div>
           </div>
 
@@ -3768,7 +3778,7 @@ class App {
             <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> ค่าปรับเพิ่มเติม</h4>
             <div class="form-group">
               <label>ค่าปรับ / อื่นๆ (บาท):</label>
-              <input type="number" id="bill-fine" class="form-control" value="0" placeholder="ระบุค่าปรับ (ถ้ามี)...">
+              <input type="number" id="bill-fine" class="form-control" value="${initialFine}" placeholder="ระบุค่าปรับ (ถ้ามี)...">
             </div>
           </div>
 
@@ -3788,10 +3798,22 @@ class App {
         const selectedRoom = this.state.rooms.find(r => r.id === e.target.value);
         if (selectedRoom) {
           const meters = getRoomPrevMeters(selectedRoom);
+          const tempReading = getTempReading(selectedRoom);
+          
           document.getElementById('bill-elec-prev').value = meters.elecPrev;
-          document.getElementById('bill-elec-curr').value = "";
+          document.getElementById('bill-elec-curr').value = (tempReading && tempReading.elecCurr !== null && tempReading.elecCurr !== undefined) ? tempReading.elecCurr : "";
           document.getElementById('bill-water-prev').value = meters.waterPrev;
-          document.getElementById('bill-water-curr').value = "";
+          document.getElementById('bill-water-curr').value = (tempReading && tempReading.waterCurr !== null && tempReading.waterCurr !== undefined) ? tempReading.waterCurr : "";
+          
+          if (tempReading && tempReading.monthKey) {
+            document.getElementById('bill-month').value = tempReading.monthKey;
+            document.getElementById('bill-due-date').value = getNextMonth05(tempReading.monthKey);
+          } else {
+            document.getElementById('bill-month').value = currentMonthStr;
+            document.getElementById('bill-due-date').value = defaultDueDate;
+          }
+          
+          document.getElementById('bill-fine').value = (tempReading && tempReading.fineAmount !== undefined) ? tempReading.fineAmount : 0;
           
           const rentLabel = document.getElementById('bill-room-rent-label');
           if (rentLabel) {
