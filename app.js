@@ -358,7 +358,13 @@ class DBService {
       try {
         const parsed = JSON.parse(rawState);
         if (parsed.settings && parsed.settings.googleSheetUrl) {
-          fromState = parsed.settings.googleSheetUrl;
+          const url = parsed.settings.googleSheetUrl;
+          if (url.includes('AKfycbww') || url.includes('AKfycbz_')) {
+            delete parsed.settings.googleSheetUrl;
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(parsed));
+          } else {
+            fromState = url;
+          }
         }
       } catch (e) {}
     }
