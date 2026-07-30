@@ -3227,7 +3227,9 @@ class App {
           rentAmount, trashFee, fineAmount, totalAmount,
           status: document.getElementById('edit-inv-status').value,
           paidAmount: document.getElementById('edit-inv-status').value === 'paid' ? totalAmount : 0,
-          outstandingAmount: document.getElementById('edit-inv-status').value === 'paid' ? 0 : totalAmount
+          outstandingAmount: document.getElementById('edit-inv-status').value === 'paid' ? 0 : totalAmount,
+          slipUrl: document.getElementById('edit-inv-status').value === 'paid' ? (this.state.invoices[idx].slipUrl || "") : "",
+          slipHash: document.getElementById('edit-inv-status').value === 'paid' ? (this.state.invoices[idx].slipHash || "") : ""
         };
 
         const submitBtn = e.target.querySelector('button[type="submit"]');
