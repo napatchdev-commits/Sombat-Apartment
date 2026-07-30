@@ -1204,6 +1204,9 @@ class BillingComponent {
           </div>
           <div class="header-actions">
             <button id="btn-create-bill" class="btn btn-primary"><i class="fa-solid fa-calculator"></i> คำนวณออกบิลใหม่</button>
+            <button id="btn-archive-bills" class="btn btn-secondary" style="margin-left:0.5rem;" title="สำรองข้อมูลบิลรายเดือนและลบออกจากตารางหลัก">
+              <i class="fa-solid fa-box-archive text-warning"></i> สำรองและล้างบิลเก่า
+            </button>
             <button id="btn-line-notify-header" class="btn btn-success" style="margin-left:0.5rem; background-color:#06c755; border-color:#06c755; color:#ffffff;" title="ส่งข้อความแจ้งเตือนค่าเช่าเข้า LINE">
               <i class="fa-brands fa-line"></i> แจ้งเตือน LINE ชำระเงิน
             </button>
@@ -2524,6 +2527,11 @@ class App {
       createBillBtn.addEventListener('click', () => this.openCreateBillModal());
     }
 
+    const archiveBillsBtn = document.getElementById('btn-archive-bills');
+    if (archiveBillsBtn) {
+      archiveBillsBtn.addEventListener('click', () => this.openArchiveBillsModal());
+    }
+
     document.querySelectorAll('.btn-toggle-pay-status').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.getAttribute('data-id');
@@ -3230,6 +3238,129 @@ class App {
     });
   }
 
+
+  static openArchiveBillsModal() {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    // Get list of unique months in the invoices
+    const invoices = this.state.invoices || [];
+    const months = Array.from(new Set(invoices.map(i => i.monthKey))).filter(Boolean).sort((a, b) => b.localeCompare(a));
+
+    if (months.length === 0) {
+      alert("❌ ไม่พบข้อมูลบิลในระบบสำหรับการสำรองและล้างข้อมูล");
+      return;
+    }
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-box-archive text-warning"></i> สำรองข้อมูลและล้างบิลรายเดือน</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.95rem; color:#475569; line-height:1.6; margin-bottom:1.25rem;">
+          คุณสามารถทำการสำรองบิลทั้งหมดประจำเดือนนั้นๆ ไปยังแผ่นงาน Google Sheets แท็บใหม่ (เช่น <code>สำรองบิล_2026-07</code>) และล้างข้อมูลบิลเหล่านั้นออกจากระบบหลักเพื่อเพิ่มประสิทธิภาพความเร็วในการทำงานของตัวเครื่อง
+        </p>
+
+        <form id="archive-bills-form">
+          <div class="form-group" style="margin-bottom:1.5rem;">
+            <label style="font-weight:700; color:#334155;">เลือกรอบเดือนที่ต้องการสำรองและลบ *</label>
+            <select id="archive-month-select" class="form-control" required style="padding:0.75rem 1rem; border-radius:8px; font-size:1rem; margin-top:0.35rem;">
+              <option value="">-- เลือกรอบเดือน --</option>
+              ${months.map(m => `
+                <option value="${m}">บิลรอบเดือน ${Formatters.thaiMonthBE(m)} (${m})</option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:1rem; margin-bottom:1.5rem;">
+            <div style="font-weight:700; color:#b45309; margin-bottom:0.25rem;"><i class="fa-solid fa-triangle-exclamation"></i> ข้อควรระวัง</div>
+            <p style="font-size:0.85rem; color:#b45309; line-height:1.5; margin:0;">
+              ข้อมูลบิลของเดือนที่เลือกทั้งหมดจะถูกลบออกจากตัวระบบหลัก (หน้าเว็บนี้และหน้ามือถือของลูกค้าจะมองไม่เห็นบิลเดือนนี้แล้ว) แต่บิลจะถูกเก็บไว้ถาวรในตารางชีตแท็บใหม่ของแอดมิน คุณยังสามารถคลิกเปิดดู ยึด หรือพิมพ์บิลย้อนหลังจากตารางใน Google Sheets ได้ตามปกติครับ
+            </p>
+          </div>
+
+          <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+            <button type="button" class="btn btn-secondary close-modal-btn">ยกเลิก</button>
+            <button type="submit" class="btn btn-warning" style="background-color:#d97706; border-color:#d97706; color:#ffffff;">
+              <i class="fa-solid fa-box-archive"></i> เริ่มการสำรองและลบข้อมูล
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    const form = document.getElementById('archive-bills-form');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const selectedMonth = document.getElementById('archive-month-select').value;
+      if (!selectedMonth) return;
+
+      const targetInvoices = invoices.filter(i => i.monthKey === selectedMonth);
+      if (targetInvoices.length === 0) {
+        alert("ไม่พบรายการบิลในรอบเดือนที่เลือก");
+        return;
+      }
+
+      if (confirm(`⚠️ ยืนยันการสำรองและลบข้อมูลบิลของเดือน ${Formatters.thaiMonthBE(selectedMonth)} จำนวน ${targetInvoices.length} บิลใช่หรือไม่?\n\n(ระบบจะสร้างแผ่นงาน 'สำรองบิล_${selectedMonth}' และลบออกจากหน้ารายการหลัก)`)) {
+        // Show blocking loader during archive
+        const syncLoader = document.createElement('div');
+        syncLoader.id = 'app-sync-loader';
+        syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
+        syncLoader.innerHTML = `
+          <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#d97706; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+          <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังสร้างแฟ้มสำรองข้อมูลและล้างบิลเก่า...</div>
+          <div style="font-size:0.88rem; color:#cbd5e1;">ระบบกำลังเขียนข้อมูลไปยัง Google Sheets และอัปเดตระบบ</div>
+          <style>
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        `;
+        document.body.appendChild(syncLoader);
+
+        const url = DBService.getSavedSheetUrl();
+        try {
+          // Send request to Apps Script Web App to archive in Google Sheets
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'archiveInvoices',
+              monthKey: selectedMonth,
+              invoices: targetInvoices
+            }),
+            redirect: 'follow'
+          });
+          const result = await response.json();
+          
+          if (result && result.status === 'success') {
+            // Delete invoices from active state client-side
+            this.state.invoices = this.state.invoices.filter(i => i.monthKey !== selectedMonth);
+            
+            // Save state, which syncs the clean invoices database state to DB_STATE and active sheet
+            await DBService.saveState(this.state);
+            
+            alert(`📦 สำรองบิลรอบเดือน ${Formatters.thaiMonthBE(selectedMonth)} ลงแผ่นงานสำเร็จ และนำออกจากตารางหลักเรียบร้อยครับ!`);
+            modal.classList.remove('active');
+            this.switchTab('billing');
+          } else {
+            alert('เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ' + (result.message || 'ไม่ทราบสาเหตุ'));
+          }
+        } catch (err) {
+          console.error("Archive request failed:", err);
+          alert("❌ ไม่สามารถเชื่อมต่อกับ Google Sheets ได้ กรุณาลองใหม่อีกครั้ง: " + err.message);
+        } finally {
+          syncLoader.remove();
+        }
+      }
+    });
+
+    const closeBtns = dialog.querySelectorAll('.close-modal-btn');
+    closeBtns.forEach(btn => {
+      btn.addEventListener('click', () => modal.classList.remove('active'));
+    });
+
+    modal.classList.add('active');
+  }
 
   static openCreateBillModal(preselectedRoom = null) {
     const modal = document.getElementById('app-modal');

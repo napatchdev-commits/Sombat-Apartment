@@ -125,6 +125,55 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === "archiveInvoices") {
+      var monthKey = requestData.monthKey;
+      var archiveInvoices = requestData.invoices || [];
+      if (!monthKey) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Missing monthKey parameter" }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      var sheetName = "สำรองบิล_" + monthKey;
+      var archiveSheet = ss.getSheetByName(sheetName);
+      if (archiveSheet) {
+        archiveSheet.clear();
+      } else {
+        archiveSheet = ss.insertSheet(sheetName);
+      }
+      
+      var headers = [
+        "เลขที่บิล", "รอบเดือน", "ห้องพัก", "ชื่อผู้เช่า", "วันที่ออกบิล", "กำหนดชำระ",
+        "ไฟครั้งก่อน", "ไฟครั้งนี้", "ค่าไฟฟ้า",
+        "น้ำครั้งก่อน", "น้ำครั้งนี้", "ค่าน้ำประปา",
+        "ค่าเช่าห้อง", "ค่าขยะ", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ", "หลักฐานการโอนเงิน (สลิป)"
+      ];
+      archiveSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#e2e8f0");
+      
+      if (archiveInvoices.length > 0) {
+        var rows = archiveInvoices.map(function(inv) {
+          var statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : 'ค้างชำระ';
+          var slipVal = "";
+          if (inv.slipUrl) {
+            if (inv.slipUrl === 'cash') {
+              slipVal = "ชำระเงินสด";
+            } else {
+              slipVal = inv.slipUrl;
+            }
+          }
+          return [
+            inv.invoiceNumber || "", inv.monthKey || "", inv.roomName || "", inv.tenantName || "", inv.issueDate || "", inv.dueDate || "",
+            inv.elecPrev || 0, inv.elecCurr || 0, inv.elecAmount || 0,
+            inv.waterPrev || 0, inv.waterCurr || 0, inv.waterAmount || 0,
+            inv.rentAmount || 0, inv.trashFee || 20, inv.totalAmount || 0, statusStr, slipVal
+          ];
+        });
+        archiveSheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "ระบบสำรองบิลรอบเดือน " + monthKey + " ลงแผ่นงานเรียบร้อยแล้ว!" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // 3. ซิงค์และบันทึกข้อมูลหลักจากหน้าเว็บแอดมิน
     var sheet = ss.getSheetByName("DB_STATE");
     if (!sheet) {
