@@ -1157,23 +1157,46 @@ function dataURItoBlob(dataURI) {
 }
 
 function performOcrOnImageBlob(blob) {
-  var resource = {
-    title: blob.getName(),
-    mimeType: blob.getContentType()
-  };
-  var options = {
-    ocr: true,
-    ocrLanguage: "th"
-  };
+  var docFile;
   
-  // แปลงภาพเป็น Google Doc ชั่วคราว (จะรัน OCR อัตโนมัติโดย Drive Service)
-  var docFile = Drive.Files.insert(resource, blob, options);
+  if (typeof Drive.Files.insert === "function") {
+    // บริการ Drive API v2 (รุ่นเก่า)
+    var resourceV2 = {
+      title: blob.getName(),
+      mimeType: blob.getContentType()
+    };
+    var optionsV2 = {
+      ocr: true,
+      ocrLanguage: "th"
+    };
+    docFile = Drive.Files.insert(resourceV2, blob, optionsV2);
+  } else if (typeof Drive.Files.create === "function") {
+    // บริการ Drive API v3 (รุ่นใหม่เริ่มต้นของ Google)
+    var resourceV3 = {
+      name: blob.getName(),
+      mimeType: blob.getContentType()
+    };
+    var optionsV3 = {
+      ocr: true,
+      ocrLanguage: "th"
+    };
+    docFile = Drive.Files.create(resourceV3, blob, optionsV3);
+  } else {
+    throw new Error("บริการ API ในโครงการไม่รองรับคำสั่ง Drive.Files (กรุณาตรวจสอบการเปิด Drive API ในเมนูบริการ)");
+  }
+  
   var doc = DocumentApp.openById(docFile.id);
   var text = doc.getBody().getText();
   
-  // ลบไฟล์ชั่วคราวทิ้งทันทีหลังอ่านข้อความเสร็จ
+  // ลบไฟล์เอกสารชั่วคราวทิ้งทันทีหลังอ่านข้อความเสร็จ
   try {
-    Drive.Files.remove(docFile.id);
+    if (typeof Drive.Files.remove === "function") {
+      Drive.Files.remove(docFile.id);
+    } else if (typeof Drive.Files.delete === "function") {
+      Drive.Files.delete(docFile.id);
+    } else {
+      Drive.Files.remove(docFile.id);
+    }
   } catch (e) {
     Logger.log("Cleanup temp doc failed: " + e.toString());
   }
