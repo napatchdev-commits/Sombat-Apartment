@@ -156,6 +156,8 @@ function doPost(e) {
           if (inv.slipUrl) {
             if (inv.slipUrl === 'cash') {
               slipVal = "ชำระเงินสด";
+            } else if (inv.slipUrl.indexOf("data:") === 0) {
+              slipVal = "สลิปโอนเงิน (Base64)";
             } else {
               slipVal = inv.slipUrl;
             }
@@ -759,6 +761,8 @@ function writeInvoicesSheet(ss, invoices) {
     if (inv.slipUrl) {
       if (inv.slipUrl === 'cash') {
         slipVal = "ชำระเงินสด";
+      } else if (inv.slipUrl.indexOf("data:") === 0) {
+        slipVal = "สลิปโอนเงิน (Base64)";
       } else {
         slipVal = inv.slipUrl;
       }
