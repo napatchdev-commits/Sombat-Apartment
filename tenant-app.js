@@ -169,7 +169,7 @@ class TenantDBService {
   }
 
   static async saveState(state) {
-    const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbwwYDHKDgwoJBYLqEEDW4SDRovLKC1GFl2WYGeXNfjJuV3QE-5Iw_iJMMoVRvwNqp7k/exec";
+    const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
     if (url) {
       // Show blocking loader during sync
       const syncLoader = document.createElement('div');
@@ -216,7 +216,7 @@ class TenantDBService {
       url = urlParams.get('sheetUrl');
     }
     if (!url) {
-      url = "https://script.google.com/macros/s/AKfycbwwYDHKDgwoJBYLqEEDW4SDRovLKC1GFl2WYGeXNfjJuV3QE-5Iw_iJMMoVRvwNqp7k/exec";
+      url = "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
     }
     try {
       const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
@@ -836,7 +836,7 @@ class MyBillsApp {
           await TenantDBService.saveState(this.state);
 
           // LINE Notify - No amount listed
-          const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbwwYDHKDgwoJBYLqEEDW4SDRovLKC1GFl2WYGeXNfjJuV3QE-5Iw_iJMMoVRvwNqp7k/exec";
+          const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || "https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec";
           if (url && invoices[invIdx]) {
             const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoices[invIdx].roomName} (${invoices[invIdx].tenantName || 'ผู้เช่า'}) ได้ชำระเงินด้วยเงินสดเรียบร้อยแล้ว!`;
             fetch(url, {
