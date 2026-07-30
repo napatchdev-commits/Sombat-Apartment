@@ -67,9 +67,7 @@ function doGet(e) {
   }
   
   if (action === "get") {
-    var raw = sheet.getRange(1, 1).getValue();
-    var data = {};
-    try { data = JSON.parse(raw || "{}"); } catch(err) { data = {}; }
+    var data = getLatestDbData(ss);
 
     // ทำการดึงและผสานข้อมูลจากแผ่นงานด้วยมือ เฉพาะเมื่อกดปุ่มดึงข้อมูลโดยระบุ &merge=true
     if (mergeParam === "true" || mergeParam === true) {
@@ -954,7 +952,16 @@ function sendLineReply(replyToken, textMessage, channelToken) {
 function getLatestDbData(ss) {
   var sheet = ss.getSheetByName("DB_STATE");
   if (!sheet) return {};
-  var raw = sheet.getRange(1, 1).getValue();
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return {};
+  var values = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  // กรองเฉพาะค่าที่ไม่ว่างเปล่าและเชื่อมต่อกันเป็น String เดียวกัน
+  var raw = "";
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] !== undefined && values[i] !== null && values[i] !== "") {
+      raw += String(values[i]);
+    }
+  }
   try {
     return JSON.parse(raw || "{}");
   } catch(e) {
@@ -1340,5 +1347,31 @@ function getLateFeeAmount(dueDateStr, status, currentFine) {
     return currentFineNum;
   } catch(e) {
     return currentFineNum;
+  }
+}
+
+/**
+ * ฟังก์ชันบันทึกข้อมูล JSON State หลัก (DB_STATE) ลงในสเปรดชีตอย่างปลอดภัย
+ * เนื่องจากเซลล์ของ Google Sheets มีขีดจำกัดไม่เกิน 50,000 ตัวอักษรต่อหนึ่งเซลล์
+ * ฟังก์ชันนี้จะทำการแบ่งสตริง JSON ออกเป็นส่วนๆ (Chunks) ส่วนละ 45,000 ตัวอักษร
+ * แล้วกระจายเขียนเรียงคอลัมน์ไปทางขวา (A1, B1, C1, D1...) ป้องกันข้อจำกัดนี้โดยตรง
+ */
+function saveStateSafely(sheet, data) {
+  try {
+    sheet.clear();
+    var jsonStr = JSON.stringify(data);
+    var chunkSize = 45000;
+    var rowValues = [];
+    
+    for (var i = 0; i < jsonStr.length; i += chunkSize) {
+      rowValues.push(jsonStr.substring(i, i + chunkSize));
+    }
+    
+    if (rowValues.length > 0) {
+      sheet.getRange(1, 1, 1, rowValues.length).setValues([rowValues]);
+      Logger.log("✅ บันทึก JSON State ลงสเปรดชีตอย่างปลอดภัยสำเร็จ: จำนวน " + rowValues.length + " คอลัมน์ (ความยาวรวม: " + jsonStr.length + " อักขระ)");
+    }
+  } catch(e) {
+    Logger.log("❌ เกิดข้อผิดพลาดใน saveStateSafely: " + e.toString());
   }
 }
