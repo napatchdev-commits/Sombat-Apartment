@@ -233,6 +233,35 @@ class LineService {
 
     return msg;
   }
+
+  static createOverdueMessage(invoice, propertyName, tenantUrl, lineBotUrl) {
+    const aptName = propertyName || 'หอพักสมบัติ นนทบุรี';
+    let url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
+    const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
+
+    const savedUrl = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || '';
+    if (savedUrl) {
+      const sep = url.includes('?') ? '&' : '?';
+      url += `${sep}sheetUrl=${encodeURIComponent(savedUrl)}`;
+    }
+
+    const greeting = (!invoice || !invoice.tenantName) 
+      ? 'เรียนผู้เช่า' 
+      : `เรียน คุณ${invoice.tenantName} (ห้อง ${invoice.roomName})`;
+
+    const fineAmt = invoice.fineAmount || 0;
+    const totalAmt = invoice.totalAmount || 0;
+
+    let msg = `⚠️ แจ้งเตือนค้างชำระค่าเช่าเลยกำหนด ⚠️\n🏠 ${aptName}\n\n${greeting}\n\nขณะนี้บิลรอบเดือน ${invoice.monthKey} ของท่านยังไม่ได้ชำระและเลยกำหนดจ่ายแล้ว\n\n- ยอดค่าเช่าเดิม: ฿${(totalAmt - fineAmt).toLocaleString()}\n- ค่าปรับจ่ายล่าช้า: ฿${fineAmt.toLocaleString()}\n- ยอดค้างชำระรวม: ฿${totalAmt.toLocaleString()}\n\nกรุณาชำระเงินและแนบสลิปโดยด่วนที่สุดผ่านลิงก์ด้านล่างนี้ครับ:\n\n${url}`;
+
+    if (botUrl && botUrl.trim()) {
+      msg += `\n\nติดต่อสอบถาม / LINE Bot:\n${botUrl.trim()}`;
+    }
+
+    msg += `\n\nขอบคุณครับ`;
+
+    return msg;
+  }
 }
 
 class ExportService {
@@ -2966,7 +2995,11 @@ class App {
       const url = savedTenantUrl;
       const bot = savedLineBotUrl;
 
-      textarea.value = LineService.createBillingMessage(inv, apt, url, bot, isBroadcast);
+      if (inv && inv.status === 'unpaid' && new Date() > new Date(inv.dueDate)) {
+        textarea.value = LineService.createOverdueMessage(inv, apt, url, bot);
+      } else {
+        textarea.value = LineService.createBillingMessage(inv, apt, url, bot, isBroadcast);
+      }
     };
 
     if (invSelect) invSelect.addEventListener('change', updatePreview);

@@ -187,6 +187,14 @@ function doPost(e) {
       if (syncData && syncData.invoices && Array.isArray(syncData.invoices)) {
         for (var i = 0; i < syncData.invoices.length; i++) {
           var inv = syncData.invoices[i];
+          
+          // คำนวณค่าปรับค้างชำระอัตโนมัติหากยังไม่ชำระเงิน
+          if (inv.status === 'unpaid') {
+            inv.fineAmount = getLateFeeAmount(inv.dueDate, inv.status, inv.fineAmount);
+            inv.totalAmount = (inv.rentAmount || 0) + (inv.elecAmount || 0) + (inv.waterAmount || 0) + (inv.trashFee || 0) + (inv.fineAmount || 0);
+            inv.outstandingAmount = inv.totalAmount - (inv.paidAmount || 0);
+          }
+
           if (inv.slipUrl && inv.slipUrl.indexOf("data:") === 0) {
             // Run automatic payment slip verification
             var verifyResult = verifyPaymentSlip(inv, syncData);
@@ -402,30 +410,46 @@ function readAndMergeSheetTabs(ss, data) {
 
         var inv = data.invoices.find(function(i) { return i.invoiceNumber === invNum; });
         var statusStr = String(row[16] || "").trim().toLowerCase();
+        
+        var rentAmt = Number(row[12]) || 0;
+        var trashAmt = Number(row[13]) || 0;
+        var sheetFine = Number(row[14]) || 0;
+        
+        var isPaid = (statusStr === 'paid' || statusStr === 'ชำระแล้ว');
+        
+        // คำนวณค่าปรับค้างชำระอัตโนมัติหากยังไม่ชำระเงิน
+        var calculatedFine = sheetFine;
+        if (!isPaid) {
+          calculatedFine = getLateFeeAmount(formatDateString(row[5]), 'unpaid', sheetFine);
+        }
+        
+        var elecAmount = Number(row[8]) || 0;
+        var waterAmount = Number(row[11]) || 0;
+        var totalAmt = rentAmt + elecAmount + waterAmount + trashAmt + calculatedFine;
+        
         if (inv) {
           if (row[6] !== "") inv.elecPrev = Number(row[6]);
           if (row[7] !== "") inv.elecCurr = Number(row[7]);
-          if (row[8] !== "") inv.elecAmount = Number(row[8]);
+          inv.elecAmount = elecAmount;
           if (row[9] !== "") inv.waterPrev = Number(row[9]);
           if (row[10] !== "") inv.waterCurr = Number(row[10]);
-          if (row[11] !== "") inv.waterAmount = Number(row[11]);
-          if (row[12] !== "") inv.rentAmount = Number(row[12]);
-          if (row[13] !== "") inv.trashFee = Number(row[13]);
-          if (row[14] !== "") inv.fineAmount = Number(row[14]);
-          if (row[15] !== "") inv.totalAmount = Number(row[15]);
+          inv.waterAmount = waterAmount;
+          inv.rentAmount = rentAmt;
+          inv.trashFee = trashAmt;
+          inv.fineAmount = calculatedFine;
+          inv.totalAmount = totalAmt;
           if (row[16]) {
-            if (statusStr === 'paid' || statusStr === 'ชำระแล้ว') {
+            if (isPaid) {
               inv.status = 'paid';
-              inv.paidAmount = inv.totalAmount;
+              inv.paidAmount = totalAmt;
               inv.outstandingAmount = 0;
-            } else if (statusStr === 'unpaid' || statusStr === 'ค้างชำระ') {
+            } else {
               inv.status = 'unpaid';
               inv.paidAmount = 0;
-              inv.outstandingAmount = inv.totalAmount;
+              inv.outstandingAmount = totalAmt;
             }
           }
         } else {
-          var totalAmt = Number(row[15]) || 0;
           var newInv = {
             id: "inv_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
             invoiceNumber: invNum,
@@ -436,17 +460,17 @@ function readAndMergeSheetTabs(ss, data) {
             dueDate: formatDateString(row[5]),
             elecPrev: Number(row[6]) || 0,
             elecCurr: Number(row[7]) || 0,
-            elecAmount: Number(row[8]) || 0,
+            elecAmount: elecAmount,
             waterPrev: Number(row[9]) || 0,
             waterCurr: Number(row[10]) || 0,
-            waterAmount: Number(row[11]) || 0,
-            rentAmount: Number(row[12]) || 0,
-            trashFee: Number(row[13]) || 0,
-            fineAmount: Number(row[14]) || 0,
+            waterAmount: waterAmount,
+            rentAmount: rentAmt,
+            trashFee: trashAmt,
+            fineAmount: calculatedFine,
             totalAmount: totalAmt,
-            status: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? 'paid' : 'unpaid',
-            paidAmount: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? totalAmt : 0,
-            outstandingAmount: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? 0 : totalAmt,
+            status: isPaid ? 'paid' : 'unpaid',
+            paidAmount: isPaid ? totalAmt : 0,
+            outstandingAmount: isPaid ? 0 : totalAmt,
             slipUrl: String(row[17] || "")
           };
           data.invoices.push(newInv);
@@ -1255,4 +1279,56 @@ function sortRoomsCustom(a, b) {
   if (!isNamedA && isNamedB) return -1;
   
   return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * คำนวณค่าปรับค้างชำระจ่ายล่าช้าอัตโนมัติตามกำหนด:
+ * - หากเกินวันครบกำหนดชำระแล้ว และอยู่ในวันที่ 5 - 15 ของรอบการชำระ: ปรับ 200 บาท
+ * - หากเกินวันครบกำหนดชำระแล้ว และอยู่ในวันที่ 16 - สิ้นเดือน: ปรับ 300 บาท
+ * - หากยังไม่เลยกำหนดชำระ: ปรับ 0 บาท
+ */
+function getLateFeeAmount(dueDateStr, status, currentFine) {
+  if (status === 'paid') {
+    return Number(currentFine || 0);
+  }
+  
+  if (!dueDateStr) return 0;
+  
+  try {
+    var dueParts = dueDateStr.split('-');
+    if (dueParts.length < 3) return 0;
+    var dueYear = parseInt(dueParts[0], 10);
+    var dueMonth = parseInt(dueParts[1], 10);
+    var dueDay = parseInt(dueParts[2], 10);
+    
+    var dueDate = new Date(dueYear, dueMonth - 1, dueDay);
+    var today = new Date();
+    
+    dueDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    if (today <= dueDate) {
+      return 0; // ยังไม่เลยวันครบกำหนดจ่าย
+    }
+    
+    var todayYear = today.getFullYear();
+    var todayMonth = today.getMonth() + 1;
+    
+    // หากข้ามเดือนมาแล้ว ถือว่าเลยวันที่ 16 ของรอบบิลนั้นๆ แน่นอน ให้คิดค่าปรับสูงสุด 300 บาท
+    if (todayYear > dueYear || (todayYear === dueYear && todayMonth > dueMonth)) {
+      return 300;
+    }
+    
+    var todayDay = today.getDate();
+    if (todayDay >= 5 && todayDay <= 15) {
+      return 200;
+    } else if (todayDay >= 16) {
+      return 300;
+    }
+    
+    // กรณีพิเศษ: เลยกำหนดแต่วันที่ในปัจจุบันอยู่ช่วงวันที่ 1-4 (เช่น กำหนดจ่ายวันที่ 1 แล้ววันนี้วันที่ 3)
+    return 200;
+  } catch(e) {
+    return 0;
+  }
 }
