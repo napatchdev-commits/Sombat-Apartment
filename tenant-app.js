@@ -182,6 +182,10 @@ class TenantDBService {
     if (!url) {
       url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
     }
+    if (!state || !state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
+      console.warn("Blocked TenantDBService.saveState: state has 0 rooms. Preventing data loss.");
+      return;
+    }
     url = this.cleanUrl(url);
     if (url) {
       // Show blocking loader during sync

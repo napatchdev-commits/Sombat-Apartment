@@ -518,6 +518,10 @@ function formatDateString(val) {
 // 2. WRITE STRUCTURED SHEETS
 // ==========================================================================
 function writeAllStructuredSheets(ss, data) {
+  if (!data || !data.rooms || !Array.isArray(data.rooms) || data.rooms.length === 0) {
+    Logger.log("⚠️ Blocked writeAllStructuredSheets: incoming state has 0 rooms. Preventing data loss.");
+    return;
+  }
   // รายชื่อแผ่นงานมาตรฐานที่เราต้องการเก็บไว้ใช้งานจริง (ภาษาไทยล้วน 12 แท็บ + DB_STATE 1 แท็บ + จดเลขอ่านน้ำไฟ 1 แท็บ)
   var canonicalSheets = {
     "DB_STATE": true,
@@ -1404,6 +1408,10 @@ function getLateFeeAmount(dueDateStr, status, currentFine) {
  */
 function saveStateSafely(sheet, data) {
   try {
+    if (!data || !data.rooms || !Array.isArray(data.rooms) || data.rooms.length === 0) {
+      Logger.log("⚠️ Blocked saveStateSafely: incoming state has 0 rooms. Preventing data loss.");
+      return;
+    }
     sheet.clear();
     var jsonStr = JSON.stringify(data);
     var chunkSize = 45000;

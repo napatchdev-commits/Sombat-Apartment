@@ -524,6 +524,10 @@ class DBService {
 
   static async syncToGoogleSheets(url, state) {
     if (!url) throw new Error('กรุณาระบุ Google Sheets Web App URL ก่อน');
+    if (!state || !state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
+      console.warn("Blocked syncToGoogleSheets: state has 0 rooms. Preventing data loss.");
+      return { status: "success", message: "Sync blocked: state is empty" };
+    }
     localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
     const response = await fetch(url, {
       method: 'POST',
