@@ -641,7 +641,7 @@ class NavbarComponent {
         </div>
 
         <div class="header-right">
-          <a href="tenant.html" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills (สำหรับผู้เช่าล็อกอินสแกนสลิปผ่านเลขบัตรประชาชน)">
+          <a href="tenant.html?sheetUrl=${encodeURIComponent(DBService.getSavedSheetUrl())}" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills (สำหรับผู้เช่าล็อกอินสแกนสลิปผ่านเลขบัตรประชาชน)">
             <i class="fa-solid fa-mobile-screen-button text-success"></i> <span class="desktop-only">เปิดระบบบิลผู้เช่า MyBills</span>
           </a>
 
