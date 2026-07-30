@@ -263,6 +263,15 @@ function readAndMergeSheetTabs(ss, data) {
           if (row[2]) rt.rentalType = (String(row[2]).indexOf('รายวัน') !== -1 || String(row[2]).indexOf('daily') !== -1) ? 'daily' : 'monthly';
           if (row[3] !== "") rt.defaultRent = Number(row[3]);
           if (row[4]) rt.description = String(row[4]);
+        } else {
+          var newRt = {
+            id: id || ("type_" + Date.now()),
+            name: name || id,
+            rentalType: (String(row[2]).indexOf('รายวัน') !== -1 || String(row[2]).indexOf('daily') !== -1) ? 'daily' : 'monthly',
+            defaultRent: Number(row[3]) || 3500,
+            description: String(row[4]) || ""
+          };
+          data.roomTypes.push(newRt);
         }
       }
     });
@@ -306,6 +315,20 @@ function readAndMergeSheetTabs(ss, data) {
           if (row[5] !== "") room.lastElecMeter = Number(row[5]);
           if (row[6] !== "") room.lastWaterMeter = Number(row[6]);
           if (row[7]) room.status = String(row[7]).trim();
+        } else {
+          var defaultTypeId = (data.roomTypes && data.roomTypes.length > 0) ? data.roomTypes[0].id : "normal";
+          var newRoom = {
+            id: id || name || ("rm_" + Date.now()),
+            name: name || id,
+            floor: Number(row[2]) || 1,
+            typeId: defaultTypeId,
+            baseRent: Number(row[3]) || 3500,
+            status: String(row[7]).trim() || "vacant",
+            currentTenantName: (row[4] && row[4] !== "-") ? String(row[4]) : "",
+            lastElecMeter: Number(row[5]) || 0,
+            lastWaterMeter: Number(row[6]) || 0
+          };
+          data.rooms.push(newRoom);
         }
       }
     });
@@ -326,6 +349,18 @@ function readAndMergeSheetTabs(ss, data) {
           if (row[3]) t.tel = String(row[3]).trim();
           if (row[5]) t.startDate = formatDateString(row[5]);
           if (row[6]) t.endDate = formatDateString(row[6]);
+        } else {
+          var newT = {
+            id: id || name || ("t_" + Date.now()),
+            name: name || id,
+            idCard: String(row[2]).trim(),
+            tel: String(row[3]).trim(),
+            assignedRoomId: "",
+            status: "active",
+            startDate: formatDateString(row[5]),
+            endDate: formatDateString(row[6])
+          };
+          data.tenants.push(newT);
         }
       }
     });
@@ -339,6 +374,7 @@ function readAndMergeSheetTabs(ss, data) {
       var invNum = String(row[0]).trim();
       if (invNum) {
         var inv = data.invoices.find(function(i) { return i.invoiceNumber === invNum; });
+        var statusStr = String(row[15] || "").trim().toLowerCase();
         if (inv) {
           if (row[6] !== "") inv.elecPrev = Number(row[6]);
           if (row[7] !== "") inv.elecCurr = Number(row[7]);
@@ -350,7 +386,6 @@ function readAndMergeSheetTabs(ss, data) {
           if (row[13] !== "") inv.trashFee = Number(row[13]);
           if (row[14] !== "") inv.totalAmount = Number(row[14]);
           if (row[15]) {
-            var statusStr = String(row[15]).trim().toLowerCase();
             if (statusStr === 'paid' || statusStr === 'ชำระแล้ว') {
               inv.status = 'paid';
               inv.paidAmount = inv.totalAmount;
@@ -361,6 +396,31 @@ function readAndMergeSheetTabs(ss, data) {
               inv.outstandingAmount = inv.totalAmount;
             }
           }
+        } else {
+          var totalAmt = Number(row[14]) || 0;
+          var newInv = {
+            id: "inv_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+            invoiceNumber: invNum,
+            monthKey: String(row[1]).trim(),
+            roomName: String(row[2]).trim(),
+            tenantName: String(row[3]).trim(),
+            issueDate: formatDateString(row[4]),
+            dueDate: formatDateString(row[5]),
+            elecPrev: Number(row[6]) || 0,
+            elecCurr: Number(row[7]) || 0,
+            elecAmount: Number(row[8]) || 0,
+            waterPrev: Number(row[9]) || 0,
+            waterCurr: Number(row[10]) || 0,
+            waterAmount: Number(row[11]) || 0,
+            rentAmount: Number(row[12]) || 0,
+            trashFee: Number(row[13]) || 0,
+            totalAmount: totalAmt,
+            status: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? 'paid' : 'unpaid',
+            paidAmount: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? totalAmt : 0,
+            outstandingAmount: (statusStr === 'paid' || statusStr === 'ชำระแล้ว') ? 0 : totalAmt,
+            slipUrl: String(row[16] || "")
+          };
+          data.invoices.push(newInv);
         }
       }
     });
