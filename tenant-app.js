@@ -271,6 +271,50 @@ class MyBillsApp {
   static currentSlipDataUrl = '';
   static currentPayMethod = 'transfer';
 
+  static async computeSha256(base64Str) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(base64Str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    } catch (e) {
+      console.error("SHA-256 failed, fallback to timestamp:", e);
+      return 'hash_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+  }
+
+  static async scanQrCodeFromDataUrl(dataUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          if (window.jsQR) {
+            const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: "dontInvert",
+            });
+            if (code) {
+              resolve(code.data);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error("Error reading image data for QR:", e);
+        }
+        resolve(null);
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+
   static async init() {
     // 1. Resolve sheet url from query parameters
     const urlParams = new URLSearchParams(window.location.search);
@@ -751,6 +795,19 @@ class MyBillsApp {
           return;
         }
 
+        // Show a loading screen during client-side slip analysis
+        const analysisLoader = document.createElement('div');
+        analysisLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.85); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999999; font-family:sans-serif; backdrop-filter:blur(4px);';
+        analysisLoader.innerHTML = `
+          <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+          <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังวิเคราะห์ความปลอดภัยสลิปชำระเงิน...</div>
+          <div style="font-size:0.88rem; color:#cbd5e1;">ระบบกำลังถอดรหัส QR Code และคำนวณลายนิ้วมือสลิป</div>
+          <style>
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        `;
+        document.body.appendChild(analysisLoader);
+
         const tenant = this.currentTenant;
         const rooms = this.state.rooms || [];
         const room = rooms.find(r => r.id === tenant.assignedRoomId || r.currentTenantName === tenant.name) || { name: 'ยังไม่ระบุ' };
@@ -760,12 +817,27 @@ class MyBillsApp {
 
         const todayStr = new Date().toISOString().slice(0, 10);
 
+        let hashHex = '';
+        let qrCodeData = null;
+
+        try {
+          // Preprocess slip: hash image & scan QR code
+          hashHex = await MyBillsApp.computeSha256(this.currentSlipDataUrl);
+          qrCodeData = await MyBillsApp.scanQrCodeFromDataUrl(this.currentSlipDataUrl);
+        } catch (err) {
+          console.warn("Client slip preprocessing warning:", err);
+        } finally {
+          analysisLoader.remove();
+        }
+
         if (invIdx !== -1) {
           invoices[invIdx].status = 'paid';
           invoices[invIdx].paidAmount = invoices[invIdx].totalAmount;
           invoices[invIdx].outstandingAmount = 0;
           invoices[invIdx].paymentDate = todayStr;
           invoices[invIdx].slipUrl = this.currentSlipDataUrl;
+          invoices[invIdx].slipHash = hashHex;
+          invoices[invIdx].qrPayload = qrCodeData;
         }
 
         // Update room status to occupied if overdue
@@ -782,7 +854,7 @@ class MyBillsApp {
           this.sendLineNotify(invoices[invIdx] || { roomName: room.name, tenantName: tenant.name, totalAmount: 3500 });
 
           // Show Success Alert Popup & Open Receipt Modal
-          alert('🟢 บันทึกข้อมูลชำระเงินเรียบร้อยแล้ว!\n\nระบบได้รับสลิปการโอนเงินและส่งการแจ้งเตือนไปยังเจ้าของหอพักเรียบร้อยแล้วครับ');
+          alert('🟢 ยืนยันสลิปชำระเงินสำเร็จ!\n\nระบบทำความสะอาดและตรวจสอบความถูกต้องสลิปเรียบร้อยแล้ว');
           
           this.render();
           this.openReceiptModal(invoices[invIdx]);
@@ -794,8 +866,10 @@ class MyBillsApp {
             invoices[invIdx].outstandingAmount = invoices[invIdx].totalAmount;
             invoices[invIdx].paymentDate = null;
             invoices[invIdx].slipUrl = null;
+            delete invoices[invIdx].slipHash;
+            delete invoices[invIdx].qrPayload;
           }
-          alert('❌ เกิดข้อผิดพลาดในการส่งข้อมูลไปยัง Google Sheets: ' + err.message + '\n\nกรุณาตรวจการตั้งค่าสิทธิ์ หรืออัปเดตสคริปต์ Code.gs ตามขั้นตอน');
+          alert('❌ ปฏิเสธการชำระเงิน: ' + err.message);
         }
       });
     }

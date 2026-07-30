@@ -185,13 +185,25 @@ function doPost(e) {
     if (action === "sync" || requestData.data) {
       var syncData = requestData.data;
       if (syncData && syncData.invoices && Array.isArray(syncData.invoices)) {
-        syncData.invoices.forEach(function(inv) {
+        for (var i = 0; i < syncData.invoices.length; i++) {
+          var inv = syncData.invoices[i];
           if (inv.slipUrl && inv.slipUrl.indexOf("data:") === 0) {
+            // Run automatic payment slip verification
+            var verifyResult = verifyPaymentSlip(inv, syncData);
+            if (verifyResult.error) {
+              throw new Error(verifyResult.message);
+            }
+            
+            // If verification passes, save to Google Drive & replace base64 with Drive URL
             var filename = "slip_" + (inv.roomName || "room") + "_" + (inv.monthKey || "month") + "_" + Date.now();
             var driveUrl = saveBase64ImageToDrive(inv.slipUrl, filename);
-            inv.slipUrl = driveUrl; // Replace base64 with Drive URL
+            inv.slipUrl = driveUrl;
+            
+            // Clean up temporary client payload fields
+            delete inv.slipHash;
+            delete inv.qrPayload;
           }
-        });
+        }
       }
 
       sheet.getRange(1, 1).setValue(JSON.stringify(syncData));
@@ -873,4 +885,188 @@ function saveBase64ImageToDrive(base64Data, filename) {
     Logger.log("Error saving base64 to Drive: " + e.toString());
     return base64Data; // คืนค่าตัวเดิมหากเกิดข้อผิดพลาด
   }
+}
+
+/**
+ * ฟังก์ชันหลักในการตรวจสอบความถูกต้องของสลิปชำระเงิน (OCR + QR Code Decoded)
+ * ป้องกันสลิปซ้ำ และเช็คชื่อบัญชีปลายทาง นางสมผิว น้ำวน (ธ.กรุงศรี 2401346663)
+ */
+function verifyPaymentSlip(inv, syncData) {
+  var slipHash = inv.slipHash || "";
+  var qrPayload = inv.qrPayload || "";
+  var invoiceAmount = inv.totalAmount || 0;
+  
+  if (!syncData.settings) syncData.settings = {};
+  if (!syncData.settings.usedSlipHashes) syncData.settings.usedSlipHashes = [];
+  if (!syncData.settings.usedReferenceIds) syncData.settings.usedReferenceIds = [];
+  
+  // 1. ตรวจสอบ Image Hash ป้องกันอัปโหลดไฟล์ภาพซ้ำซ้อน
+  if (slipHash) {
+    if (syncData.settings.usedSlipHashes.indexOf(slipHash) !== -1) {
+      return { error: true, message: "สลิปนี้เคยถูกนำมาใช้ชำระเงินในระบบแล้ว (ตรวจพบไฟล์ภาพซ้ำ)" };
+    }
+  }
+  
+  // 2. ดึงข้อมูลตัวหนังสือจากภาพ (OCR) โดยแปลงภาพเป็น Google Doc ชั่วคราว
+  var ocrText = "";
+  try {
+    var blob = dataURItoBlob(inv.slipUrl);
+    ocrText = performOcrOnImageBlob(blob);
+  } catch (e) {
+    Logger.log("OCR failed: " + e.toString());
+  }
+  
+  // ตรวจสอบชื่อบัญชีปลายทางผู้รับโอน ("สมผิว" หรือ "น้ำวน")
+  var hasReceiverName = (ocrText.indexOf("สมผิว") !== -1 || ocrText.indexOf("น้ำวน") !== -1 || ocrText.toLowerCase().indexOf("somphiw") !== -1 || ocrText.toLowerCase().indexOf("namwon") !== -1);
+  // ตรวจสอบเลขบัญชีผู้รับเงิน ("2401346663" หรือ "240-1-34666-3")
+  var hasReceiverAccount = (ocrText.indexOf("2401346663") !== -1 || ocrText.indexOf("240-1-34666-3") !== -1);
+  
+  // 3. แกะเลขอ้างอิง Reference ID และ ยอดเงินโอน
+  var refId = "";
+  var amountFound = 0;
+  
+  // 3.1 ดึงจาก QR Code (ถ้ามี)
+  if (qrPayload) {
+    var parsedQr = parseThaiQrPayload(qrPayload);
+    if (parsedQr.refId) refId = parsedQr.refId;
+    if (parsedQr.amount) amountFound = parsedQr.amount;
+  }
+  
+  // 3.2 ดึงจาก OCR (กรณีเป็นไฟล์ PDF หรือหา QR ไม่เจอ)
+  if (!refId) {
+    refId = extractReferenceIdFromText(ocrText);
+  }
+  if (!amountFound) {
+    amountFound = extractAmountFromText(ocrText, invoiceAmount);
+  }
+  
+  // 4. ตรวจสอบความถูกต้องเปรียบเทียบกับเงื่อนไขในระบบ
+  
+  // 4.1 ตรวจสอบ Reference ID ซ้ำ (ป้องกันผู้เช่าใช้ QR หรือเลขอ้างอิงเดียวกันมาจ่ายซ้ำ)
+  if (refId) {
+    if (syncData.settings.usedReferenceIds.indexOf(refId) !== -1) {
+      return { error: true, message: "เลขที่อ้างอิงธุรกรรมธนาคารนี้ (" + refId + ") เคยใช้ชำระเงินแล้ว (ตรวจจับการใช้สลิปซ้ำ)" };
+    }
+  }
+  
+  // 4.2 ตรวจสอบยอดเงินโอน (ต้องตรงกับยอดจริงในบิล 100%)
+  if (amountFound > 0 && Math.abs(amountFound - invoiceAmount) > 0.01) {
+    return { error: true, message: "ยอดเงินโอนบนสลิป (฿" + amountFound.toFixed(2) + ") ไม่ตรงกับยอดค้างชำระของบิลนี้ (฿" + invoiceAmount.toFixed(2) + ")" };
+  }
+  
+  // 4.3 ตรวจสอบผู้รับโอนเงินปลายทาง (นางสมผิว น้ำวน หรือ ธ.กรุงศรี 240-1-34666-3)
+  if (ocrText && !hasReceiverName && !hasReceiverAccount) {
+    return { error: true, message: "ไม่พบข้อมูลชื่อบัญชี 'นางสมผิว น้ำวน' หรือเลขบัญชีปลายทาง '240-1-34666-3' บนสลิปนี้ กรุณาโอนเงินเข้าบัญชีที่ถูกต้องของหอพัก" };
+  }
+  
+  // 5. บันทึกเข้าระบบประวัติสำเร็จ
+  if (slipHash) {
+    syncData.settings.usedSlipHashes.push(slipHash);
+  }
+  if (refId) {
+    syncData.settings.usedReferenceIds.push(refId);
+  }
+  
+  return { error: false, refId: refId, amountFound: amountFound };
+}
+
+function dataURItoBlob(dataURI) {
+  var split = dataURI.split(',');
+  var contentType = split[0].match(/:(.*?);/)[1];
+  var byteString = Utilities.base64Decode(split[1]);
+  return Utilities.newBlob(byteString, contentType, "temp_slip");
+}
+
+function performOcrOnImageBlob(blob) {
+  var resource = {
+    title: blob.getName(),
+    mimeType: blob.getContentType()
+  };
+  var options = {
+    ocr: true,
+    ocrLanguage: "th"
+  };
+  
+  // แปลงภาพเป็น Google Doc ชั่วคราว (จะรัน OCR อัตโนมัติโดย Drive Service)
+  var docFile = Drive.Files.insert(resource, blob, options);
+  var doc = DocumentApp.openById(docFile.id);
+  var text = doc.getBody().getText();
+  
+  // ลบไฟล์ชั่วคราวทิ้งทันทีหลังอ่านข้อความเสร็จ
+  try {
+    Drive.Files.remove(docFile.id);
+  } catch (e) {
+    Logger.log("Cleanup temp doc failed: " + e.toString());
+  }
+  
+  return text;
+}
+
+function parseThaiQrPayload(payload) {
+  var result = { refId: "", amount: 0 };
+  if (!payload) return result;
+  
+  // กรณีเป็น URL
+  if (payload.indexOf("http") === 0) {
+    var matches = payload.match(/[a-zA-Z0-9]{12,}/g);
+    if (matches && matches.length > 0) {
+      result.refId = matches[matches.length - 1];
+    }
+    return result;
+  }
+  
+  // กรณีเป็นรหัส EMVCo มาตรฐาน
+  if (payload.indexOf("000201") === 0) {
+    var matches = payload.match(/[a-zA-Z0-9]{12,}/g);
+    if (matches && matches.length > 0) {
+      result.refId = matches[0];
+    }
+  }
+  
+  return result;
+}
+
+function extractReferenceIdFromText(text) {
+  if (!text) return "";
+  var patterns = [
+    /(?:เลขที่อ้างอิง|เลขอ้างอิง|เลขที่รายการ|Ref|Transaction|Ref\.?\s?No\.?|Txn\s?ID)\s?:?\s?([a-zA-Z0-9\-\s]{10,25})/i,
+    /\b\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\b/
+  ];
+  
+  for (var i = 0; i < patterns.length; i++) {
+    var match = text.match(patterns[i]);
+    if (match && match[1]) {
+      return match[1].replace(/[\s\-]/g, "");
+    }
+  }
+  
+  var matches = text.match(/[A-Z0-9]{12,25}/g);
+  if (matches) {
+    for (var j = 0; j < matches.length; j++) {
+      if (isNaN(Number(matches[j]))) continue;
+      return matches[j];
+    }
+  }
+  
+  return "";
+}
+
+function extractAmountFromText(text, targetAmount) {
+  if (!text) return 0;
+  var matches = text.match(/\b\d{1,3}(,\d{3})*\.\d{2}\b/g);
+  if (matches) {
+    for (var i = 0; i < matches.length; i++) {
+      var num = Number(matches[i].replace(/,/g, ""));
+      if (Math.abs(num - targetAmount) < 0.01) {
+        return num;
+      }
+    }
+    var maxNum = 0;
+    for (var j = 0; j < matches.length; j++) {
+      var numVal = Number(matches[j].replace(/,/g, ""));
+      if (numVal > maxNum) maxNum = numVal;
+    }
+    return maxNum;
+  }
+  return 0;
 }
