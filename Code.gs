@@ -1462,3 +1462,22 @@ function saveStateSafely(sheet, data) {
     Logger.log("❌ เกิดข้อผิดพลาดใน saveStateSafely: " + e.toString());
   }
 }
+
+/**
+ * ฟังก์ชันเรียกเพื่อให้ Google Apps Script กระตุ้นป๊อปอัปให้ผู้ใช้กดยอมรับสิทธิ์การเข้าใช้งาน Drive API (OAuth Consent)
+ * เนื่องจากระบบมีความปลอดภัยและเรียกใช้ API ใหม่เพื่อประมวลผล OCR
+ */
+function authorizeProjectScopes() {
+  Logger.log("เริ่มกระตุ้นการยืนยันสิทธิ์...");
+  try {
+    var folders = DriveApp.getFolders();
+    if (folders.hasNext()) {
+      Logger.log("สิทธิ์การใช้งาน DriveApp ปกติ: เรียบร้อย");
+    }
+    if (typeof Drive !== 'undefined' && Drive.Files) {
+      Logger.log("สิทธิ์การใช้งาน Drive API ขั้นสูง: เรียบร้อย");
+    }
+  } catch (e) {
+    Logger.log("พบข้อผิดพลาด: " + e.toString());
+  }
+}
