@@ -391,6 +391,9 @@ function writeAllStructuredSheets(ss, data) {
   var allSheets = ss.getSheets();
   allSheets.forEach(function(sh) {
     var name = sh.getName();
+    if (name.indexOf("สำรองบิล_") === 0) {
+      return; // ห้ามลบแท็บแผ่นงานสำรองข้อมูลเด็ดขาด
+    }
     if (!canonicalSheets[name]) {
       if (ss.getSheets().length > 1) {
         try { ss.deleteSheet(sh); } catch(e) {}
