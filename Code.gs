@@ -253,10 +253,14 @@ function readAndMergeSheetTabs(ss, data) {
   var rtSheet = ss.getSheetByName("ประเภทห้องพัก") || ss.getSheetByName("ROOM_TYPES");
   if (rtSheet) {
     var rtValues = rtSheet.getRange("A2:E100").getValues();
+    var foundRtKeys = {};
     rtValues.forEach(function(row) {
       var id = String(row[0]).trim();
       var name = String(row[1]).trim();
       if (id || name) {
+        foundRtKeys[id] = true;
+        if (name) foundRtKeys[name] = true;
+        
         var rt = data.roomTypes.find(function(t) { return t.id === id || t.name === name; });
         if (rt) {
           if (row[1]) rt.name = String(row[1]);
@@ -274,6 +278,10 @@ function readAndMergeSheetTabs(ss, data) {
           data.roomTypes.push(newRt);
         }
       }
+    });
+    // ลบประเภทห้องที่ไม่มีอยู่ในสเปรดชีต
+    data.roomTypes = data.roomTypes.filter(function(rt) {
+      return foundRtKeys[rt.id] || foundRtKeys[rt.name];
     });
   }
 
@@ -303,10 +311,14 @@ function readAndMergeSheetTabs(ss, data) {
   var rSheet = ss.getSheetByName("ข้อมูลห้องพัก") || ss.getSheetByName("ROOMS") || ss.getSheetByName("ข้อมูลห้องเช่า");
   if (rSheet) {
     var rValues = rSheet.getRange("A2:H100").getValues();
+    var foundRoomKeys = {};
     rValues.forEach(function(row) {
       var id = String(row[0]).trim();
       var name = String(row[1]).trim();
       if (id || name) {
+        foundRoomKeys[id] = true;
+        if (name) foundRoomKeys[name] = true;
+
         var room = data.rooms.find(function(r) { return r.id === id || r.name === name; });
         if (room) {
           if (row[2] !== "") room.floor = Number(row[2]);
@@ -332,16 +344,24 @@ function readAndMergeSheetTabs(ss, data) {
         }
       }
     });
+    // ลบห้องที่ไม่มีอยู่ในสเปรดชีต
+    data.rooms = data.rooms.filter(function(r) {
+      return foundRoomKeys[r.id] || foundRoomKeys[r.name];
+    });
   }
 
   // D. Read TENANTS / ข้อมูลผู้เช่า Tab
   var tSheet = ss.getSheetByName("ข้อมูลผู้เช่า") || ss.getSheetByName("TENANTS") || ss.getSheetByName("ทะเบียนผู้เช่า");
   if (tSheet) {
     var tValues = tSheet.getRange("A2:J200").getValues();
+    var foundTenantKeys = {};
     tValues.forEach(function(row) {
       var id = String(row[0]).trim();
       var name = String(row[1]).trim();
       if (id || name) {
+        foundTenantKeys[id] = true;
+        if (name) foundTenantKeys[name] = true;
+
         var t = data.tenants.find(function(item) { return item.id === id || item.name === name; });
         if (t) {
           if (row[1]) t.name = String(row[1]).trim();
@@ -364,15 +384,22 @@ function readAndMergeSheetTabs(ss, data) {
         }
       }
     });
+    // ลบผู้เช่าที่ไม่มีอยู่ในสเปรดชีต
+    data.tenants = data.tenants.filter(function(t) {
+      return foundTenantKeys[t.id] || foundTenantKeys[t.name];
+    });
   }
 
   // E. Read INVOICES / รายการบิล Tab
   var invSheet = ss.getSheetByName("รายการบิล") || ss.getSheetByName("INVOICES") || ss.getSheetByName("รายการบิลค่าเช่า");
   if (invSheet) {
     var invValues = invSheet.getRange("A2:R300").getValues();
+    var foundInvNumbers = {};
     invValues.forEach(function(row) {
       var invNum = String(row[0]).trim();
       if (invNum) {
+        foundInvNumbers[invNum] = true;
+
         var inv = data.invoices.find(function(i) { return i.invoiceNumber === invNum; });
         var statusStr = String(row[16] || "").trim().toLowerCase();
         if (inv) {
@@ -425,6 +452,10 @@ function readAndMergeSheetTabs(ss, data) {
           data.invoices.push(newInv);
         }
       }
+    });
+    // ลบบิลที่ไม่มีอยู่ในสเปรดชีต
+    data.invoices = data.invoices.filter(function(inv) {
+      return foundInvNumbers[inv.invoiceNumber];
     });
   }
 
