@@ -1526,47 +1526,42 @@ class MyBillsApp {
             <div>ครบกำหนด (Due): <strong style="color:#dc2626;">${Formatters.thaiDate(inv.dueDate)}</strong></div>
           </div>
 
-          <div class="invoice-details-table-wrapper" style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:1rem;">
-            <table style="width:100%; min-width:480px; border-collapse:collapse; font-size:0.78rem;" border="1" cellpadding="6" cellspacing="0">
+          <div class="invoice-details-table-wrapper" style="width:100%; margin-bottom:1rem;">
+            <table style="width:100%; table-layout:fixed; border-collapse:collapse; font-size:0.72rem;" border="1" cellpadding="4" cellspacing="0">
               <thead>
                 <tr style="background:#f1f5f9; color:#0f172a; text-align:center;">
-                  <th style="width:8%;">#</th>
-                  <th>รายการชำระ (Description)</th>
-                  <th style="width:15%;">ยูนิตเดิม</th>
-                  <th style="width:15%;">ยูนิตใหม่</th>
-                  <th style="width:18%;">จำนวนหน่วย</th>
-                  <th style="width:20%;">จำนวนเงิน (บาท)</th>
+                  <th style="width:7%;">#</th>
+                  <th>รายการ</th>
+                  <th style="width:26%;">หน่วยมิเตอร์</th>
+                  <th style="width:15%;">หน่วยที่ใช้</th>
+                  <th style="width:26%;">จำนวนเงิน (บาท)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td style="text-align:center;">1</td>
-                  <td>ค่าเช่าห้องพักห้องพักประจำเดือน</td>
-                  <td style="text-align:center;">-</td>
+                  <td style="word-break:break-word;">ค่าเช่าห้องพักประจำเดือน</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:right;"><strong>${Formatters.currency(inv.rentAmount)}</strong></td>
                 </tr>
                 <tr>
                   <td style="text-align:center;">2</td>
-                  <td>ค่าไฟฟ้าหลัก (Electricity)</td>
-                  <td style="text-align:center;">${inv.elecPrev}</td>
-                  <td style="text-align:center;">${inv.elecCurr}</td>
+                  <td style="word-break:break-word;">ค่าไฟฟ้า</td>
+                  <td style="text-align:center; white-space:nowrap;">${inv.elecPrev}→${inv.elecCurr}</td>
                   <td style="text-align:center;">${elecUnits}</td>
                   <td style="text-align:right;"><strong>${Formatters.currency(inv.elecAmount)}</strong></td>
                 </tr>
                 <tr>
                   <td style="text-align:center;">3</td>
-                  <td>ค่าน้ำประปาหลัก (Water)</td>
-                  <td style="text-align:center;">${inv.waterPrev}</td>
-                  <td style="text-align:center;">${inv.waterCurr}</td>
+                  <td style="word-break:break-word;">ค่าน้ำประปา</td>
+                  <td style="text-align:center; white-space:nowrap;">${inv.waterPrev}→${inv.waterCurr}</td>
                   <td style="text-align:center;">${waterUnits}</td>
                   <td style="text-align:right;"><strong>${Formatters.currency(inv.waterAmount)}</strong></td>
                 </tr>
                 <tr>
                   <td style="text-align:center;">4</td>
-                  <td>ค่าขยะ / สาธารณูปโภคประจำเดือน</td>
-                  <td style="text-align:center;">-</td>
+                  <td style="word-break:break-word;">ค่าขยะ / สาธารณูปโภค</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:center;">-</td>
                   <td style="text-align:right;"><strong>${Formatters.currency(inv.trashFee !== undefined ? inv.trashFee : 20)}</strong></td>
@@ -1574,8 +1569,7 @@ class MyBillsApp {
                 ${inv.fineAmount > 0 ? `
                   <tr>
                     <td style="text-align:center;">5</td>
-                    <td>ค่าปรับชำระล่าช้า (Late Fee)</td>
-                    <td style="text-align:center;">-</td>
+                    <td style="word-break:break-word;">ค่าปรับชำระล่าช้า</td>
                     <td style="text-align:center;">-</td>
                     <td style="text-align:center;">-</td>
                     <td style="text-align:right; color:#dc2626;"><strong>${Formatters.currency(inv.fineAmount)}</strong></td>
@@ -1584,8 +1578,8 @@ class MyBillsApp {
               </tbody>
               <tfoot>
                 <tr style="background:#eff6ff; font-weight:800; color:#1e40af;">
-                  <td colspan="5" style="text-align:right; font-size:0.85rem;">ยอดบิลสุทธิ (Net Total):</td>
-                  <td style="text-align:right; font-size:1.1rem; color:#1d4ed8;">${Formatters.currency(inv.totalAmount)}</td>
+                  <td colspan="4" style="text-align:right; font-size:0.8rem;">ยอดบิลสุทธิ:</td>
+                  <td style="text-align:right; font-size:0.95rem; color:#1d4ed8;">${Formatters.currency(inv.totalAmount)}</td>
                 </tr>
               </tfoot>
             </table>

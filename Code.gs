@@ -1620,7 +1620,12 @@ function saveBase64ImageToDrive(base64Data, filename) {
   // ทำให้ไฟล์บวมและเพิ่มความเสี่ยงข้อมูล JSON เสียหาย (ดูปัญหาที่เคยแก้ใน saveStateSafely/getLatestDbData)
   // ตอนนี้ถ้าบันทึกลง Drive ไม่สำเร็จ จะโยน error ออกไปแทน เพื่อให้ฝั่งที่เรียกใช้ปฏิเสธการชำระเงินนั้น
   // อย่างชัดเจนและให้ผู้เช่าลองอัปโหลดใหม่ แทนที่จะแอบเก็บรูปเป็นข้อความยาวๆ ไว้ในชีตอย่างเงียบๆ
-  return "https://docs.google.com/uc?export=download&id=" + file.getId();
+  // [แก้บั๊ก] เดิมใช้ "https://docs.google.com/uc?export=download&id=..." ซึ่งเป็นลิงก์ "ดาวน์โหลดไฟล์"
+  // ไม่ใช่ลิงก์รูปภาพโดยตรง เมื่อนำไปใส่ใน <img src="..."> เบราว์เซอร์จะได้หน้า HTML ของ Google Drive
+  // (บางครั้งมีหน้าเตือนไวรัสสแกนคั่นก่อน) กลับมาแทนไฟล์รูปภาพจริง ทำให้กดดูสลิปแล้วรูปไม่ขึ้น (broken image)
+  // เปลี่ยนมาใช้ Google Drive Thumbnail endpoint ซึ่งคืนค่าเป็นไฟล์รูปภาพโดยตรง ใช้กับแท็ก <img> ได้แน่นอน
+  // และรองรับไฟล์ที่แชร์แบบ "ทุกคนที่มีลิงก์ดูได้" (ANYONE_WITH_LINK) ที่ตั้งไว้ด้านบนได้เป็นอย่างดี
+  return "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w2000";
 }
 
 /**

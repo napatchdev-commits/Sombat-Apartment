@@ -3440,11 +3440,16 @@ class App {
         <p class="text-muted" style="font-size:0.85rem; margin-bottom:1.25rem;">วันที่ชำระเงิน: ${inv.paymentDate || 'ไม่ระบุ'}</p>
         
         <div style="max-width:100%; border:1px solid #cbd5e1; border-radius:12px; overflow:hidden; display:inline-block; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); background-color:#f8fafc; padding:0.5rem;">
-          <img src="${inv.slipUrl}" alt="Slip" style="max-width:100%; max-height:480px; display:block; border-radius:8px;">
+          <img id="view-slip-img" src="${inv.slipUrl}" alt="Slip" style="max-width:100%; max-height:480px; display:block; border-radius:8px;"
+               onerror="this.style.display='none'; document.getElementById('view-slip-fallback').style.display='block';">
+          <div id="view-slip-fallback" style="display:none; padding:1.5rem; color:#b91c1c; font-size:0.85rem; font-weight:600; max-width:320px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถแสดงรูปสลิปได้ (ไฟล์อาจถูกลบ หรือยังไม่ได้ตั้งค่าสิทธิ์แชร์ใน Google Drive)<br>
+            <span style="font-weight:400;">ลองกด "ดาวน์โหลดรูปสลิป" ด้านล่าง หรือเปิดลิงก์โดยตรงเพื่อตรวจสอบ</span>
+          </div>
         </div>
         
         <div style="margin-top:1.5rem; display:flex; gap:1rem; justify-content:center;">
-          <a href="${inv.slipUrl}" download="slip_${inv.roomName}_${inv.monthKey}.png" class="btn btn-primary" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px; display:inline-flex; align-items:center; gap:0.5rem; text-decoration:none;">
+          <a href="${inv.slipUrl}" target="_blank" rel="noopener" download="slip_${inv.roomName}_${inv.monthKey}.png" class="btn btn-primary" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px; display:inline-flex; align-items:center; gap:0.5rem; text-decoration:none;">
             <i class="fa-solid fa-download"></i> ดาวน์โหลดรูปสลิป
           </a>
           <button type="button" class="btn btn-secondary close-modal-btn" onclick="document.getElementById('app-modal').classList.remove('active')" style="padding:0.6rem 1.2rem; font-weight:600; border-radius:8px;">ปิดหน้าต่าง</button>
