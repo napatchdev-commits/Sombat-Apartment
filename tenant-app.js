@@ -120,7 +120,7 @@ class TenantDBService {
     }
     const saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (saved) return this.cleanUrl(saved);
-    return 'https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec';
+    return 'https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec';
   }
 
   static getSavedTenantApiKey() {

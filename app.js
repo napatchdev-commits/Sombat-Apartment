@@ -321,7 +321,7 @@ class LineService {
     const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
 
     // Append sheetUrl + apiKey (สิทธิ์จำกัดสำหรับผู้เช่า) ไปกับลิงก์ ให้พอร์ทัลผู้เช่าดึงข้อมูลจริงได้
-    const savedUrl = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || '';
+    const savedUrl = DBService.getSavedSheetUrl();
     const savedTenantKey = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
     if (savedUrl) {
       const sep = url.includes('?') ? '&' : '?';
@@ -349,7 +349,7 @@ class LineService {
     let url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
     const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
 
-    const savedUrl = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || '';
+    const savedUrl = DBService.getSavedSheetUrl();
     const savedTenantKey = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
     if (savedUrl) {
       const sep = url.includes('?') ? '&' : '?';
@@ -515,11 +515,6 @@ class DBService {
       } catch (e) {}
     }
     if (fromState) return fromState;
-    let fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (fromStorage && (fromStorage.includes('AKfycbww') || fromStorage.includes('AKfycbz_') || fromStorage.includes('AKfycbxj'))) {
-      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-      fromStorage = null;
-    }
     if (fromStorage) return this.cleanUrl(fromStorage);
     const urlParams = new URLSearchParams(window.location.search);
     const fromParam = urlParams.get('sheetUrl');
