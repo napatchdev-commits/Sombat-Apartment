@@ -1363,7 +1363,6 @@ class MyBillsApp {
                 invoicesList[invIdx] = Object.assign({}, invoicesList[invIdx], result.invoice);
               }
 
-              alert('🟢 ส่งสลิปหลักฐานการชำระเงินเรียบร้อยแล้ว!\n\nกรุณารอแอดมินตรวจสอบและยืนยันการชำระเงินครับ');
               MyBillsApp.render();
               MyBillsApp.openOfficialBillModal(invoicesList[invIdx]);
             } catch (err) {
@@ -1396,7 +1395,6 @@ class MyBillsApp {
                 invoicesList[invIdx] = Object.assign({}, invoicesList[invIdx], result.invoice);
               }
 
-              alert('🟢 แจ้งชำระเงินสดสำเร็จ!\n\nกรุณานำเงินสดไปชำระที่สำนักงานเพื่อเปลี่ยนสถานะบิล');
               MyBillsApp.render();
               MyBillsApp.openReceiptModal(invoicesList[invIdx]);
             } catch (err) {

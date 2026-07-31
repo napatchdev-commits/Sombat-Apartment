@@ -862,6 +862,7 @@ function readAndMergeSheetTabs(ss, data) {
         var sheetFine = Number(row[14]) || 0;
         
         var isPaid = (statusStr === 'paid' || statusStr === 'ชำระแล้ว');
+        var isPending = (statusStr === 'pending' || statusStr === 'รอตรวจสอบ');
         
         // คำนวณค่าปรับค้างชำระอัตโนมัติหากยังไม่ชำระเงิน
         var calculatedFine = sheetFine;
@@ -889,6 +890,10 @@ function readAndMergeSheetTabs(ss, data) {
               inv.status = 'paid';
               inv.paidAmount = totalAmt;
               inv.outstandingAmount = 0;
+            } else if (isPending) {
+              inv.status = 'pending';
+              inv.paidAmount = 0;
+              inv.outstandingAmount = totalAmt;
             } else {
               inv.status = 'unpaid';
               inv.paidAmount = 0;
@@ -914,7 +919,7 @@ function readAndMergeSheetTabs(ss, data) {
             trashFee: trashAmt,
             fineAmount: calculatedFine,
             totalAmount: totalAmt,
-            status: isPaid ? 'paid' : 'unpaid',
+            status: isPaid ? 'paid' : (isPending ? 'pending' : 'unpaid'),
             paidAmount: isPaid ? totalAmt : 0,
             outstandingAmount: isPaid ? 0 : totalAmt,
             slipUrl: String(row[17] || "")
@@ -1238,7 +1243,7 @@ function writeInvoicesSheet(ss, invoices) {
   if (!invoices || invoices.length === 0) return;
 
   var rows = invoices.map(function(inv) {
-    var statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : 'ค้างชำระ';
+    var statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : ((inv.status === 'pending') ? 'รอตรวจสอบ' : 'ค้างชำระ');
     var slipVal = "";
     if (inv.slipUrl) {
       if (inv.slipUrl === 'cash') {
