@@ -233,43 +233,7 @@ class MyBillsApp {
   static currentPayMethod = 'transfer';
   static activeInvoiceNumber = '';
 
-  static async computeSha256(base64Str) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(base64Str);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  }
 
-  static async scanQrCodeFromDataUrl(dataUrl) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          if (window.jsQR) {
-            const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: "dontInvert",
-            });
-            if (code) {
-              resolve(code.data);
-              return;
-            }
-          }
-        } catch (e) {
-          console.error("Error reading image data for QR:", e);
-        }
-        resolve(null);
-      };
-      img.onerror = () => resolve(null);
-      img.src = dataUrl;
-    });
-  }
 
   static async init() {
     TenantDBService.getSavedSheetUrl();
