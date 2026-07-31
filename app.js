@@ -2976,7 +2976,7 @@ class App {
         const id = e.currentTarget.getAttribute('data-id');
         const inv = this.state.invoices.find(i => i.id === id);
         if (inv) {
-          inv.pdfUrl = `https://sombat-my-bills.vercel.app/?idCard=${encodeURIComponent(inv.idCard || '')}&roomId=${encodeURIComponent(inv.roomId || '')}&pdf=true`;
+          inv.pdfUrl = `https://sombat-apartment.vercel.app/tenant.html?sheetUrl=${encodeURIComponent(DBService.getSavedSheetUrl())}&apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}&idCard=${encodeURIComponent(inv.idCard || '')}&roomId=${encodeURIComponent(inv.roomId || '')}`;
           DBService.saveState(this.state);
           const url = (this.state.settings && this.state.settings.googleSheetUrl) ? this.state.settings.googleSheetUrl : DBService.getSavedSheetUrl();
           if (url) {
