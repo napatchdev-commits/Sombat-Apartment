@@ -409,13 +409,6 @@ function doPost(e) {
             }
 
             if (inv.slipUrl && inv.slipUrl.indexOf("data:") === 0) {
-              // Run automatic payment slip verification
-              var verifyResult = verifyPaymentSlip(inv, syncData);
-              if (verifyResult.error) {
-                throw new Error(verifyResult.message);
-              }
-
-              // If verification passes, save to Google Drive & replace base64 with Drive URL
               var filename = "slip_" + (inv.roomName || "room") + "_" + (inv.monthKey || "month") + "_" + Date.now();
               var driveUrl;
               try {
@@ -424,10 +417,6 @@ function doPost(e) {
                 throw new Error("บันทึกรูปสลิปลง Google Drive ไม่สำเร็จ (" + driveErr.toString() + ") กรุณาตรวจสอบพื้นที่ Drive คงเหลือ/สิทธิ์การใช้งาน แล้วลองใหม่อีกครั้ง");
               }
               inv.slipUrl = driveUrl;
-
-              // Clean up temporary client payload fields
-              delete inv.slipHash;
-              delete inv.qrPayload;
             }
           }
         }
@@ -520,13 +509,6 @@ function submitTenantPayment(ss, requestData) {
         return jsonError("กรุณาแนบรูปภาพสลิปโอนเงินให้ถูกต้อง");
       }
       inv.slipUrl = slipDataUrl;
-      inv.slipHash = requestData.slipHash || "";
-      inv.qrPayload = requestData.qrPayload || "";
-
-      var verifyResult = verifyPaymentSlip(inv, dbState);
-      if (verifyResult.error) {
-        return jsonError(verifyResult.message);
-      }
 
       var filename = "slip_" + (inv.roomName || room.name || "room") + "_" + (inv.monthKey || "month") + "_" + Date.now();
       var driveUrl;
@@ -536,20 +518,15 @@ function submitTenantPayment(ss, requestData) {
         return jsonError("บันทึกรูปสลิปลง Google Drive ไม่สำเร็จ กรุณาลองอัปโหลดใหม่อีกครั้ง (หากยังไม่สำเร็จ กรุณาติดต่อผู้ดูแลระบบ)");
       }
       inv.slipUrl = driveUrl;
-      delete inv.slipHash;
-      delete inv.qrPayload;
+      inv.status = "pending";
     } else {
       inv.slipUrl = "cash";
+      inv.status = "pending";
     }
 
-    inv.status = "paid";
-    inv.paidAmount = inv.totalAmount;
-    inv.outstandingAmount = 0;
-    inv.paymentDate = todayStr;
-
-    if (room && room.status === "overdue") {
-      room.status = "occupied";
-    }
+    inv.paidAmount = 0;
+    inv.outstandingAmount = inv.totalAmount;
+    inv.paymentDate = "";
 
     var dbSheet = ss.getSheetByName("DB_STATE");
     if (!dbSheet) dbSheet = ss.insertSheet("DB_STATE");
@@ -563,10 +540,11 @@ function submitTenantPayment(ss, requestData) {
       var channelToken = (lineSettings.lineToken && lineSettings.lineToken.trim())
         ? lineSettings.lineToken.trim()
         : ((propToken && propToken.trim()) ? propToken.trim() : DEFAULT_LINE_CHANNEL_ACCESS_TOKEN);
-      var methodLabel = paymentMethod === "cash" ? "เงินสด" : "โอนเงิน (ตรวจสอบสลิปอัตโนมัติผ่านแล้ว)";
+      var methodLabel = paymentMethod === "cash" ? "เงินสด" : "โอนเงิน (แนบสลิปแล้ว)";
       var msg = "🏠 " + (lineSettings.apartmentName || "หอพักสมบัติ นนทบุรี") + "\n\n📢 ผู้เช่าห้อง " +
         (inv.roomName || room.name || roomId) + " (" + (inv.tenantName || tenantForRoom.name || "ผู้เช่า") +
-        ") ได้ชำระเงินด้วยวิธี " + methodLabel + " เรียบร้อยแล้ว!\nยอดเงิน: ฿" + Number(inv.totalAmount || 0).toLocaleString();
+        ") ได้แจ้งชำระเงินเข้ามาแล้วด้วยวิธี " + methodLabel + "\nยอดเงิน: ฿" + Number(inv.totalAmount || 0).toLocaleString() +
+        "\n\nกรุณาตรวจสอบและอนุมัติชำระเงินในระบบแอดมิน";
       if (channelToken && channelToken !== "YOUR_LINE_CHANNEL_ACCESS_TOKEN") {
         sendLinePushOrBroadcast(channelToken, msg, true);
       }
@@ -1633,267 +1611,7 @@ function saveBase64ImageToDrive(base64Data, filename) {
 
 /**
  * ฟังก์ชันหลักในการตรวจสอบความถูกต้องของสลิปชำระเงิน (OCR + QR Code Decoded)
- * ป้องกันสลิปซ้ำ และเช็คชื่อบัญชีปลายทาง นางสมผิว น้ำวน (ธ.กรุงศรี 2401346663)
- */
-function verifyPaymentSlip(inv, syncData) {
-  var slipHash = inv.slipHash || "";
-  var qrPayload = inv.qrPayload || "";
-  var invoiceAmount = inv.totalAmount || 0;
-  
-  if (!syncData.settings) syncData.settings = {};
-  if (!syncData.settings.usedSlipHashes) syncData.settings.usedSlipHashes = [];
-  if (!syncData.settings.usedReferenceIds) syncData.settings.usedReferenceIds = [];
-  
-  // 1. ตรวจสอบ Image Hash ป้องกันอัปโหลดไฟล์ภาพซ้ำซ้อน
-  if (slipHash) {
-    if (syncData.settings.usedSlipHashes.indexOf(slipHash) !== -1) {
-      return { error: true, message: "สลิปนี้เคยถูกนำมาใช้ชำระเงินในระบบแล้ว (ตรวจพบไฟล์ภาพซ้ำ)" };
-    }
-  }
-  
-  // 2. ดึงข้อมูลตัวหนังสือจากภาพ (OCR) โดยแปลงภาพเป็น Google Doc ชั่วคราว
-  var ocrText = "";
-  var ocrError = null;
-  try {
-    var blob = dataURItoBlob(inv.slipUrl);
-    ocrText = performOcrOnImageBlob(blob);
-  } catch (e) {
-    ocrError = e.toString();
-    Logger.log("OCR failed: " + ocrError);
-  }
-  
-  // ตรวจสอบข้อผิดพลาดในการเรียกใช้บริการ OCR (เช่น ยังไม่ได้เปิดบริการ Drive API)
-  if (ocrError) {
-    return { error: true, message: "ระบบตรวจจับสลิปขัดข้อง (ข้อความ Error: " + ocrError + ") กรุณาตรวจสอบการเปิดบริการ 'Drive API' ในแถบซ้าย (Services) ของ Apps Script และกดบันทึก+ปรับใช้รุ่นใหม่" };
-  }
-  
-  // หากรูปภาพไม่มีข้อความใดๆ เลย (อัปโหลดภาพวิว ภาพถ่าย หรือภาพที่ไม่ใช่สลิป)
-  if (!ocrText || ocrText.trim() === "") {
-    return { error: true, message: "ไม่พบข้อมูลตัวหนังสือบนภาพสลิปนี้ กรุณาอัปโหลดรูปภาพสลิปโอนเงินที่คมชัดและถูกต้องของธนาคาร" };
-  }
-  
-  // ตรวจสอบชื่อบัญชีปลายทางผู้รับโอน ("สมผิว" หรือ "น้ำวน")
-  var hasReceiverName = (ocrText.indexOf("สมผิว") !== -1 || ocrText.indexOf("น้ำวน") !== -1 || ocrText.toLowerCase().indexOf("somphiw") !== -1 || ocrText.toLowerCase().indexOf("namwon") !== -1);
-  // ตรวจสอบเลขบัญชีผู้รับเงิน โดยเทียบเฉพาะตัวเลข (ตัดช่องว่าง/ขีด/จุด ออกทั้งหมดก่อนเทียบ)
-  // เพื่อให้รองรับทุกรูปแบบที่ OCR อาจอ่านได้ เช่น "240-1-34666-3", "240 1 34666 3", "2401346663"
-  var ocrDigitsOnly = ocrText.replace(/[^0-9]/g, "");
-  var hasReceiverAccount = ocrDigitsOnly.indexOf("2401346663") !== -1;
-  
-  // 3. แกะเลขอ้างอิง Reference ID และ ยอดเงินโอน
-  var refId = "";
-  var amountFound = 0;
-  
-  if (qrPayload) {
-    var parsedQr = parseThaiQrPayload(qrPayload);
-    if (parsedQr.refId) refId = parsedQr.refId;
-    if (parsedQr.amount) amountFound = parsedQr.amount;
-  }
-  
-  if (!refId) {
-    refId = extractReferenceIdFromText(ocrText);
-  }
-  if (!amountFound) {
-    amountFound = extractAmountFromText(ocrText, invoiceAmount);
-  }
-  
-  // 4. ตรวจสอบความถูกต้องเปรียบเทียบกับเงื่อนไขในระบบ
-  
-  // 4.1 ตรวจสอบ Reference ID ซ้ำ
-  if (refId) {
-    if (syncData.settings.usedReferenceIds.indexOf(refId) !== -1) {
-      return { error: true, message: "เลขที่อ้างอิงธุรกรรมธนาคารนี้ (" + refId + ") เคยใช้ชำระเงินแล้ว (ตรวจจับการใช้สลิปซ้ำ)" };
-    }
-  }
-  
-  // 4.2 ตรวจสอบยอดเงินโอน (ต้องตรงกับยอดจริงในบิล 100%)
-  var amountVerified = false;
-  if (amountFound > 0) {
-    if (Math.abs(amountFound - invoiceAmount) < 0.01) {
-      amountVerified = true;
-    }
-  }
-  
-  // หากการสกัดตัวเลขทศนิยมหลักไม่เจอ ให้ตรวจสอบคำสำคัญหรือความคุ้มครองจำนวนเงินเพิ่มในข้อความ OCR
-  if (!amountVerified) {
-    amountVerified = checkAmountInText(ocrText, invoiceAmount);
-  }
-  
-  // หากยอดเงินโอนไม่ผ่านการยืนยัน (เช่น อัปโหลดสลิป 1 บาทเพื่อจะจ่ายบิลค่าห้อง) ให้เด้งปฏิเสธทันที
-  if (!amountVerified) {
-    return { error: true, message: "ปฏิเสธการชำระเงิน: ยอดเงินโอนบนสลิปไม่ถูกต้อง หรือไม่พบยอดโอนที่ตรงกับบิลนี้ (฿" + invoiceAmount.toLocaleString(undefined, {minimumFractionDigits:2}) + ") กรุณาตรวจสอบและอัปโหลดสลิปที่ถูกต้อง" };
-  }
-  
-  // 4.3 ตรวจสอบผู้รับโอนเงินปลายทาง (นางสมผิว น้ำวน หรือ ธ.กรุงศรี 240-1-34666-3)
-  if (!hasReceiverName && !hasReceiverAccount) {
-    return { error: true, message: "ปฏิเสธการชำระเงิน: ไม่พบข้อมูลชื่อบัญชีปลายทาง 'นางสมผิว น้ำวน' หรือเลขบัญชีหอพัก '240-1-34666-3' บนรูปภาพสลิปนี้" };
-  }
-  
-  // 5. บันทึกเข้าระบบประวัติสำเร็จ
-  if (slipHash) {
-    syncData.settings.usedSlipHashes.push(slipHash);
-  }
-  if (refId) {
-    syncData.settings.usedReferenceIds.push(refId);
-  }
-  
-  return { error: false, refId: refId, amountFound: amountFound };
-}
-
-function dataURItoBlob(dataURI) {
-  var split = dataURI.split(',');
-  var contentTypeMatch = split[0].match(/:(.*?);/);
-  var contentType = contentTypeMatch ? contentTypeMatch[1] : "image/png";
-  var byteString = Utilities.base64Decode(split[1]);
-  return Utilities.newBlob(byteString, contentType, "temp_slip");
-}
-
-function performOcrOnImageBlob(blob) {
-  var docFile;
-  
-  if (typeof Drive.Files.insert === "function") {
-    // บริการ Drive API v2 (รุ่นเก่า)
-    var resourceV2 = {
-      title: blob.getName(),
-      mimeType: blob.getContentType()
-    };
-    var optionsV2 = {
-      ocr: true,
-      ocrLanguage: "th"
-    };
-    docFile = Drive.Files.insert(resourceV2, blob, optionsV2);
-  } else if (typeof Drive.Files.create === "function") {
-    // บริการ Drive API v3 (รุ่นใหม่เริ่มต้นของ Google)
-    var resourceV3 = {
-      name: blob.getName(),
-      mimeType: blob.getContentType()
-    };
-    var optionsV3 = {
-      ocr: true,
-      ocrLanguage: "th"
-    };
-    docFile = Drive.Files.create(resourceV3, blob, optionsV3);
-  } else {
-    throw new Error("บริการ API ในโครงการไม่รองรับคำสั่ง Drive.Files (กรุณาตรวจสอบการเปิด Drive API ในเมนูบริการ)");
-  }
-  
-  var doc = DocumentApp.openById(docFile.id);
-  var text = doc.getBody().getText();
-  
-  // ลบไฟล์เอกสารชั่วคราวทิ้งทันทีหลังอ่านข้อความเสร็จ
-  try {
-    if (typeof Drive.Files.remove === "function") {
-      Drive.Files.remove(docFile.id);
-    } else if (typeof Drive.Files.delete === "function") {
-      Drive.Files.delete(docFile.id);
-    } else {
-      Drive.Files.remove(docFile.id);
-    }
-  } catch (e) {
-    Logger.log("Cleanup temp doc failed: " + e.toString());
-  }
-  
-  return text;
-}
-
-function parseThaiQrPayload(payload) {
-  var result = { refId: "", amount: 0 };
-  if (!payload) return result;
-  
-  // กรณีเป็น URL
-  if (payload.indexOf("http") === 0) {
-    var matches = payload.match(/[a-zA-Z0-9]{12,}/g);
-    if (matches && matches.length > 0) {
-      result.refId = matches[matches.length - 1];
-    }
-    return result;
-  }
-  
-  // กรณีเป็นรหัส EMVCo มาตรฐาน
-  if (payload.indexOf("000201") === 0) {
-    var matches = payload.match(/[a-zA-Z0-9]{12,}/g);
-    if (matches && matches.length > 0) {
-      result.refId = matches[0];
-    }
-  }
-  
-  return result;
-}
-
-function extractReferenceIdFromText(text) {
-  if (!text) return "";
-  var patterns = [
-    /(?:เลขที่อ้างอิง|เลขอ้างอิง|เลขที่รายการ|Ref|Transaction|Ref\.?\s?No\.?|Txn\s?ID)\s?:?\s?([a-zA-Z0-9\-\s]{10,25})/i,
-    /\b\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\b/
-  ];
-  
-  for (var i = 0; i < patterns.length; i++) {
-    var match = text.match(patterns[i]);
-    if (match && match[1]) {
-      return match[1].replace(/[\s\-]/g, "");
-    }
-  }
-  
-  var matches = text.match(/[A-Z0-9]{12,25}/g);
-  if (matches) {
-    for (var j = 0; j < matches.length; j++) {
-      if (isNaN(Number(matches[j]))) continue;
-      return matches[j];
-    }
-  }
-  
-  return "";
-}
-
-function extractAmountFromText(text, targetAmount) {
-  if (!text) return 0;
-  // รองรับทั้งรูปแบบที่มีจุลภาคคั่นหลักพัน (เช่น 3,500.00) และไม่มีจุลภาคเลย (เช่น 3500.00)
-  var matches = text.match(/\b\d{1,3}(,\d{3})*\.\d{2}\b|\b\d+\.\d{2}\b/g);
-  if (matches) {
-    for (var i = 0; i < matches.length; i++) {
-      var num = Number(matches[i].replace(/,/g, ""));
-      if (Math.abs(num - targetAmount) < 0.01) {
-        return num;
-      }
-    }
-    var maxNum = 0;
-    for (var j = 0; j < matches.length; j++) {
-      var numVal = Number(matches[j].replace(/,/g, ""));
-      if (numVal > maxNum) maxNum = numVal;
-    }
-    return maxNum;
-  }
-  return 0;
-}
-
-/**
- * ฟังก์ชันช่วยตรวจสอบหาจำนวนยอดเงินบิลที่ถูกต้องในข้อความ OCR ของรูปภาพสลิป
- * รองรับการเขียนยอดเงินหลากหลายรูปแบบ เช่น 3,500.00, 3500, 350000 (กรณีตัวเชื่อมจุดทศนิยมหายไป)
- */
-function checkAmountInText(ocrText, targetAmount) {
-  if (!ocrText) return false;
-  
-  // ลบช่องว่างและเครื่องหมายจุลภาค (Comma) ออกทั้งหมดเพื่อเปรียบเทียบในรูปแบบตัวเลขเพียวๆ
-  var cleanText = ocrText.replace(/[\s,]/g, "");
-  
-  // รูปแบบที่ 1: ตรวจหาทศนิยมตรงๆ เช่น "3500.00" โดยต้องไม่ใช่ส่วนหนึ่งของตัวเลขที่ยาวกว่า
-  // (ใช้ negative lookaround กันไม่ให้ "3500.00" ไป match ซ่อนอยู่ใน "13500.001" หรือคล้ายกัน)
-  var amtString = targetAmount.toFixed(2);
-  var escapedAmt = amtString.replace(".", "\\.");
-  var pattern1 = new RegExp("(?<![\\d.])" + escapedAmt + "(?!\\d)");
-  
-  // รูปแบบที่ 2: ตรวจหาตัวเลขจำนวนเต็มล้วนๆ เช่น "3500" แต่ต้อง "ไม่ติดกับตัวเลขอื่น" ทั้งด้านหน้าและด้านหลัง
-  // ป้องกันไม่ให้ยอดเงิน เช่น 500 บาท ไป match ซ่อนอยู่ในเลขบัญชี/เลขอ้างอิง/วันที่ที่บังเอิญมี "500" ปนอยู่
-  // (เดิมมี pattern3 ที่ยอมให้มีเลขอื่นต่อท้ายได้ 2 หลัก ซึ่งหลวมเกินไปและถูกตัดออกเพื่อความปลอดภัย)
-  var intAmt = Math.floor(targetAmount).toString();
-  var pattern2 = new RegExp("(?<!\\d)" + intAmt + "(?!\\d)");
-  
-  if (pattern1.test(cleanText) || pattern2.test(cleanText)) {
-    return true;
-  }
-  
-  return false;
-}
-
+// ลบระบบตรวจสอบสลิปอัตโนมัติออกทั้งหมด เรียบร้อยเเล้ว เหลือเฉพาะการอัปโหลดไฟล์ไปบันทึกบน Google Drive
 /**
  * ฟังก์ชันสร้างและอัปเดตแท็บแผ่นงาน "จดเลขอ่านน้ำไฟ" เพื่อรองรับการจดมิเตอร์มือถือ
  */

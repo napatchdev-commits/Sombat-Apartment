@@ -13,9 +13,99 @@
    การป้องกันข้อมูลจริงยังคงอยู่ที่ apiKey/TENANT_API_KEY ใน Code.gs)
    ========================================================================== */
 async function sha256Hex(text) {
-  const data = new TextEncoder().encode(String(text));
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    if (window.crypto && crypto.subtle) {
+      const data = new TextEncoder().encode(String(text));
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (cryptoErr) {
+    console.warn("SubtleCrypto failed, using JS fallback:", cryptoErr);
+  }
+
+  // Pure JS SHA-256 fallback (works on file:/// and non-HTTPS local contexts)
+  function sha256_js(ascii) {
+    function rightRotate(value, amount) {
+      return (value >>> amount) | (value << (32 - amount));
+    }
+    var mathPow = Math.pow;
+    var maxWord = mathPow(2, 32);
+    var lengthProperty = 'length';
+    var i, j;
+    var result = '';
+    var words = [];
+    var asciiLength = ascii[lengthProperty] * 8;
+    var hash = sha256_js.h = sha256_js.h || [];
+    var k = sha256_js.k = sha256_js.k || [];
+    var primeCounter = k[lengthProperty];
+    var isPrime = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+      if (!isPrime[candidate]) {
+        for (i = 0; i < 311; i += candidate) {
+          isPrime[i] = 1;
+        }
+        hash[primeCounter] = (mathPow(candidate, .5) * maxWord) | 0;
+        k[primeCounter++] = (mathPow(candidate, 1/3) * maxWord) | 0;
+      }
+    }
+    ascii += '\x80';
+    while (ascii[lengthProperty] % 64 - 56) ascii += '\x00';
+    for (i = 0; i < ascii[lengthProperty]; i++) {
+      j = ascii.charCodeAt(i);
+      if (j >> 8) return; // error
+      words[i >> 2] |= j << ((3 - i % 4) * 8);
+    }
+    words[words[lengthProperty]] = ((asciiLength / maxWord) | 0);
+    words[words[lengthProperty]] = (asciiLength | 0);
+    var h0 = hash[0], h1 = hash[1], h2 = hash[2], h3 = hash[3],
+        h4 = hash[4], h5 = hash[5], h6 = hash[6], h7 = hash[7];
+    for (i = 0; i < words[lengthProperty]; i += 16) {
+      var w = [];
+      for (j = 0; j < 16; j++) w[j] = words[i + j];
+      for (j = 16; j < 64; j++) {
+        var wa = w[j - 15];
+        var s0 = rightRotate(wa, 7) ^ rightRotate(wa, 18) ^ (wa >>> 3);
+        var wb = w[j - 2];
+        var s1 = rightRotate(wb, 17) ^ rightRotate(wb, 19) ^ (wb >>> 10);
+        w[j] = (w[j - 16] + s0 + w[j - 7] + s1) | 0;
+      }
+      var a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+      for (j = 0; j < 64; j++) {
+        var S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
+        var ch = (e & f) ^ (~e & g);
+        var temp1 = (h + S1 + ch + k[j] + w[j]) | 0;
+        var S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
+        var maj = (a & b) ^ (a & c) ^ (b & c);
+        var temp2 = (S0 + maj) | 0;
+        h = g;
+        g = f;
+        f = e;
+        e = (d + temp1) | 0;
+        d = c;
+        c = b;
+        b = a;
+        a = (temp1 + temp2) | 0;
+      }
+      h0 = (h0 + a) | 0;
+      h1 = (h1 + b) | 0;
+      h2 = (h2 + c) | 0;
+      h3 = (h3 + d) | 0;
+      h4 = (h4 + e) | 0;
+      h5 = (h5 + f) | 0;
+      h6 = (h6 + g) | 0;
+      h7 = (h7 + h) | 0;
+    }
+    var hex = [h0, h1, h2, h3, h4, h5, h6, h7];
+    for (i = 0; i < 8; i++) {
+      var val = hex[i];
+      if (val < 0) val += 0x100000000;
+      var str = val.toString(16);
+      while (str.length < 8) str = '0' + str;
+      result += str;
+    }
+    return result;
+  }
+  return sha256_js(text);
 }
 
 // ตรวจสอบว่าค่านี้ "หน้าตาเหมือน" แฮช SHA-256 แล้วหรือยัง (เลขฐาน 16 ยาว 64 ตัวอักษร)
@@ -577,6 +667,16 @@ class DBService {
       if (!data.settings) data.settings = {};
       data.settings.googleSheetUrl = url;
       if (apiKey) data.settings.apiKey = apiKey;
+      
+      // Ensure default users are always present in the state to prevent locking out administrators when database is wiped/empty
+      if (!data.users || !Array.isArray(data.users) || data.users.length === 0) {
+        data.users = [
+          { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+          { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+          { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
+        ];
+      }
+
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
       return data;
@@ -1357,8 +1457,8 @@ class BillingComponent {
                     <td><strong>${inv.tenantName}</strong></td>
                     <td><strong class="text-primary">${Formatters.currency(inv.totalAmount)}</strong></td>
                     <td>
-                      <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : 'btn-danger'} btn-toggle-pay-status" data-id="${inv.id}">
-                        ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : '🔴 ค้างชำระ'}
+                      <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : (inv.status === 'pending' ? 'btn-warning' : 'btn-danger')} btn-toggle-pay-status" data-id="${inv.id}">
+                        ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : (inv.status === 'pending' ? '🟡 รอตรวจสอบ' : '🔴 ค้างชำระ')}
                       </button>
                       ${inv.slipUrl ? (inv.slipUrl === 'cash' ? `
                         <span class="badge-pill" style="margin-top:0.35rem; display:block; text-align:center; font-size:0.72rem; background-color:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-weight:700; padding:2px 4px; border-radius:4px;">

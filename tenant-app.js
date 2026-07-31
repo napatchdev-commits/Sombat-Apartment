@@ -655,42 +655,72 @@ class MyBillsApp {
 
     MyBillsApp.activeInvoiceNumber = latestInvoice.invoiceNumber;
     const isPaid = latestInvoice.status === 'paid';
+    const isPending = latestInvoice.status === 'pending';
     const amountToPay = latestInvoice.outstandingAmount || latestInvoice.totalAmount;
 
     // Badges calculation
-    const unpaidCount = sortedInvoices.filter(i => i.status !== 'paid').length;
+    const unpaidCount = sortedInvoices.filter(i => i.status !== 'paid' && i.status !== 'pending').length;
     const activeRepairsCount = (this.state.repairs || []).filter(r => r.status !== 'completed' && r.status !== 'เสร็จสิ้น').length;
+
+    let cardBgClass = '';
+    let cardStyle = '';
+    if (isPaid) {
+      cardBgClass = 'paid';
+    } else if (isPending) {
+      cardBgClass = 'pending';
+      cardStyle = 'border-color: rgba(234, 179, 8, 0.35); box-shadow: 0 10px 25px rgba(234, 179, 8, 0.08);';
+    }
+
+    let statusText = `ครบกำหนดวันที่ ${Formatters.thaiDate(latestInvoice.dueDate)}`;
+    let statusColor = '#b45309';
+    let amountColor = '#dc2626';
+    let iconClass = 'fa-regular fa-file-lines text-danger';
+    let iconBgColor = '#fef2f2';
+    
+    if (isPaid) {
+      statusText = 'ชำระค่าห้องเรียบร้อยแล้ว ขอบคุณครับ!';
+      statusColor = '#059669';
+      amountColor = '#059669';
+      iconClass = 'fa-solid fa-circle-check text-success';
+      iconBgColor = '#ecfdf5';
+    } else if (isPending) {
+      statusText = 'ส่งหลักฐานแล้ว รอแอดมินตรวจสอบ';
+      statusColor = '#ca8a04';
+      amountColor = '#ca8a04';
+      iconClass = 'fa-regular fa-clock text-warning';
+      iconBgColor = '#fef9c3';
+    }
 
     return `
       <div class="animate-fade-in">
         
         <!-- Outstanding Bill Card (Matches screen mockup) -->
-        <div class="outstanding-card ${isPaid ? 'paid' : ''}">
+        <div class="outstanding-card ${cardBgClass}" style="${cardStyle}">
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
               <div style="font-size:0.85rem; font-weight:700; color:#64748b; margin-bottom:0.4rem;">
                 ยอดค้างชำระ · ${Formatters.thaiMonthBE(latestInvoice.monthKey)}
               </div>
               <div style="display:flex; align-items:baseline; gap:0.25rem;">
-                <span style="font-size:2rem; font-weight:800; color:${isPaid ? '#059669' : '#dc2626'}; line-height:1.2;">
+                <span style="font-size:2rem; font-weight:800; color:${amountColor}; line-height:1.2;">
                   ${isPaid ? '0.00' : amountToPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span style="font-size:0.9rem; font-weight:700; color:#475569;">บาท</span>
               </div>
-              <div style="font-size:0.82rem; font-weight:600; color:${isPaid ? '#059669' : '#b45309'}; margin-top:0.4rem;">
-                ${isPaid ? 'ชำระค่าห้องเรียบร้อยแล้ว ขอบคุณครับ!' : `ครบกำหนดวันที่ ${Formatters.thaiDate(latestInvoice.dueDate)}`}
+              <div style="font-size:0.82rem; font-weight:600; color:${statusColor}; margin-top:0.4rem;">
+                ${statusText}
               </div>
             </div>
             
-            <div style="background:${isPaid ? '#ecfdf5' : '#fef2f2'}; border-radius:12px; padding:0.65rem; display:flex; align-items:center; justify-content:center;">
-              <i class="${isPaid ? 'fa-solid fa-circle-check text-success' : 'fa-regular fa-file-lines text-danger'}" style="font-size:1.6rem;"></i>
+            <div style="background:${iconBgColor}; border-radius:12px; padding:0.65rem; display:flex; align-items:center; justify-content:center;">
+              <i class="${iconClass}" style="font-size:1.6rem;"></i>
             </div>
           </div>
 
           <!-- Action payment button (Screen Red Design) -->
-          <button type="button" class="btn ${isPaid ? 'btn-success' : 'btn-danger'} btn-full" id="btn-home-action-pay" style="margin-top:1.25rem; padding:0.85rem; border-radius:12px; gap:0.5rem; justify-content:center; box-shadow: ${isPaid ? '0 6px 15px rgba(16,185,129,0.2)' : '0 6px 15px rgba(220,38,38,0.2)'};">
-            <i class="${isPaid ? 'fa-solid fa-receipt' : 'fa-solid fa-qrcode'}"></i>
-            <span>${isPaid ? 'ดูใบเสร็จรับเงินล่าสุด' : 'ดูบิล / ชำระเงิน'}</span>
+          <button type="button" class="btn ${isPaid ? 'btn-success' : (isPending ? 'btn-secondary' : 'btn-danger')} btn-full" id="btn-home-action-pay" style="margin-top:1.25rem; padding:0.85rem; border-radius:12px; gap:0.5rem; justify-content:center; box-shadow: ${isPaid ? '0 6px 15px rgba(16,185,129,0.2)' : (isPending ? '0 6px 15px rgba(100,116,139,0.1)' : '0 6px 15px rgba(220,38,38,0.2)')};">
+            <i class="${isPaid ? 'fa-solid fa-receipt' : (isPending ? 'fa-regular fa-file-lines' : 'fa-solid fa-qrcode')}"></i>
+            <span>${isPaid ? 'ดูใบเสร็จรับเงินล่าสุด' : (isPending ? 'ดูรายละเอียดบิล / รอตรวจสอบ' : 'ดูบิล / ชำระเงิน')}</span>
           </button>
         </div>
 
@@ -756,10 +786,14 @@ class MyBillsApp {
       payBtn.addEventListener('click', () => {
         const sorted = this.getMatchedInvoices();
         const latest = sorted.length > 0 ? sorted[0] : null;
-        if (latest && latest.status === 'paid') {
-          this.openReceiptModal(latest);
-        } else {
-          this.openPaymentModal(latest);
+        if (latest) {
+          if (latest.status === 'paid') {
+            this.openReceiptModal(latest);
+          } else if (latest.status === 'pending') {
+            this.openOfficialBillModal(latest);
+          } else {
+            this.openPaymentModal(latest);
+          }
         }
       });
     }
@@ -1336,26 +1370,13 @@ class MyBillsApp {
             analysisLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.85); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999999; font-family:sans-serif; backdrop-filter:blur(4px);';
             analysisLoader.innerHTML = `
               <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
-              <div style="font-weight:700; font-size:1.1rem; margin-bottom:0.25rem;">กำลังส่งข้อมูลสลิปไปตรวจสอบฝั่ง Google Sheets...</div>
-              <div style="font-size:0.85rem; color:#cbd5e1;">ระบบกำลังถอดรหัส QR และวิเคราะห์ลายนิ้วมือการซ้ำซ้อนสลิป</div>
+              <div style="font-weight:700; font-size:1.1rem; margin-bottom:0.25rem;">กำลังส่งหลักฐานสลิป...</div>
+              <div style="font-size:0.85rem; color:#cbd5e1;">ระบบกำลังจัดเก็บภาพสลิปลง Google Drive</div>
               <style>
                 @keyframes spin { to { transform: rotate(360deg); } }
               </style>
             `;
             document.body.appendChild(analysisLoader);
-
-            let hashHex = '';
-            let qrCodeData = null;
-
-            try {
-              hashHex = await MyBillsApp.computeSha256(MyBillsApp.currentSlipDataUrl);
-              qrCodeData = await MyBillsApp.scanQrCodeFromDataUrl(MyBillsApp.currentSlipDataUrl);
-            } catch (err) {
-              console.error("Image processing error:", err);
-              analysisLoader.remove();
-              alert('❌ ไม่สามารถอ่านรูปภาพสลิปนี้ได้กรุณาลองใหม่อีกครั้ง');
-              return;
-            }
 
             const tenant = MyBillsApp.currentTenant;
             const invoicesList = MyBillsApp.state.invoices || [];
@@ -1368,9 +1389,7 @@ class MyBillsApp {
                 roomId: tenant.assignedRoomId,
                 invoiceNumber: MyBillsApp.activeInvoiceNumber,
                 paymentMethod: 'transfer',
-                slipDataUrl: MyBillsApp.currentSlipDataUrl,
-                slipHash: hashHex,
-                qrPayload: qrCodeData
+                slipDataUrl: MyBillsApp.currentSlipDataUrl
               });
 
               analysisLoader.remove();
@@ -1380,9 +1399,9 @@ class MyBillsApp {
                 invoicesList[invIdx] = Object.assign({}, invoicesList[invIdx], result.invoice);
               }
 
-              alert('🟢 ยืนยันการโอนเงินสำเร็จ!\n\nขอบคุณสำหรับการชำระค่าบริการครับ');
+              alert('🟢 ส่งสลิปหลักฐานการชำระเงินเรียบร้อยแล้ว!\n\nกรุณารอแอดมินตรวจสอบและยืนยันการชำระเงินครับ');
               MyBillsApp.render();
-              MyBillsApp.openReceiptModal(invoicesList[invIdx]);
+              MyBillsApp.openOfficialBillModal(invoicesList[invIdx]);
             } catch (err) {
               analysisLoader.remove();
               alert('❌ ' + err.message);
