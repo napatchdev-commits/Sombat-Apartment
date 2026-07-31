@@ -1416,7 +1416,11 @@ class RepairsComponent {
                     <td><strong>${rep.ticketNumber}</strong></td>
                     <td><span class="badge-pill badge-primary">ห้อง ${rep.roomName}</span></td>
                     <td>${rep.tenantName || '-'}</td>
-                    <td><strong>${rep.title}</strong><div class="text-muted text-sm">${rep.description || ''}</div></td>
+                    <td>
+                      <strong>${rep.title}</strong>
+                      <div class="text-muted text-sm">${rep.description || ''}</div>
+                      ${rep.imageUrl ? `<a href="${rep.imageUrl}" target="_blank" class="text-primary text-sm" style="display:inline-flex; align-items:center; gap:4px; margin-top:0.35rem; text-decoration:none;"><i class="fa-solid fa-image"></i> ดูรูปถ่ายหน้างาน</a>` : ''}
+                    </td>
                     <td>${rep.assignedTechnician || 'ยังไม่ระบุช่าง'}</td>
                     <td><strong class="text-danger">${Formatters.currency(rep.expenseAmount)}</strong></td>
                     <td>
@@ -2409,7 +2413,7 @@ class App {
           const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
           const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
           const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
-          const trashFee = this.state.rates.trashFee || 20;
+          const trashFee = this.state.rates.trashFee !== undefined ? Number(this.state.rates.trashFee) : 20;
           const fineAmt = Number(reading.fineAmount || 0);
           const total = rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
 
@@ -3769,7 +3773,7 @@ class App {
                 waterUnits >= 0 ? waterUnits : 0,
                 inv.waterAmount || 0,
                 inv.rentAmount || 0,
-                inv.trashFee || 0,
+                inv.trashFee !== undefined ? inv.trashFee : 20,
                 otherAmt,
                 inv.totalAmount || 0,
                 statusStr
@@ -3995,7 +3999,7 @@ class App {
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
       const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
-      const trashFee = 20;
+      const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
       const fineAmt = parseFloat(document.getElementById('bill-fine').value) || 0;
       const total = rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
 

@@ -198,6 +198,11 @@ function doGet(e) {
       return inv.roomId === roomIdParam;
     });
 
+    var tRepairs = tenantData.repairs || [];
+    var matchedRepairs = tRepairs.filter(function(rep) {
+      return rep.roomId === roomIdParam || rep.roomName === tRoom.name;
+    });
+
     var tSettings = tenantData.settings || {};
     var safeSettings = {
       apartmentName: tSettings.apartmentName || "",
@@ -217,6 +222,8 @@ function doGet(e) {
       },
       room: tRoom,
       invoices: matchedInvoices,
+      repairs: matchedRepairs,
+      events: tenantData.events || [],
       settings: safeSettings
     })).setMimeType(ContentService.MimeType.JSON);
   }
@@ -269,6 +276,13 @@ function doPost(e) {
         return jsonError("Unauthorized: apiKey ไม่ถูกต้องหรือไม่ได้ระบุมา");
       }
       return submitTenantPayment(ss, requestData);
+    }
+
+    if (action === "submitTenantRepair") {
+      if (!isTenantRequestAuthorized(requestData.apiKey)) {
+        return jsonError("Unauthorized: apiKey ไม่ถูกต้องหรือไม่ได้ระบุมา");
+      }
+      return submitTenantRepair(ss, requestData);
     }
 
     // [ความปลอดภัย] ตรวจสอบ API Key ก่อนอนุญาตให้ดำเนินการใดๆ ต่อ (ยกเว้น LINE Webhook และ submitTenantPayment ด้านบน)
@@ -389,7 +403,8 @@ function doPost(e) {
             // คำนวณค่าปรับค้างชำระอัตโนมัติหากยังไม่ชำระเงิน
             if (inv.status === 'unpaid') {
               inv.fineAmount = getLateFeeAmount(inv.dueDate, inv.status, inv.fineAmount);
-              inv.totalAmount = (inv.rentAmount || 0) + (inv.elecAmount || 0) + (inv.waterAmount || 0) + (inv.trashFee || 0) + (inv.fineAmount || 0);
+              var tf = inv.trashFee !== undefined ? Number(inv.trashFee) : 20;
+              inv.totalAmount = (inv.rentAmount || 0) + (inv.elecAmount || 0) + (inv.waterAmount || 0) + tf + (inv.fineAmount || 0);
               inv.outstandingAmount = inv.totalAmount - (inv.paidAmount || 0);
             }
 
@@ -561,6 +576,118 @@ function submitTenantPayment(ss, requestData) {
 
     return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "บันทึกการชำระเงินเรียบร้อยแล้ว", invoice: inv }))
       .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return jsonError(err.toString());
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function submitTenantRepair(ss, requestData) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (lockErr) {
+    return jsonError("ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้งในอีกสักครู่");
+  }
+
+  try {
+    var idCardRaw = requestData.idCard || "";
+    var roomId = requestData.roomId || "";
+    var title = requestData.title || "";
+    var description = requestData.description || "";
+    var imageUrl = requestData.imageUrl || "";
+
+    var cleanIdCard = String(idCardRaw).replace(/[^0-9]/g, "");
+    if (cleanIdCard.length !== 13 || !roomId || !title) {
+      return jsonError("ข้อมูลไม่ครบถ้วน กรุณากรอกหัวข้อแจ้งซ่อมและรายละเอียดให้ถูกต้อง");
+    }
+
+    var dbState = getLatestDbData(ss) || {};
+    var tenants = dbState.tenants || [];
+    var rooms = dbState.rooms || [];
+    var repairs = dbState.repairs || [];
+
+    var tenant = tenants.find(function(t) { return t.assignedRoomId === roomId; });
+    if (!tenant) {
+      return jsonError("ไม่พบข้อมูลผู้เช่าของห้องพักนี้");
+    }
+    var cleanTenantIdCard = String(tenant.idCard || "").replace(/[^0-9]/g, "");
+    if (cleanTenantIdCard !== cleanIdCard) {
+      return jsonError("เลขบัตรประชาชนไม่ถูกต้อง");
+    }
+
+    var room = rooms.find(function(r) { return r.id === roomId; }) || { name: roomId };
+
+    // Process image if any (e.g. save to Google Drive)
+    var driveUrl = "";
+    if (imageUrl && imageUrl.indexOf("data:") === 0) {
+      try {
+        var filename = "repair_" + room.name + "_" + Date.now();
+        driveUrl = saveBase64ImageToDrive(imageUrl, filename);
+      } catch (driveErr) {
+        Logger.log("Save repair image to Drive failed: " + driveErr.toString());
+      }
+    }
+
+    // Generate ticket number MR-69-XXXX
+    var ticketSeq = repairs.length + 1;
+    var ticketNumber = "MR-69-" + String(ticketSeq).padStart(4, "0");
+
+    var newRepair = {
+      id: "rep_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+      ticketNumber: ticketNumber,
+      roomId: roomId,
+      roomName: room.name,
+      tenantName: tenant.name,
+      title: title,
+      description: description,
+      expenseAmount: 0,
+      assignedTechnician: "-",
+      requestDate: new Date().toISOString().slice(0, 10),
+      status: "pending",
+      imageUrl: driveUrl || imageUrl
+    };
+
+    repairs.push(newRepair);
+    dbState.repairs = repairs;
+
+    // Save state
+    var dbStateSheet = ss.getSheetByName("DB_STATE");
+    if (dbStateSheet) {
+      saveStateSafely(dbStateSheet, dbState);
+    }
+    writeRepairsSheet(ss, repairs);
+
+    // Notify landlord via LINE
+    try {
+      var lineSettings = dbState.settings || {};
+      var propToken = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+      var channelToken = (lineSettings.lineToken && lineSettings.lineToken.trim())
+        ? lineSettings.lineToken.trim()
+        : ((propToken && propToken.trim()) ? propToken.trim() : DEFAULT_LINE_CHANNEL_ACCESS_TOKEN);
+      
+      var msg = "🏠 " + (lineSettings.apartmentName || "หอพักสมบัติ นนทบุรี") + "\n\n🔧 แจ้งซ่อมใหม่จากผู้เช่า\n" +
+                "--------------------------\n" +
+                "ห้อง: " + room.name + "\n" +
+                "ผู้แจ้ง: " + tenant.name + "\n" +
+                "หัวข้อ: " + title + "\n" +
+                "รายละเอียด: " + description + "\n" +
+                "เลขใบแจ้งซ่อม: " + ticketNumber;
+      if (driveUrl) {
+        msg += "\n🔗 ดูรูปภาพ: " + driveUrl;
+      }
+      
+      if (channelToken && channelToken !== "YOUR_LINE_CHANNEL_ACCESS_TOKEN") {
+        sendLinePushOrBroadcast(channelToken, msg, true);
+      }
+    } catch (notifyErr) {
+      Logger.log("Notify landlord for new repair failed: " + notifyErr.toString());
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "ส่งใบแจ้งซ่อมเรียบร้อยแล้ว", repair: newRepair }))
+      .setMimeType(ContentService.MimeType.JSON);
+
   } catch (err) {
     return jsonError(err.toString());
   } finally {
@@ -1011,6 +1138,14 @@ function writeDashboardSheet(ss, data) {
 function writeRoomsSheet(ss, rooms) {
   var sheet = ss.getSheetByName("ข้อมูลห้องพัก");
   if (!sheet) sheet = ss.insertSheet("ข้อมูลห้องพัก");
+
+  if (!rooms || rooms.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'ข้อมูลห้องพัก' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
   var headers = ["ID ห้อง", "เลขห้อง/ชื่อห้อง", "ชั้นที่", "ค่าเช่า (บาท)", "ผู้เช่าปัจจุบัน", "มิเตอร์ไฟล่าสุด", "มิเตอร์น้ำล่าสุด", "สถานะ"];
@@ -1032,6 +1167,14 @@ function writeRoomsSheet(ss, rooms) {
 function writeTenantsSheet(ss, tenants, rooms) {
   var sheet = ss.getSheetByName("ข้อมูลผู้เช่า");
   if (!sheet) sheet = ss.insertSheet("ข้อมูลผู้เช่า");
+
+  if (!tenants || tenants.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'ข้อมูลผู้เช่า' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
   var headers = ["ID ผู้เช่า", "ชื่อ-นามสกุล", "เลขบัตรประชาชน", "เบอร์โทร", "ห้องพัก", "วันเริ่มสัญญา", "วันหมดสัญญา", "เงินประกัน (บาท)", "รูปบัตรประชาชน", "รูปทะเบียนบ้าน"];
@@ -1060,6 +1203,14 @@ function writeTenantsSheet(ss, tenants, rooms) {
 function writeContractsSheet(ss, tenants, rooms) {
   var sheet = ss.getSheetByName("ทะเบียนสัญญา");
   if (!sheet) sheet = ss.insertSheet("ทะเบียนสัญญา");
+
+  if (!tenants || tenants.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'ทะเบียนสัญญา' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
   var headers = ["ID สัญญา", "ชื่อผู้เช่า", "เลขบัตรประชาชน", "เบอร์โทร", "ห้องพัก", "วันเริ่มสัญญา", "วันหมดสัญญา", "เงินประกันสัญญา", "สถานะ"];
@@ -1088,6 +1239,14 @@ function writeContractsSheet(ss, tenants, rooms) {
 function writeInvoicesSheet(ss, invoices) {
   var sheet = ss.getSheetByName("รายการบิล");
   if (!sheet) sheet = ss.insertSheet("รายการบิล");
+
+  if (!invoices || invoices.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'รายการบิล' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
   var headers = [
@@ -1126,9 +1285,17 @@ function writeInvoicesSheet(ss, invoices) {
 function writeRepairsSheet(ss, repairs) {
   var sheet = ss.getSheetByName("รายการแจ้งซ่อม");
   if (!sheet) sheet = ss.insertSheet("รายการแจ้งซ่อม");
+
+  if (!repairs || repairs.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'รายการแจ้งซ่อม' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
-  var headers = ["เลขที่แจ้งซ่อม", "ห้องพัก", "ผู้แจ้ง/ผู้เช่า", "หัวข้อแจ้งซ่อม", "รายละเอียด", "ค่าใช้จ่าย (บาท)", "ช่างรับผิดชอบ", "วันที่แจ้ง", "สถานะ"];
+  var headers = ["เลขที่แจ้งซ่อม", "ห้องพัก", "ผู้แจ้ง/ผู้เช่า", "หัวข้อแจ้งซ่อม", "รายละเอียด", "ค่าใช้จ่าย (บาท)", "ช่างรับผิดชอบ", "วันที่แจ้ง", "สถานะ", "รูปภาพแนบ"];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#f1f5f9");
 
   if (!repairs || repairs.length === 0) return;
@@ -1136,7 +1303,7 @@ function writeRepairsSheet(ss, repairs) {
   var rows = repairs.map(function(rep) {
     return [
       rep.ticketNumber || "", rep.roomName || "", rep.tenantName || "-", rep.title || "", rep.description || "",
-      rep.expenseAmount || 0, rep.assignedTechnician || "-", rep.requestDate || "", rep.status || "pending"
+      rep.expenseAmount || 0, rep.assignedTechnician || "-", rep.requestDate || "", rep.status || "pending", rep.imageUrl || ""
     ];
   });
 
@@ -1149,6 +1316,14 @@ function writeRepairsSheet(ss, repairs) {
 function writeLedgerSheet(ss, ledger) {
   var sheet = ss.getSheetByName("บัญชีรายรับรายจ่าย");
   if (!sheet) sheet = ss.insertSheet("บัญชีรายรับรายจ่าย");
+
+  if (!ledger || ledger.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'บัญชีรายรับรายจ่าย' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
   var headers = ["ID รายการ", "วันที่", "ประเภท", "หมวดหมู่", "รายละเอียดรายการ", "จำนวนเงิน (บาท)", "บันทึกโดย"];
@@ -1168,6 +1343,14 @@ function writeLedgerSheet(ss, ledger) {
 function writeEventsSheet(ss, events) {
   var sheet = ss.getSheetByName("ปฏิทินกิจกรรม");
   if (!sheet) sheet = ss.insertSheet("ปฏิทินกิจกรรม");
+
+  if (!events || events.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'ปฏิทินกิจกรรม' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
   var headers = ["ID กิจกรรม", "วันที่นัดหมาย", "หัวข้อนัดหมาย/กิจกรรม", "หมวดหมู่", "ห้องที่เกี่ยวข้อง"];
@@ -1185,6 +1368,14 @@ function writeEventsSheet(ss, events) {
 function writeUsersSheet(ss, users) {
   var sheet = ss.getSheetByName("ผู้ใช้งานระบบ");
   if (!sheet) sheet = ss.insertSheet("ผู้ใช้งานระบบ");
+
+  if (!users || users.length === 0) {
+    if (sheet.getLastRow() > 1) {
+      Logger.log("⚠️ บล็อกการเขียนทับแท็บ 'ผู้ใช้งานระบบ' ด้วยค่าว่าง");
+      return;
+    }
+  }
+
   sheet.clear();
 
   var headers = ["ID ผู้ใช้งาน", "Username", "ชื่อที่แสดง", "บทบาทสิทธิ์"];
@@ -1550,7 +1741,8 @@ function verifyPaymentSlip(inv, syncData) {
 
 function dataURItoBlob(dataURI) {
   var split = dataURI.split(',');
-  var contentType = split[0].match(/:(.*?);/)[1];
+  var contentTypeMatch = split[0].match(/:(.*?);/);
+  var contentType = contentTypeMatch ? contentTypeMatch[1] : "image/png";
   var byteString = Utilities.base64Decode(split[1]);
   return Utilities.newBlob(byteString, contentType, "temp_slip");
 }
