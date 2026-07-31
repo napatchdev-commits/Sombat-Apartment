@@ -515,6 +515,7 @@ class DBService {
       } catch (e) {}
     }
     if (fromState) return fromState;
+    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (fromStorage) return this.cleanUrl(fromStorage);
     const urlParams = new URLSearchParams(window.location.search);
     const fromParam = urlParams.get('sheetUrl');
