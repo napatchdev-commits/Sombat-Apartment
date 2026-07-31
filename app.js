@@ -6,6 +6,24 @@
 // ==========================================================================
 
 /* ==========================================================================
+   0. PASSWORD HASHING HELPER
+   ให้แฮชรหัสผ่านด้วย SHA-256 ก่อนเก็บ/เปรียบเทียบ แทนการเก็บรหัสผ่านตัวจริง (plaintext)
+   ไว้ใน localStorage หรือ Google Sheets โดยตรง (หมายเหตุ: ระบบนี้ยังตรวจสอบฝั่ง client
+   เป็นหลักเพื่อคุมสิทธิ์การใช้งานหน้าเว็บ ไม่ใช่ระบบยืนยันตัวตนที่ทดแทนการป้องกันฝั่ง server
+   การป้องกันข้อมูลจริงยังคงอยู่ที่ apiKey/TENANT_API_KEY ใน Code.gs)
+   ========================================================================== */
+async function sha256Hex(text) {
+  const data = new TextEncoder().encode(String(text));
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ตรวจสอบว่าค่านี้ "หน้าตาเหมือน" แฮช SHA-256 แล้วหรือยัง (เลขฐาน 16 ยาว 64 ตัวอักษร)
+function looksLikeSha256Hash(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+}
+
+/* ==========================================================================
    1. USER PERMISSIONS & DEFINITIONS
    ========================================================================== */
 
@@ -212,11 +230,13 @@ class LineService {
     let url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
     const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
 
-    // Append sheetUrl parameter to the tenant URL so the tenant portal can pull from the real sheet DB
+    // Append sheetUrl + apiKey (สิทธิ์จำกัดสำหรับผู้เช่า) ไปกับลิงก์ ให้พอร์ทัลผู้เช่าดึงข้อมูลจริงได้
     const savedUrl = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || '';
+    const savedTenantKey = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
     if (savedUrl) {
       const sep = url.includes('?') ? '&' : '?';
       url += `${sep}sheetUrl=${encodeURIComponent(savedUrl)}`;
+      if (savedTenantKey) url += `&apiKey=${encodeURIComponent(savedTenantKey)}`;
     }
 
     const greeting = (isBroadcast || !invoice || !invoice.tenantName) 
@@ -240,9 +260,11 @@ class LineService {
     const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
 
     const savedUrl = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || '';
+    const savedTenantKey = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
     if (savedUrl) {
       const sep = url.includes('?') ? '&' : '?';
       url += `${sep}sheetUrl=${encodeURIComponent(savedUrl)}`;
+      if (savedTenantKey) url += `&apiKey=${encodeURIComponent(savedTenantKey)}`;
     }
 
     const greeting = (!invoice || !invoice.tenantName) 
@@ -362,9 +384,9 @@ class DBService {
       },
       rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 200.0, commonFee: 100.0 },
       users: [
-        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: 'admin' },
-        { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
-        { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: 'staff' }
+        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+        { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+        { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
       ],
       roomTypes: [
         { id: 'rt_fan', name: 'ห้องพัดลมมาตรฐาน', description: 'ห้องพัดลมกว้างขวาง ระเบียงส่วนตัว', defaultRent: 2500 },
@@ -416,7 +438,40 @@ class DBService {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
       return cleaned;
     }
-    return 'https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec';
+    // [ความปลอดภัย] ไม่มี URL สำรอง (fallback) แบบ hardcode อีกต่อไป ถ้ายังไม่ได้ตั้งค่า URL เอง
+    // ระบบจะคืนค่าว่างแทน เพื่อไม่ให้แอบส่งข้อมูลไปยัง Web App ของคนอื่นโดยไม่ตั้งใจ
+    return '';
+  }
+
+  static getSavedApiKey() {
+    const rawState = localStorage.getItem(this.STORAGE_KEY);
+    if (rawState) {
+      try {
+        const parsed = JSON.parse(rawState);
+        if (parsed.settings && parsed.settings.apiKey) return parsed.settings.apiKey;
+      } catch (e) {}
+    }
+    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_API_KEY');
+    if (fromStorage) return fromStorage;
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromParam = urlParams.get('apiKey');
+    if (fromParam) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_API_KEY', fromParam);
+      return fromParam;
+    }
+    return '';
+  }
+
+  // apiKey สิทธิ์จำกัด สำหรับแนบไปกับลิงก์พอร์ทัลผู้เช่า (tenant.html) เท่านั้น ต้องตั้งค่าคนละตัวกับ apiKey ของแอดมิน
+  static getSavedTenantApiKey() {
+    const rawState = localStorage.getItem(this.STORAGE_KEY);
+    if (rawState) {
+      try {
+        const parsed = JSON.parse(rawState);
+        if (parsed.settings && parsed.settings.tenantApiKey) return parsed.settings.tenantApiKey;
+      } catch (e) {}
+    }
+    return localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
   }
 
   static getState() {
@@ -467,9 +522,9 @@ class DBService {
     // Ensure default users are always present in the state to prevent locking out administrators when the database is wiped/empty
     if (!state.users || !Array.isArray(state.users) || state.users.length === 0) {
       state.users = [
-        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: 'admin' },
-        { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
-        { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: 'staff' }
+        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+        { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+        { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
       ];
     }
     
@@ -509,12 +564,19 @@ class DBService {
 
   static async pullFromGoogleSheets(url) {
     if (!url) return null;
-    const fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
+    const apiKey = this.getSavedApiKey();
+    let fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
+    if (apiKey) fetchUrl += `&apiKey=${encodeURIComponent(apiKey)}`;
     const res = await fetch(fetchUrl);
     const data = await res.json();
+    if (data && data.status === 'error') {
+      console.error('Google Sheets ปฏิเสธคำขอ:', data.message);
+      return null;
+    }
     if (data && typeof data === 'object' && (data.tenants || data.rooms)) {
       if (!data.settings) data.settings = {};
       data.settings.googleSheetUrl = url;
+      if (apiKey) data.settings.apiKey = apiKey;
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
       return data;
@@ -529,12 +591,17 @@ class DBService {
       return { status: "success", message: "Sync blocked: state is empty" };
     }
     localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
+    const apiKey = (state.settings && state.settings.apiKey) || this.getSavedApiKey();
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sync', data: state })
+      body: JSON.stringify({ action: 'sync', data: state, apiKey: apiKey })
     });
-    return response.json();
+    const result = await response.json();
+    if (result && result.status === 'error') {
+      throw new Error(result.message || 'เกิดข้อผิดพลาดในการซิงค์ข้อมูล');
+    }
+    return result;
   }
 
   static exportJSON() {
@@ -582,12 +649,11 @@ class LoginComponent {
             <div class="form-group" style="margin-bottom:1.25rem;">
               <label style="font-weight:600; color:#334155;">Password (รหัสผ่าน)</label>
               <div style="position:relative;">
-                <input type="password" id="login-password" class="form-control" value="admin" placeholder="ใส่รหัสผ่าน..." required style="padding:0.75rem 1rem; border-radius:8px; padding-right:2.5rem;">
+                <input type="password" id="login-password" class="form-control" value="" placeholder="ใส่รหัสผ่าน..." required style="padding:0.75rem 1rem; border-radius:8px; padding-right:2.5rem;">
                 <button type="button" id="btn-toggle-password" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">
                   <i class="fa-solid fa-eye"></i>
                 </button>
               </div>
-              <small class="text-muted" style="font-size:0.8rem; margin-top:0.35rem; display:block;">💡 รหัสผ่านเริ่มต้นคือ: <code>admin</code></small>
             </div>
 
 
@@ -596,18 +662,6 @@ class LoginComponent {
               <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ (Log In)
             </button>
           </form>
-
-          <div style="margin-top:2rem; border-top:1px solid #e2e8f0; padding-top:1.5rem;">
-            <p style="font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:0.75rem; text-align:center;">⚡ เข้าสู่ระบบแบบ 1-Click (สำหรับผู้ใช้งาน):</p>
-            <div style="display:flex; flex-direction:column; gap:0.5rem;">
-              ${users.map(u => `
-                <button type="button" class="btn btn-secondary btn-sm btn-quick-login" data-username="${u.username}" data-password="${u.passwordHash || 'admin'}" style="justify-content:flex-start; text-align:left; padding:0.65rem 0.85rem; border-radius:8px;">
-                  <i class="fa-solid ${u.role === 'super_admin' ? 'fa-crown text-warning' : (u.role === 'admin' ? 'fa-user-shield text-primary' : 'fa-user text-info')}"></i>
-                  <span><strong>${u.displayName}</strong> (${u.role === 'super_admin' ? 'Super Admin' : (u.role === 'admin' ? 'Admin' : 'Staff')})</span>
-                </button>
-              `).join('')}
-            </div>
-          </div>
 
         </div>
       </div>
@@ -641,7 +695,7 @@ class NavbarComponent {
         </div>
 
         <div class="header-right">
-          <a href="tenant.html?sheetUrl=${encodeURIComponent(DBService.getSavedSheetUrl())}" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills (สำหรับผู้เช่าล็อกอินสแกนสลิปผ่านเลขบัตรประชาชน)">
+          <a href="tenant.html?sheetUrl=${encodeURIComponent(DBService.getSavedSheetUrl())}&apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills (สำหรับผู้เช่าล็อกอินสแกนสลิปผ่านเลขบัตรประชาชน)">
             <i class="fa-solid fa-mobile-screen-button text-success"></i> <span class="desktop-only">เปิดระบบบิลผู้เช่า MyBills</span>
           </a>
 
@@ -1646,6 +1700,20 @@ class SettingsComponent {
             <label>Google Apps Script Web App URL:</label>
             <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
           </div>
+          <div class="form-group" style="margin-top:1rem;">
+            <label>API Key (รหัสลับที่ได้จากการรัน setApiSecretKey() ใน Apps Script):</label>
+            <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัสลับ API Key ที่นี่...">
+            <p class="text-muted" style="font-size:0.8rem; margin-top:0.35rem;">
+              ⚠️ ต้องตรงกับรหัสที่ตั้งไว้ในฝั่ง Apps Script มิฉะนั้นระบบจะเชื่อมต่อ/บันทึกข้อมูลไม่ได้
+            </p>
+          </div>
+          <div class="form-group" style="margin-top:1rem;">
+            <label>Tenant API Key (รหัสลับสำหรับพอร์ทัลผู้เช่า จากการรัน setTenantApiKey() ใน Apps Script):</label>
+            <input type="text" id="tenant-api-key-input" class="form-control" value="${settings.tenantApiKey || ''}" placeholder="วางรหัสลับ Tenant API Key ที่นี่...">
+            <p class="text-muted" style="font-size:0.8rem; margin-top:0.35rem;">
+              ⚠️ ต้องเป็นคนละรหัสกับ API Key ของแอดมินด้านบนเสมอ เพราะรหัสนี้จะถูกฝังไปกับลิงก์ที่ส่งให้ผู้เช่า (คนอื่นเปิดดูซอร์สโค้ดเห็นได้) ห้ามใช้รหัสเดียวกับแอดมินเด็ดขาด
+            </p>
+          </div>
           <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1rem;">
             <button class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-save"></i> บันทึก URL</button>
             <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้</button>
@@ -1809,7 +1877,7 @@ class App {
   static bindLoginEvents() {
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
-      loginForm.addEventListener('submit', (e) => {
+      loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const usernameInput = document.getElementById('login-username').value.trim();
         const passwordInput = document.getElementById('login-password').value;
@@ -1817,19 +1885,36 @@ class App {
         const rememberMe = rememberMeInput ? rememberMeInput.checked : true;
 
         const defaultUsers = [
-          { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: 'admin' },
-          { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: 'admin' },
-          { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: 'staff' }
+          { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+          { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+          { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
         ];
         const users = (this.state.users && this.state.users.length > 0) ? this.state.users : defaultUsers;
-        const user = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase() && (u.passwordHash === passwordInput || u.password === passwordInput || passwordInput === 'admin'));
+        const candidate = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase());
+
+        let user = null;
+        if (candidate) {
+          const inputHash = await sha256Hex(passwordInput);
+          if (candidate.passwordHash === inputHash) {
+            user = candidate;
+          } else if (candidate.passwordHash === passwordInput || candidate.password === passwordInput) {
+            // รองรับข้อมูลเก่าที่เคยเก็บรหัสผ่านเป็น plaintext ไว้ก่อนหน้านี้ (ยังไม่เคยแฮช)
+            // เมื่อล็อกอินผ่านครั้งนี้ ให้แปลงเป็นแฮช SHA-256 แล้วบันทึกทับทันที ไม่เก็บ plaintext ต่อ
+            user = candidate;
+            candidate.passwordHash = inputHash;
+            delete candidate.password;
+            if (this.state.users && this.state.users.length > 0) {
+              try { DBService.saveState(this.state); } catch (migrateErr) { /* ไม่เป็นไรถ้าบันทึกไม่ทัน จะแปลงใหม่ในครั้งถัดไป */ }
+            }
+          }
+        }
 
         if (user) {
           AuthService.setCurrentUser(user, rememberMe);
           LoggerService.log(user.username, user.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบสำเร็จ');
           this.init();
         } else {
-          alert('⚠️ ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง! (รหัสผ่านเริ่มต้นคือ admin)');
+          alert('⚠️ ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง!');
         }
       });
     }
@@ -1846,20 +1931,6 @@ class App {
       });
     }
 
-    document.querySelectorAll('.btn-quick-login').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const username = e.currentTarget.getAttribute('data-username');
-        const rememberMeInput = document.getElementById('login-remember-me');
-        const rememberMe = rememberMeInput ? rememberMeInput.checked : true;
-        const users = this.state.users || [];
-        const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-        if (user) {
-          AuthService.setCurrentUser(user, rememberMe);
-          LoggerService.log(user.username, user.role, 'LOGIN', 'AUTH', 'เข้าสู่ระบบ 1-Click');
-          this.init();
-        }
-      });
-    });
   }
 
   static switchTab(tabId) {
@@ -3037,7 +3108,8 @@ class App {
             body: JSON.stringify({
               action: 'linePushNotify',
               invoiceId: invId,
-              messageText: msgText
+              messageText: msgText,
+              apiKey: (this.state.settings && this.state.settings.apiKey) || DBService.getSavedApiKey()
             })
           });
 
@@ -3657,7 +3729,8 @@ class App {
             body: JSON.stringify({
               action: 'archiveInvoices',
               monthKey: selectedMonth,
-              invoices: targetInvoices
+              invoices: targetInvoices,
+              apiKey: (this.state.settings && this.state.settings.apiKey) || DBService.getSavedApiKey()
             }),
             redirect: 'follow'
           });
@@ -4412,13 +4485,29 @@ class App {
       saveUrlBtn.addEventListener('click', (e) => {
         e.preventDefault();
         const urlInput = document.getElementById('sheets-url-input');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const tenantApiKeyInput = document.getElementById('tenant-api-key-input');
         if (urlInput) {
           const cleaned = DBService.cleanUrl(urlInput.value);
           this.state.settings.googleSheetUrl = cleaned;
           urlInput.value = cleaned; // Update the input field value visually too!
-          DBService.saveState(this.state);
-          alert('บันทึก Google Sheets Web App URL เรียบร้อยแล้ว!');
         }
+        if (apiKeyInput) {
+          const apiKeyVal = apiKeyInput.value.trim();
+          this.state.settings.apiKey = apiKeyVal;
+          localStorage.setItem('SOMBAT_APARTMENT_SAVED_API_KEY', apiKeyVal);
+        }
+        if (tenantApiKeyInput) {
+          const tenantApiKeyVal = tenantApiKeyInput.value.trim();
+          if (tenantApiKeyVal && this.state.settings.apiKey && tenantApiKeyVal === this.state.settings.apiKey) {
+            alert('⚠️ ห้ามใช้ Tenant API Key ซ้ำกับ API Key ของแอดมินเด็ดขาด กรุณาตั้งค่าคนละรหัส (รันฟังก์ชัน setTenantApiKey() ใน Apps Script เพื่อสร้างรหัสใหม่)');
+            return;
+          }
+          this.state.settings.tenantApiKey = tenantApiKeyVal;
+          localStorage.setItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY', tenantApiKeyVal);
+        }
+        DBService.saveState(this.state);
+        alert('บันทึก Google Sheets Web App URL และ API Key เรียบร้อยแล้ว!');
       });
     }
 
@@ -4542,9 +4631,9 @@ class App {
               </select>
             </div>
             <div class="form-group">
-              <label>รหัสผ่าน (Password) *</label>
+              <label>รหัสผ่าน (Password) ${isEdit ? '(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)' : '*'}</label>
               <div style="position:relative;">
-                <input type="password" id="usr-pass" class="form-control" value="${userToEdit ? (userToEdit.password || userToEdit.passwordHash || 'admin') : 'admin'}" required style="padding-right:2.5rem;">
+                <input type="password" id="usr-pass" class="form-control" value="" placeholder="${isEdit ? 'เว้นว่าง = ใช้รหัสผ่านเดิม' : 'ตั้งรหัสผ่านใหม่...'}" ${isEdit ? '' : 'required'} style="padding-right:2.5rem;">
                 <button type="button" id="btn-toggle-user-password" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">
                   <i class="fa-solid fa-eye"></i>
                 </button>
@@ -4573,7 +4662,7 @@ class App {
       });
     }
 
-    document.getElementById('user-form').addEventListener('submit', (e) => {
+    document.getElementById('user-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const username = document.getElementById('usr-name').value.trim();
       const displayName = document.getElementById('usr-disp').value.trim();
@@ -4585,13 +4674,17 @@ class App {
       if (isEdit) {
         const idx = this.state.users.findIndex(u => u.id === userToEdit.id);
         if (idx !== -1) {
-          this.state.users[idx] = {
+          const updatedUser = {
             ...this.state.users[idx],
             displayName,
-            role,
-            password,
-            passwordHash: password
+            role
           };
+          // เว้นว่างช่องรหัสผ่านไว้ = ไม่เปลี่ยนรหัสผ่านเดิม; ถ้ากรอกมาใหม่ค่อยแฮชแล้วเขียนทับ
+          if (password) {
+            updatedUser.passwordHash = await sha256Hex(password);
+          }
+          delete updatedUser.password; // ไม่เก็บรหัสผ่านตัวจริง (plaintext) อีกต่อไป
+          this.state.users[idx] = updatedUser;
           const current = AuthService.getCurrentUser();
           if (current && current.id === userToEdit.id) {
             AuthService.setCurrentUser(this.state.users[idx]);
@@ -4606,8 +4699,7 @@ class App {
           username,
           displayName,
           role,
-          password,
-          passwordHash: password
+          passwordHash: await sha256Hex(password)
         };
         this.state.users.push(newUser);
       }

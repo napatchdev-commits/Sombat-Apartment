@@ -72,13 +72,158 @@ function testAuth() {
   Logger.log("ได้รับอนุญาตสิทธิ์การใช้งาน Google Drive, Google Sheets และ LINE API เรียบร้อยแล้ว!");
 }
 
+/**
+ * [ความปลอดภัย] ตั้งค่า API Secret Key เพื่อป้องกันไม่ให้บุคคลภายนอกที่ไม่รู้รหัสลับ
+ * เรียกใช้ Web App นี้โดยตรง (ยิง GET/POST ข้ามหน้าเว็บแอดมิน) แล้วสั่งแก้ไข/อ่านข้อมูลได้ตามใจชอบ
+ * วิธีใช้: เลือกฟังก์ชันนี้ในแถบเครื่องมือด้านบนแล้วกด "เรียกใช้" (Run) เพียงครั้งเดียว
+ * จากนั้นเปิด Logger (ดู > บันทึก) เพื่อคัดลอกรหัสลับที่สร้างขึ้น แล้วนำไปใส่ในฝั่ง Frontend
+ * ให้ส่งค่านี้มาเป็น "apiKey" แนบไปกับทุก request (ทั้ง query string ของ GET และ body JSON ของ POST)
+ */
+function setApiSecretKey() {
+  var secret = Utilities.getUuid() + "-" + Utilities.getUuid();
+  PropertiesService.getScriptProperties().setProperty("API_SECRET_KEY", secret);
+  Logger.log("✅ ตั้งค่า API_SECRET_KEY เรียบร้อยแล้ว");
+  Logger.log("🔑 รหัสลับของคุณคือ: " + secret);
+  Logger.log("⚠️ กรุณาคัดลอกรหัสลับนี้ไปใส่ในโค้ดฝั่ง Frontend (เว็บแอดมิน) เป็นค่า apiKey ที่ส่งมาพร้อมทุกคำขอ มิฉะนั้นเว็บแอดมินจะเรียกใช้งานระบบไม่ได้อีกต่อไป");
+}
+
+/**
+ * ตรวจสอบว่าคำขอ (Request) มี API Key ตรงกับที่ตั้งค่าไว้ใน Script Properties หรือไม่
+ * หากยังไม่เคยรัน setApiSecretKey() เลย (ยังไม่มีการตั้งค่ารหัสลับ) จะปล่อยผ่านชั่วคราวพร้อมเตือนใน Log
+ * เพื่อไม่ให้ระบบที่ deploy อยู่แล้วหยุดทำงานกะทันหัน แต่ควรรีบตั้งค่าโดยเร็วที่สุดเพื่อความปลอดภัย
+ */
+function isRequestAuthorized(providedKey) {
+  var secret = PropertiesService.getScriptProperties().getProperty("API_SECRET_KEY");
+  if (!secret) {
+    Logger.log("⚠️⚠️⚠️ คำเตือนความปลอดภัย: ยังไม่ได้ตั้งค่า API_SECRET_KEY ระบบยังเปิดให้เรียกใช้ได้โดยไม่ต้องยืนยันตัวตน กรุณารันฟังก์ชัน setApiSecretKey() โดยด่วน!");
+    return true;
+  }
+  return !!providedKey && providedKey === secret;
+}
+
+/**
+ * [ความปลอดภัย] ตั้งค่า API Key แยกต่างหากสำหรับ "พอร์ทัลผู้เช่า" (tenant-app.js)
+ * ต้องใช้รหัสคนละตัวกับ API_SECRET_KEY ของแอดมินโดยเด็ดขาด เพราะไฟล์ tenant-app.js เป็นไฟล์
+ * ฝั่ง Frontend ที่เปิดเผยต่อสาธารณะ (ใครก็เปิดดูซอร์สโค้ดผ่านเบราว์เซอร์ได้) ถ้าใช้รหัสเดียวกับแอดมิน
+ * จะเท่ากับเปิดเผยรหัสที่มีสิทธิ์เขียนทับฐานข้อมูลทั้งหมดให้คนภายนอกเห็นไปด้วย
+ */
+function setTenantApiKey() {
+  var secret = Utilities.getUuid() + "-" + Utilities.getUuid();
+  PropertiesService.getScriptProperties().setProperty("TENANT_API_KEY", secret);
+  Logger.log("✅ ตั้งค่า TENANT_API_KEY เรียบร้อยแล้ว (สำหรับพอร์ทัลผู้เช่าเท่านั้น)");
+  Logger.log("🔑 รหัสลับสำหรับผู้เช่าคือ: " + secret);
+  Logger.log("⚠️ นำรหัสนี้ไปใส่ในไฟล์ tenant-app.js เท่านั้น ห้ามนำ API_SECRET_KEY (รหัสของแอดมิน) มาใส่ในไฟล์นี้เด็ดขาด");
+}
+
+function isTenantRequestAuthorized(providedKey) {
+  var secret = PropertiesService.getScriptProperties().getProperty("TENANT_API_KEY");
+  if (!secret) {
+    Logger.log("⚠️⚠️⚠️ คำเตือนความปลอดภัย: ยังไม่ได้ตั้งค่า TENANT_API_KEY กรุณารันฟังก์ชัน setTenantApiKey() โดยด่วน!");
+    return true;
+  }
+  return !!providedKey && providedKey === secret;
+}
+
+function jsonError(message) {
+  return ContentService.createTextOutput(JSON.stringify({ status: "error", message: message }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function doGet(e) {
   var action = (e && e.parameter) ? e.parameter.action : "get";
   var mergeParam = (e && e.parameter) ? e.parameter.merge : "";
+  var providedKey = (e && e.parameter) ? e.parameter.apiKey : "";
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("DB_STATE");
   if (!sheet) {
     sheet = ss.insertSheet("DB_STATE");
+  }
+
+  // [พอร์ทัลผู้เช่า] คืนค่าเฉพาะรายชื่อห้อง (ไม่มีชื่อผู้เช่า/เลขบัตร/บิล) ใช้แสดงใน dropdown ก่อนล็อกอิน
+  if (action === "getRoomList") {
+    if (!isTenantRequestAuthorized(providedKey)) {
+      return jsonError("Unauthorized: apiKey ไม่ถูกต้องหรือไม่ได้ระบุมา");
+    }
+    var listData = getLatestDbData(ss);
+    var publicRooms = (listData.rooms || []).map(function(r) {
+      // จงใจไม่ส่ง currentTenantName ออกไป เพราะเป็นข้อมูลระบุตัวตนผู้เช่าที่ไม่ควรเห็นได้ก่อนล็อกอิน
+      return {
+        id: r.id,
+        name: r.name,
+        floor: r.floor || 1,
+        baseRent: r.baseRent || 0,
+        lastElecMeter: r.lastElecMeter,
+        lastWaterMeter: r.lastWaterMeter
+      };
+    });
+    var listSettings = listData.settings || {};
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      rooms: publicRooms,
+      apartmentName: listSettings.apartmentName || ""
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // [พอร์ทัลผู้เช่า] ยืนยันตัวตนด้วยเลขบัตรประชาชน + ห้องพัก ฝั่ง Server แล้วคืนค่าเฉพาะบิลของผู้เช่าคนนั้น
+  // (ไม่คืนข้อมูลผู้เช่าคนอื่น/บิลของห้องอื่นออกไปเด็ดขาด ต่างจาก action=get ที่คืนฐานข้อมูลทั้งก้อน)
+  if (action === "getTenantBill") {
+    if (!isTenantRequestAuthorized(providedKey)) {
+      return jsonError("Unauthorized: apiKey ไม่ถูกต้องหรือไม่ได้ระบุมา");
+    }
+    var idCardParam = String((e.parameter.idCard || "")).replace(/[^0-9]/g, "");
+    var roomIdParam = e.parameter.roomId || "";
+    if (idCardParam.length !== 13 || !roomIdParam) {
+      return jsonError("ข้อมูลไม่ครบถ้วน กรุณาระบุเลขบัตรประชาชนและห้องพักให้ถูกต้อง");
+    }
+
+    var tenantData = getLatestDbData(ss);
+    var tTenants = tenantData.tenants || [];
+    var tInvoices = tenantData.invoices || [];
+    var tRooms = tenantData.rooms || [];
+
+    var tenantForRoom = tTenants.find(function(t) { return t.assignedRoomId === roomIdParam; });
+    if (!tenantForRoom) {
+      return jsonError("ไม่พบข้อมูลผู้เช่าลงทะเบียนในห้องพักนี้ กรุณาติดต่อผู้ดูแลระบบ");
+    }
+    var cleanTenantIdCard = String(tenantForRoom.idCard || "").replace(/[^0-9]/g, "");
+    if (cleanTenantIdCard !== idCardParam) {
+      return jsonError("เลขบัตรประชาชนไม่ถูกต้องสำหรับห้องพักที่เลือก กรุณาตรวจสอบอีกครั้ง");
+    }
+
+    var tRoom = tRooms.find(function(r) { return r.id === roomIdParam; }) || {};
+    var matchedInvoices = tInvoices.filter(function(inv) {
+      var cleanInvIdCard = String(inv.idCard || "").replace(/[^0-9]/g, "");
+      if (cleanInvIdCard && cleanInvIdCard === idCardParam) return true;
+      return inv.roomId === roomIdParam;
+    });
+
+    var tSettings = tenantData.settings || {};
+    var safeSettings = {
+      apartmentName: tSettings.apartmentName || "",
+      promptPayId: tSettings.promptPayId || "",
+      promptPayName: tSettings.promptPayName || "",
+      promptPayBank: tSettings.promptPayBank || ""
+    };
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      tenant: {
+        id: tenantForRoom.id,
+        name: tenantForRoom.name,
+        idCard: tenantForRoom.idCard,
+        tel: tenantForRoom.tel || "",
+        assignedRoomId: roomIdParam
+      },
+      room: tRoom,
+      invoices: matchedInvoices,
+      settings: safeSettings
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // [แอดมินเท่านั้น] Action อื่นๆ ทั้งหมด (โดยเฉพาะ action=get ที่คืนฐานข้อมูลทั้งก้อน) ต้องใช้ apiKey สิทธิ์เต็มของแอดมิน
+  if (!isRequestAuthorized(providedKey)) {
+    return jsonError("Unauthorized: apiKey ไม่ถูกต้องหรือไม่ได้ระบุมา");
   }
   
   if (action === "get") {
@@ -114,6 +259,23 @@ function doPost(e) {
     // 1. ตอบกลับ Webhook ของ LINE Messaging API
     if (requestData.events && Array.isArray(requestData.events)) {
       return handleLineWebhook(requestData.events, ss);
+    }
+
+    // [พอร์ทัลผู้เช่า] บันทึกการชำระเงิน (โอน/เงินสด) ใช้รหัส TENANT_API_KEY ที่สิทธิ์จำกัดกว่า
+    // Server จะยืนยันตัวตนผู้เช่าด้วยเลขบัตร+ห้องพักเองอีกครั้ง และแก้ไขเฉพาะบิลของผู้เช่าคนนั้นเท่านั้น
+    // (ไม่รับ state ก้อนใหญ่จาก client เหมือน action=sync ของแอดมิน เพื่อไม่ให้ผู้เช่าเขียนทับข้อมูลคนอื่นได้)
+    if (action === "submitTenantPayment") {
+      if (!isTenantRequestAuthorized(requestData.apiKey)) {
+        return jsonError("Unauthorized: apiKey ไม่ถูกต้องหรือไม่ได้ระบุมา");
+      }
+      return submitTenantPayment(ss, requestData);
+    }
+
+    // [ความปลอดภัย] ตรวจสอบ API Key ก่อนอนุญาตให้ดำเนินการใดๆ ต่อ (ยกเว้น LINE Webhook และ submitTenantPayment ด้านบน)
+    // ป้องกันไม่ให้บุคคลภายนอกที่ไม่รู้รหัสลับยิง POST เข้ามาสั่งแก้ไขข้อมูล เช่น ปลอมสถานะบิลเป็น "ชำระแล้ว" โดยไม่มีสลิปจริง
+    if (!isRequestAuthorized(requestData.apiKey)) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Unauthorized: apiKey ไม่ถูกต้องหรือไม่ได้ระบุมา" }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
     // 2. ส่งการแจ้งเตือนค่าเช่าทาง LINE จาก Admin Web App
@@ -199,41 +361,70 @@ function doPost(e) {
     
     if (action === "sync" || requestData.data) {
       var syncData = requestData.data;
-      if (syncData && syncData.invoices && Array.isArray(syncData.invoices)) {
-        for (var i = 0; i < syncData.invoices.length; i++) {
-          var inv = syncData.invoices[i];
-          
-          // คำนวณค่าปรับค้างชำระอัตโนมัติหากยังไม่ชำระเงิน
-          if (inv.status === 'unpaid') {
-            inv.fineAmount = getLateFeeAmount(inv.dueDate, inv.status, inv.fineAmount);
-            inv.totalAmount = (inv.rentAmount || 0) + (inv.elecAmount || 0) + (inv.waterAmount || 0) + (inv.trashFee || 0) + (inv.fineAmount || 0);
-            inv.outstandingAmount = inv.totalAmount - (inv.paidAmount || 0);
-          }
 
-          if (inv.slipUrl && inv.slipUrl.indexOf("data:") === 0) {
-            // Run automatic payment slip verification
-            var verifyResult = verifyPaymentSlip(inv, syncData);
-            if (verifyResult.error) {
-              throw new Error(verifyResult.message);
-            }
-            
-            // If verification passes, save to Google Drive & replace base64 with Drive URL
-            var filename = "slip_" + (inv.roomName || "room") + "_" + (inv.monthKey || "month") + "_" + Date.now();
-            var driveUrl = saveBase64ImageToDrive(inv.slipUrl, filename);
-            inv.slipUrl = driveUrl;
-            
-            // Clean up temporary client payload fields
-            delete inv.slipHash;
-            delete inv.qrPayload;
-          }
-        }
+      // [ความปลอดภัย] ล็อกการทำงานเพื่อป้องกัน Race Condition กรณีมีคำขอ sync เข้ามาพร้อมกันหลายคำขอ
+      // ซึ่งอาจทำให้การตรวจสอบสลิปซ้ำ (duplicate slip) หลุดรอดออกไปได้หากไม่ล็อกไว้
+      var syncLock = LockService.getScriptLock();
+      try {
+        syncLock.waitLock(30000);
+      } catch (lockErr) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้งในอีกสักครู่" }))
+          .setMimeType(ContentService.MimeType.JSON);
       }
 
-      saveStateSafely(sheet, syncData);
-      writeAllStructuredSheets(ss, syncData);
+      try {
+        if (syncData && syncData.invoices && Array.isArray(syncData.invoices)) {
+          // [ความปลอดภัย] ดึงประวัติ "สลิปที่เคยใช้แล้ว" ตัวจริงจากฐานข้อมูลบนสเปรดชีต แทนที่จะเชื่อค่าที่ client ส่งมาเอง
+          // เพราะ client (หรือผู้ไม่ประสงค์ดี) อาจตัดหรือแก้ไข usedSlipHashes/usedReferenceIds ใน payload
+          // เพื่อทำให้สลิปเก่าที่เคยใช้แล้วผ่านการตรวจสอบซ้ำได้อีกครั้ง
+          var persistedData = getLatestDbData(ss) || {};
+          var persistedSettings = persistedData.settings || {};
+          if (!syncData.settings) syncData.settings = {};
+          syncData.settings.usedSlipHashes = Array.isArray(persistedSettings.usedSlipHashes) ? persistedSettings.usedSlipHashes.slice() : [];
+          syncData.settings.usedReferenceIds = Array.isArray(persistedSettings.usedReferenceIds) ? persistedSettings.usedReferenceIds.slice() : [];
 
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "All data synced to Google Sheets successfully!" }))
-        .setMimeType(ContentService.MimeType.JSON);
+          for (var i = 0; i < syncData.invoices.length; i++) {
+            var inv = syncData.invoices[i];
+
+            // คำนวณค่าปรับค้างชำระอัตโนมัติหากยังไม่ชำระเงิน
+            if (inv.status === 'unpaid') {
+              inv.fineAmount = getLateFeeAmount(inv.dueDate, inv.status, inv.fineAmount);
+              inv.totalAmount = (inv.rentAmount || 0) + (inv.elecAmount || 0) + (inv.waterAmount || 0) + (inv.trashFee || 0) + (inv.fineAmount || 0);
+              inv.outstandingAmount = inv.totalAmount - (inv.paidAmount || 0);
+            }
+
+            if (inv.slipUrl && inv.slipUrl.indexOf("data:") === 0) {
+              // Run automatic payment slip verification
+              var verifyResult = verifyPaymentSlip(inv, syncData);
+              if (verifyResult.error) {
+                throw new Error(verifyResult.message);
+              }
+
+              // If verification passes, save to Google Drive & replace base64 with Drive URL
+              var filename = "slip_" + (inv.roomName || "room") + "_" + (inv.monthKey || "month") + "_" + Date.now();
+              var driveUrl;
+              try {
+                driveUrl = saveBase64ImageToDrive(inv.slipUrl, filename);
+              } catch (driveErr) {
+                throw new Error("บันทึกรูปสลิปลง Google Drive ไม่สำเร็จ (" + driveErr.toString() + ") กรุณาตรวจสอบพื้นที่ Drive คงเหลือ/สิทธิ์การใช้งาน แล้วลองใหม่อีกครั้ง");
+              }
+              inv.slipUrl = driveUrl;
+
+              // Clean up temporary client payload fields
+              delete inv.slipHash;
+              delete inv.qrPayload;
+            }
+          }
+        }
+
+        saveStateSafely(sheet, syncData);
+        writeAllStructuredSheets(ss, syncData);
+
+        return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "All data synced to Google Sheets successfully!" }))
+          .setMimeType(ContentService.MimeType.JSON);
+      } finally {
+        syncLock.releaseLock();
+      }
     }
     
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Invalid post action: " + action }))
@@ -243,6 +434,140 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
+
+// ==========================================================================
+// TENANT PORTAL: SUBMIT PAYMENT (SCOPED - AFFECTS ONLY THE VERIFIED TENANT'S OWN INVOICE)
+// ==========================================================================
+/**
+ * รับการชำระเงินจากพอร์ทัลผู้เช่า (tenant-app.js)
+ * - ยืนยันตัวตนผู้เช่าด้วยเลขบัตรประชาชน + ห้องพัก จากข้อมูลจริงในระบบ (ไม่เชื่อ client)
+ * - ตรวจสอบว่าบิลที่จะจ่ายเป็นของผู้เช่าคนนั้นจริง ป้องกันการจ่าย/มาร์คบิลห้องอื่นให้เป็น "จ่ายแล้ว"
+ * - ใช้ getLatestDbData() ดึงข้อมูลจริงจากชีตมาแก้ไข ไม่รับ state ก้อนใหญ่จาก client เหมือน action=sync
+ * - ข้อความแจ้งเตือน LINE ถูกสร้างขึ้นเองที่ฝั่ง Server เท่านั้น ผู้เช่าไม่สามารถกำหนดข้อความเองได้
+ */
+function submitTenantPayment(ss, requestData) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (lockErr) {
+    return jsonError("ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้งในอีกสักครู่");
+  }
+
+  try {
+    var idCardRaw = requestData.idCard || "";
+    var roomId = requestData.roomId || "";
+    var invoiceNumber = requestData.invoiceNumber || "";
+    var paymentMethod = requestData.paymentMethod === "cash" ? "cash" : "transfer";
+    var slipDataUrl = requestData.slipDataUrl || "";
+
+    var cleanIdCard = String(idCardRaw).replace(/[^0-9]/g, "");
+    if (cleanIdCard.length !== 13 || !roomId || !invoiceNumber) {
+      return jsonError("ข้อมูลไม่ครบถ้วน ไม่สามารถบันทึกการชำระเงินได้");
+    }
+
+    var dbState = getLatestDbData(ss) || {};
+    var tenants = dbState.tenants || [];
+    var invoices = dbState.invoices || [];
+    var rooms = dbState.rooms || [];
+
+    // ยืนยันตัวตนผู้เช่าอีกครั้งฝั่ง Server ห้ามเชื่อแค่สิ่งที่ client อ้างว่าตัวเองคือใคร
+    var tenantForRoom = tenants.find(function(t) { return t.assignedRoomId === roomId; });
+    if (!tenantForRoom) {
+      return jsonError("ไม่พบข้อมูลผู้เช่าของห้องนี้ในระบบ");
+    }
+    var cleanTenantIdCard = String(tenantForRoom.idCard || "").replace(/[^0-9]/g, "");
+    if (cleanTenantIdCard !== cleanIdCard) {
+      return jsonError("เลขบัตรประชาชนไม่ถูกต้อง ไม่สามารถชำระเงินแทนผู้เช่าห้องนี้ได้");
+    }
+
+    // ค้นหาบิลที่จะจ่าย และตรวจสอบว่าเป็นของผู้เช่าคนนี้จริง (กันจ่ายบิลแทนห้องอื่น)
+    var invIdx = -1;
+    for (var i = 0; i < invoices.length; i++) {
+      if (invoices[i].invoiceNumber !== invoiceNumber) continue;
+      var invIdCardClean = String(invoices[i].idCard || "").replace(/[^0-9]/g, "");
+      var belongsToTenant = (invIdCardClean && invIdCardClean === cleanIdCard) || invoices[i].roomId === roomId;
+      if (belongsToTenant) { invIdx = i; break; }
+    }
+    if (invIdx === -1) {
+      return jsonError("ไม่พบบิลนี้ หรือบิลนี้ไม่ได้เป็นของห้องพักที่ล็อกอินอยู่");
+    }
+
+    var inv = invoices[invIdx];
+    var room = rooms.find(function(r) { return r.id === roomId; }) || {};
+    var todayStr = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
+
+    if (!dbState.settings) dbState.settings = {};
+    dbState.settings.usedSlipHashes = Array.isArray(dbState.settings.usedSlipHashes) ? dbState.settings.usedSlipHashes : [];
+    dbState.settings.usedReferenceIds = Array.isArray(dbState.settings.usedReferenceIds) ? dbState.settings.usedReferenceIds : [];
+
+    if (paymentMethod === "transfer") {
+      if (!slipDataUrl || slipDataUrl.indexOf("data:") !== 0) {
+        return jsonError("กรุณาแนบรูปภาพสลิปโอนเงินให้ถูกต้อง");
+      }
+      inv.slipUrl = slipDataUrl;
+      inv.slipHash = requestData.slipHash || "";
+      inv.qrPayload = requestData.qrPayload || "";
+
+      var verifyResult = verifyPaymentSlip(inv, dbState);
+      if (verifyResult.error) {
+        return jsonError(verifyResult.message);
+      }
+
+      var filename = "slip_" + (inv.roomName || room.name || "room") + "_" + (inv.monthKey || "month") + "_" + Date.now();
+      var driveUrl;
+      try {
+        driveUrl = saveBase64ImageToDrive(inv.slipUrl, filename);
+      } catch (driveErr) {
+        return jsonError("บันทึกรูปสลิปลง Google Drive ไม่สำเร็จ กรุณาลองอัปโหลดใหม่อีกครั้ง (หากยังไม่สำเร็จ กรุณาติดต่อผู้ดูแลระบบ)");
+      }
+      inv.slipUrl = driveUrl;
+      delete inv.slipHash;
+      delete inv.qrPayload;
+    } else {
+      inv.slipUrl = "cash";
+    }
+
+    inv.status = "paid";
+    inv.paidAmount = inv.totalAmount;
+    inv.outstandingAmount = 0;
+    inv.paymentDate = todayStr;
+
+    if (room && room.status === "overdue") {
+      room.status = "occupied";
+    }
+
+    var dbSheet = ss.getSheetByName("DB_STATE");
+    if (!dbSheet) dbSheet = ss.insertSheet("DB_STATE");
+    saveStateSafely(dbSheet, dbState);
+    writeAllStructuredSheets(ss, dbState);
+
+    // แจ้งเตือนแอดมินผ่าน LINE ด้วยข้อความที่ Server สร้างขึ้นเอง (ผู้เช่ากำหนดข้อความเองไม่ได้ ป้องกันการยิงข้อความสแปม/หลอกลวง)
+    try {
+      var lineSettings = dbState.settings || {};
+      var propToken = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+      var channelToken = (lineSettings.lineToken && lineSettings.lineToken.trim())
+        ? lineSettings.lineToken.trim()
+        : ((propToken && propToken.trim()) ? propToken.trim() : DEFAULT_LINE_CHANNEL_ACCESS_TOKEN);
+      var methodLabel = paymentMethod === "cash" ? "เงินสด" : "โอนเงิน (ตรวจสอบสลิปอัตโนมัติผ่านแล้ว)";
+      var msg = "🏠 " + (lineSettings.apartmentName || "หอพักสมบัติ นนทบุรี") + "\n\n📢 ผู้เช่าห้อง " +
+        (inv.roomName || room.name || roomId) + " (" + (inv.tenantName || tenantForRoom.name || "ผู้เช่า") +
+        ") ได้ชำระเงินด้วยวิธี " + methodLabel + " เรียบร้อยแล้ว!\nยอดเงิน: ฿" + Number(inv.totalAmount || 0).toLocaleString();
+      if (channelToken && channelToken !== "YOUR_LINE_CHANNEL_ACCESS_TOKEN") {
+        sendLinePushOrBroadcast(channelToken, msg, true);
+      }
+    } catch (notifyErr) {
+      Logger.log("LINE notify after tenant payment failed: " + notifyErr.toString());
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "บันทึกการชำระเงินเรียบร้อยแล้ว", invoice: inv }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return jsonError(err.toString());
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 
 // ==========================================================================
 // 1. READ & MERGE MANUAL EDITS FROM GOOGLE SHEETS TABS BACK TO JSON
@@ -540,6 +865,7 @@ function writeAllStructuredSheets(ss, data) {
   // รายชื่อแผ่นงานมาตรฐานที่เราต้องการเก็บไว้ใช้งานจริง (ภาษาไทยล้วน 12 แท็บ + DB_STATE 1 แท็บ + จดเลขอ่านน้ำไฟ 1 แท็บ)
   var canonicalSheets = {
     "DB_STATE": true,
+    "DB_STATE_BACKUP": true,
     "สรุปภาพรวม": true,
     "ประเภทห้องพัก": true,
     "ข้อมูลห้องพัก": true,
@@ -986,10 +1312,66 @@ function getLatestDbData(ss) {
     }
   }
   try {
-    return JSON.parse(raw || "{}");
+    var parsed = JSON.parse(raw || "{}");
+    if (parsed && parsed.rooms && Array.isArray(parsed.rooms) && parsed.rooms.length > 0) {
+      return parsed;
+    }
+    // ข้อมูลหลักอ่านได้แต่ไม่มีห้องพักเลย (ผิดปกติ) ลองกู้จากสำรองอัตโนมัติก่อนคืนค่าว่างเปล่า
+    Logger.log("⚠️ DB_STATE ไม่มีข้อมูลห้องพัก (ผิดปกติ) กำลังลองอ่านจากสำรอง DB_STATE_BACKUP...");
+    var recovered = readBackupDbState(ss);
+    return recovered || parsed || {};
   } catch(e) {
-    return {};
+    // [แก้ปัญหาข้อมูลหายปริศนา] เดิมโค้ดจุดนี้จะคืนค่า {} ว่างเปล่าทันทีที่ parse ไม่สำเร็จ
+    // ซึ่งทำให้ทุกฟังก์ชันที่เรียกใช้ getLatestDbData() เข้าใจผิดว่า "ฐานข้อมูลว่างเปล่าจริงๆ"
+    // แล้วเขียนทับด้วยข้อมูลว่างจนดูเหมือนข้อมูลหายทั้งระบบ ตอนนี้จึงลองกู้จากสำรองก่อนเสมอ
+    Logger.log("❌ DB_STATE เสียหาย อ่านเป็น JSON ไม่สำเร็จ (" + e.toString() + ") กำลังลองอ่านจากสำรอง...");
+    var recoveredOnError = readBackupDbState(ss);
+    return recoveredOnError || {};
   }
+}
+
+/**
+ * อ่านข้อมูลสำรองล่าสุดจากแท็บ DB_STATE_BACKUP (ใช้ตอน DB_STATE หลักเสียหายหรือว่างเปล่าผิดปกติ)
+ * หมายเหตุ: ฟังก์ชันนี้แค่ "อ่าน" มาให้ระบบใช้งานต่อได้ทันที ไม่ได้เขียนทับ DB_STATE หลักให้อัตโนมัติ
+ * ถ้าต้องการกู้คืนถาวรจริงๆ ให้รันฟังก์ชัน restoreDbStateFromBackup() เองอีกที
+ */
+function readBackupDbState(ss) {
+  var backupSheet = ss.getSheetByName("DB_STATE_BACKUP");
+  if (!backupSheet) return null;
+  var lastCol = backupSheet.getLastColumn();
+  if (lastCol < 1) return null;
+  var values = backupSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var raw = "";
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] !== undefined && values[i] !== null && values[i] !== "") raw += String(values[i]);
+  }
+  try {
+    var parsed = JSON.parse(raw || "{}");
+    if (parsed && parsed.rooms && Array.isArray(parsed.rooms) && parsed.rooms.length > 0) {
+      Logger.log("✅ กู้ข้อมูลจากสำรองมาให้ใช้งานชั่วคราวสำเร็จ (ห้องพัก " + parsed.rooms.length + " ห้อง) — ยังไม่ได้เขียนทับ DB_STATE หลัก");
+      return parsed;
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * [กู้ข้อมูลฉุกเฉิน] รันฟังก์ชันนี้ด้วยตัวเอง (เลือกจากแถบเครื่องมือด้านบนแล้วกด Run) หาก DB_STATE หลักเสียหาย/ข้อมูลหาย
+ * จะคัดลอกข้อมูลจากสำรองล่าสุดใน DB_STATE_BACKUP กลับเข้า DB_STATE หลัก และเขียนข้อมูลลงแท็บที่มองเห็นได้ทั้งหมดใหม่
+ */
+function restoreDbStateFromBackup() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var recovered = readBackupDbState(ss);
+  if (!recovered) {
+    Logger.log("❌ ไม่พบข้อมูลสำรองที่ใช้งานได้ใน DB_STATE_BACKUP กู้คืนไม่สำเร็จ");
+    return;
+  }
+  var dbSheet = ss.getSheetByName("DB_STATE");
+  if (!dbSheet) dbSheet = ss.insertSheet("DB_STATE");
+  saveStateSafely(dbSheet, recovered);
+  writeAllStructuredSheets(ss, recovered);
+  Logger.log("✅ กู้คืนข้อมูลจากสำรองสำเร็จ! ห้องพัก " + recovered.rooms.length + " ห้อง, ผู้เช่า " +
+    (recovered.tenants || []).length + " คน, บิล " + (recovered.invoices || []).length + " รายการ");
 }
 
 function sendLinePushOrBroadcast(channelToken, messageText, isBroadcast) {
@@ -1028,34 +1410,34 @@ function sendLinePushOrBroadcast(channelToken, messageText, isBroadcast) {
  * และคืนค่าเป็น Direct URL ที่สามารถกดเปิดดูรูปและลิงก์โดยตรงได้จากหน้าชีตแอดมิน
  */
 function saveBase64ImageToDrive(base64Data, filename) {
-  try {
-    var split = base64Data.split(',');
-    var contentType = split[0].match(/:(.*?);/)[1];
-    var byteString = split[1];
-    
-    var decoded = Utilities.base64Decode(byteString);
-    var blob = Utilities.newBlob(decoded, contentType, filename);
-    
-    // ค้นหาหรือสร้างโฟลเดอร์ชื่อ Sombat_Apartment_Slips ใน Google Drive
-    var folderName = "Sombat_Apartment_Slips";
-    var folders = DriveApp.getFoldersByName(folderName);
-    var folder;
-    if (folders.hasNext()) {
-      folder = folders.next();
-    } else {
-      folder = DriveApp.createFolder(folderName);
-    }
-    
-    var file = folder.createFile(blob);
-    // ตั้งค่าสิทธิ์ให้ผู้ที่มีลิงก์เข้าดูรูปภาพได้โดยตรง
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    
-    // คืนค่าเป็น Direct Image URL เพื่อให้นำไปแสดงในแท็ก <img> ของระบบแอดมินได้ทันที
-    return "https://docs.google.com/uc?export=download&id=" + file.getId();
-  } catch (e) {
-    Logger.log("Error saving base64 to Drive: " + e.toString());
-    return base64Data; // คืนค่าตัวเดิมหากเกิดข้อผิดพลาด
+  var split = base64Data.split(',');
+  var contentType = split[0].match(/:(.*?);/)[1];
+  var byteString = split[1];
+
+  var decoded = Utilities.base64Decode(byteString);
+  var blob = Utilities.newBlob(decoded, contentType, filename);
+
+  // ค้นหาหรือสร้างโฟลเดอร์ชื่อ Sombat_Apartment_Slips ใน Google Drive
+  var folderName = "Sombat_Apartment_Slips";
+  var folders = DriveApp.getFoldersByName(folderName);
+  var folder;
+  if (folders.hasNext()) {
+    folder = folders.next();
+  } else {
+    folder = DriveApp.createFolder(folderName);
   }
+
+  var file = folder.createFile(blob);
+  // ตั้งค่าสิทธิ์ให้ผู้ที่มีลิงก์เข้าดูรูปภาพได้โดยตรง
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // คืนค่าเป็น Direct Image URL เพื่อให้นำไปแสดงในแท็ก <img> ของระบบแอดมินได้ทันที
+  // [ความปลอดภัย/เสถียรภาพ] เดิมถ้าขั้นตอนนี้ล้มเหลว โค้ดจะ "คืนค่า base64Data ตัวเดิม" กลับไปแทน
+  // ซึ่งแปลว่ารูปสลิปทั้งรูป (อาจยาวหลายแสนตัวอักษร) จะถูกเก็บเป็นข้อความลงในชีต DB_STATE โดยตรง
+  // ทำให้ไฟล์บวมและเพิ่มความเสี่ยงข้อมูล JSON เสียหาย (ดูปัญหาที่เคยแก้ใน saveStateSafely/getLatestDbData)
+  // ตอนนี้ถ้าบันทึกลง Drive ไม่สำเร็จ จะโยน error ออกไปแทน เพื่อให้ฝั่งที่เรียกใช้ปฏิเสธการชำระเงินนั้น
+  // อย่างชัดเจนและให้ผู้เช่าลองอัปโหลดใหม่ แทนที่จะแอบเก็บรูปเป็นข้อความยาวๆ ไว้ในชีตอย่างเงียบๆ
+  return "https://docs.google.com/uc?export=download&id=" + file.getId();
 }
 
 /**
@@ -1101,8 +1483,10 @@ function verifyPaymentSlip(inv, syncData) {
   
   // ตรวจสอบชื่อบัญชีปลายทางผู้รับโอน ("สมผิว" หรือ "น้ำวน")
   var hasReceiverName = (ocrText.indexOf("สมผิว") !== -1 || ocrText.indexOf("น้ำวน") !== -1 || ocrText.toLowerCase().indexOf("somphiw") !== -1 || ocrText.toLowerCase().indexOf("namwon") !== -1);
-  // ตรวจสอบเลขบัญชีผู้รับเงิน ("2401346663" หรือ "240-1-34666-3")
-  var hasReceiverAccount = (ocrText.indexOf("2401346663") !== -1 || ocrText.indexOf("240-1-34666-3") !== -1);
+  // ตรวจสอบเลขบัญชีผู้รับเงิน โดยเทียบเฉพาะตัวเลข (ตัดช่องว่าง/ขีด/จุด ออกทั้งหมดก่อนเทียบ)
+  // เพื่อให้รองรับทุกรูปแบบที่ OCR อาจอ่านได้ เช่น "240-1-34666-3", "240 1 34666 3", "2401346663"
+  var ocrDigitsOnly = ocrText.replace(/[^0-9]/g, "");
+  var hasReceiverAccount = ocrDigitsOnly.indexOf("2401346663") !== -1;
   
   // 3. แกะเลขอ้างอิง Reference ID และ ยอดเงินโอน
   var refId = "";
@@ -1270,7 +1654,8 @@ function extractReferenceIdFromText(text) {
 
 function extractAmountFromText(text, targetAmount) {
   if (!text) return 0;
-  var matches = text.match(/\b\d{1,3}(,\d{3})*\.\d{2}\b/g);
+  // รองรับทั้งรูปแบบที่มีจุลภาคคั่นหลักพัน (เช่น 3,500.00) และไม่มีจุลภาคเลย (เช่น 3500.00)
+  var matches = text.match(/\b\d{1,3}(,\d{3})*\.\d{2}\b|\b\d+\.\d{2}\b/g);
   if (matches) {
     for (var i = 0; i < matches.length; i++) {
       var num = Number(matches[i].replace(/,/g, ""));
@@ -1298,19 +1683,19 @@ function checkAmountInText(ocrText, targetAmount) {
   // ลบช่องว่างและเครื่องหมายจุลภาค (Comma) ออกทั้งหมดเพื่อเปรียบเทียบในรูปแบบตัวเลขเพียวๆ
   var cleanText = ocrText.replace(/[\s,]/g, "");
   
-  // รูปแบบที่ 1: ตรวจหาทศนิยมตรงๆ เช่น "3500.00"
+  // รูปแบบที่ 1: ตรวจหาทศนิยมตรงๆ เช่น "3500.00" โดยต้องไม่ใช่ส่วนหนึ่งของตัวเลขที่ยาวกว่า
+  // (ใช้ negative lookaround กันไม่ให้ "3500.00" ไป match ซ่อนอยู่ใน "13500.001" หรือคล้ายกัน)
   var amtString = targetAmount.toFixed(2);
   var escapedAmt = amtString.replace(".", "\\.");
-  var pattern1 = new RegExp(escapedAmt);
+  var pattern1 = new RegExp("(?<![\\d.])" + escapedAmt + "(?!\\d)");
   
-  // รูปแบบที่ 2: ตรวจหาตัวเลขจำนวนเต็ม เช่น "3500"
+  // รูปแบบที่ 2: ตรวจหาตัวเลขจำนวนเต็มล้วนๆ เช่น "3500" แต่ต้อง "ไม่ติดกับตัวเลขอื่น" ทั้งด้านหน้าและด้านหลัง
+  // ป้องกันไม่ให้ยอดเงิน เช่น 500 บาท ไป match ซ่อนอยู่ในเลขบัญชี/เลขอ้างอิง/วันที่ที่บังเอิญมี "500" ปนอยู่
+  // (เดิมมี pattern3 ที่ยอมให้มีเลขอื่นต่อท้ายได้ 2 หลัก ซึ่งหลวมเกินไปและถูกตัดออกเพื่อความปลอดภัย)
   var intAmt = Math.floor(targetAmount).toString();
-  var pattern2 = new RegExp(intAmt);
+  var pattern2 = new RegExp("(?<!\\d)" + intAmt + "(?!\\d)");
   
-  // รูปแบบที่ 3: ตรวจหาแบบไม่มีจุดทศนิยมแต่ลงท้ายด้วย 00 หรือทศนิยมอื่นๆ เช่น "350000" (กรณีจุดทศนิยมอ่านตกหล่น)
-  var pattern3 = new RegExp(intAmt + "\\d{2}");
-  
-  if (pattern1.test(cleanText) || pattern2.test(cleanText) || pattern3.test(cleanText)) {
+  if (pattern1.test(cleanText) || pattern2.test(cleanText)) {
     return true;
   }
   
@@ -1460,6 +1845,15 @@ function saveStateSafely(sheet, data) {
       Logger.log("⚠️ Blocked saveStateSafely: incoming state has 0 rooms. Preventing data loss.");
       return;
     }
+
+    // [ความปลอดภัย] สำรองข้อมูลชุดล่าสุดที่ยังใช้งานได้ไว้ก่อนเขียนทับทุกครั้ง (เก็บไว้แค่ชุดเดียว ล่าสุดเสมอ)
+    // เผื่อกรณีการเขียนครั้งใหม่เกิดเสียหายโดยไม่คาดคิด จะสามารถกู้คืนได้ทันทีด้วย restoreDbStateFromBackup()
+    try {
+      backupCurrentDbState(sheet.getParent());
+    } catch (backupErr) {
+      Logger.log("⚠️ สำรองข้อมูลก่อนบันทึกไม่สำเร็จ (ยังคงบันทึกข้อมูลใหม่ต่อไป): " + backupErr.toString());
+    }
+
     sheet.clear();
     var jsonStr = JSON.stringify(data);
     var chunkSize = 45000;
@@ -1470,11 +1864,56 @@ function saveStateSafely(sheet, data) {
     }
     
     if (rowValues.length > 0) {
-      sheet.getRange(1, 1, 1, rowValues.length).setValues([rowValues]);
+      var range = sheet.getRange(1, 1, 1, rowValues.length);
+      // [แก้ต้นเหตุปัญหาข้อมูลหายปริศนา] ต้องบังคับให้เซลล์เป็นชนิดข้อความ (Plain Text) เสมอ ก่อนใส่ค่า
+      // มิฉะนั้น Google Sheets จะสุ่มตรวจพบว่าบางท่อนของ JSON ที่ตัดมาพอดีเป็นตัวเลขล้วนๆ (เช่นเลขบิล/ยอดเงิน/วันที่ติดกันยาวๆ)
+      // แล้วแปลงเซลล์นั้นเป็นชนิด Number ให้อัตโนมัติ (ตัดเลข 0 นำหน้าทิ้ง/ปัดเป็น Scientific Notation) ทำให้ JSON เสียหาย
+      // ทันทีที่อ่านกลับมาแล้ว JSON.parse ล้มเหลว ระบบเข้าใจผิดว่าฐานข้อมูลว่างเปล่าและเขียนทับข้อมูลจนดูเหมือนหายทั้งระบบ
+      range.setNumberFormat("@");
+      range.setValues([rowValues]);
       Logger.log("✅ บันทึก JSON State ลงสเปรดชีตอย่างปลอดภัยสำเร็จ: จำนวน " + rowValues.length + " คอลัมน์ (ความยาวรวม: " + jsonStr.length + " อักขระ)");
     }
   } catch(e) {
     Logger.log("❌ เกิดข้อผิดพลาดใน saveStateSafely: " + e.toString());
+  }
+}
+
+/**
+ * คัดลอกข้อมูล DB_STATE ปัจจุบัน (ก่อนจะถูกเขียนทับ) ไปเก็บไว้ที่แท็บ DB_STATE_BACKUP
+ * จะสำรองก็ต่อเมื่อข้อมูลปัจจุบันยัง parse เป็น JSON ที่ถูกต้องและมีห้องพักอยู่จริงเท่านั้น (กันสำรองข้อมูลเสียทับของดี)
+ */
+function backupCurrentDbState(ss) {
+  var liveSheet = ss.getSheetByName("DB_STATE");
+  if (!liveSheet) return;
+  var lastCol = liveSheet.getLastColumn();
+  if (lastCol < 1) return;
+  var values = liveSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var raw = "";
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] !== undefined && values[i] !== null && values[i] !== "") raw += String(values[i]);
+  }
+  if (!raw) return;
+
+  try {
+    var parsed = JSON.parse(raw);
+    if (!parsed || !parsed.rooms || !Array.isArray(parsed.rooms) || parsed.rooms.length === 0) return;
+  } catch (e) {
+    return; // ข้อมูลเดิมเสียอยู่แล้ว ไม่ต้องเอาไปสำรองทับของดีที่อาจสำรองไว้ก่อนหน้า
+  }
+
+  var backupSheet = ss.getSheetByName("DB_STATE_BACKUP");
+  if (!backupSheet) backupSheet = ss.insertSheet("DB_STATE_BACKUP");
+  backupSheet.clear();
+  var chunkSize = 45000;
+  var rowValues = [];
+  for (var j = 0; j < raw.length; j += chunkSize) {
+    rowValues.push(raw.substring(j, j + chunkSize));
+  }
+  if (rowValues.length > 0) {
+    var backupRange = backupSheet.getRange(1, 1, 1, rowValues.length);
+    backupRange.setNumberFormat("@");
+    backupRange.setValues([rowValues]);
+    backupSheet.getRange(2, 1).setValue("สำรองล่าสุดเมื่อ: " + Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd HH:mm:ss"));
   }
 }
 
