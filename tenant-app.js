@@ -121,142 +121,127 @@ class TenantDBService {
     return rooms;
   }
 
-  static getState() {
-    const raw = localStorage.getItem(this.STORAGE_KEY);
-    let state = null;
-    if (raw) {
-      try { state = JSON.parse(raw); } catch (e) {}
-    }
-    if (!state) {
-      state = {
-        settings: { apartmentName: 'หอพักสมบัติ นนทบุรี', promptPayId: '0805991691' },
-        rooms: this.getInitialRooms(), tenants: [], invoices: [], roomTypes: []
-      };
-    }
-    if (!state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
-      state.rooms = this.getInitialRooms();
-    }
-    if (state.invoices && Array.isArray(state.invoices)) {
-      let migrated = false;
-      state.invoices.forEach(inv => {
-        if (inv.monthKey && inv.dueDate && inv.dueDate.slice(0, 7) === inv.monthKey) {
-          const [year, month] = inv.monthKey.split('-').map(Number);
-          let nextMonth = month + 1;
-          let nextYear = year;
-          if (nextMonth > 12) {
-            nextMonth = 1;
-            nextYear++;
-          }
-          const nextMonthFormatted = String(nextMonth).padStart(2, '0');
-          inv.dueDate = `${nextYear}-${nextMonthFormatted}-05`;
-          migrated = true;
-        }
-      });
-      if (migrated) {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
-        const url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-        if (url) {
-          fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'sync', data: state }),
-            redirect: 'follow'
-          }).catch(() => {});
-        }
-      }
-    }
-    return state;
-  }
+  // [หมายเหตุ] เดิมมีฟังก์ชัน getState() ที่ cache ฐานข้อมูลทั้งก้อนไว้ใน localStorage ของเบราว์เซอร์ผู้เช่า
+  // ถูกลบออกแล้ว เพราะขัดกับการแก้ปัญหาข้อมูลผู้เช่าคนอื่นรั่วไหล (ดูฟังก์ชัน getPublicState/fetchTenantBill แทน)
 
   static cleanUrl(url) {
     if (!url) return '';
     return url.split('?')[0].trim();
   }
 
-  static async saveState(state) {
-    let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
-      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-      url = null;
+  // [ความปลอดภัย] ไม่มี URL สำรอง (fallback) แบบ hardcode อีกต่อไป เพราะถ้าแอดมินลืมตั้งค่า
+  // ระบบเดิมจะแอบส่งข้อมูลผู้เช่า/สลิปโอนเงินไปที่ Web App ของคนอื่นโดยไม่รู้ตัว
+  // ถ้าไม่พบ URL ที่ตั้งค่าไว้ จะคืนค่าว่างและหน้าเว็บจะแสดงโหมด Demo แทน
+  static getSavedSheetUrl() {
+    let fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (fromStorage) return this.cleanUrl(fromStorage);
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromParam = urlParams.get('sheetUrl');
+    if (fromParam) {
+      const cleaned = this.cleanUrl(fromParam);
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
+      return cleaned;
     }
-    if (!url) {
-      url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
-    }
-    if (!state || !state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
-      console.warn("Blocked TenantDBService.saveState: state has 0 rooms. Preventing data loss.");
-      return;
-    }
-    url = this.cleanUrl(url);
-    if (url) {
-      // Show blocking loader during sync
-      const syncLoader = document.createElement('div');
-      syncLoader.id = 'app-sync-loader';
-      syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
-      syncLoader.innerHTML = `
-        <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
-        <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังส่งข้อมูลการชำระเงินไปยัง Google Sheets...</div>
-        <div style="font-size:0.88rem; color:#cbd5e1;">กรุณารอสักครู่ ระบบกำลังยืนยันยอดบิล</div>
-        <style>
-          @keyframes spin { to { transform: rotate(360deg); } }
-        </style>
-      `;
-      document.body.appendChild(syncLoader);
-
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'sync', data: state }),
-          redirect: 'follow'
-        });
-        if (!response.ok) {
-          throw new Error(`Server status ${response.status}`);
-        }
-        const resJson = await response.json();
-        if (resJson && resJson.status === 'error') {
-          throw new Error(resJson.message || 'Unknown server error');
-        }
-      } catch (e) {
-        console.error("Failed to sync to Google Sheets:", e);
-        throw e;
-      } finally {
-        syncLoader.remove();
-      }
-    }
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    return '';
   }
 
-  static async pullLatestFromCloud() {
-    let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
-      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-      url = null;
+  // [ความปลอดภัย] apiKey สำหรับพอร์ทัลผู้เช่านี้ต้องเป็นคนละตัวกับ apiKey ของแอดมินเสมอ
+  // (สิทธิ์จำกัดกว่ามาก: อ่านได้แค่รายชื่อห้อง/บิลของตัวเอง และบันทึกได้แค่การชำระเงินของตัวเอง)
+  static getSavedTenantApiKey() {
+    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY');
+    if (fromStorage) return fromStorage;
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromParam = urlParams.get('apiKey');
+    if (fromParam) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY', fromParam);
+      return fromParam;
     }
-    if (!url) {
-      const urlParams = new URLSearchParams(window.location.search);
-      url = urlParams.get('sheetUrl');
-    }
-    if (!url) {
-      url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
-    }
-    url = this.cleanUrl(url);
+    return '';
+  }
+
+  static getEmptyState() {
+    return {
+      settings: { apartmentName: 'หอพักสมบัติ นนทบุรี', promptPayId: '0805991691' },
+      rooms: this.getInitialRooms(), tenants: [], invoices: [], roomTypes: []
+    };
+  }
+
+  // [พอร์ทัลผู้เช่า] ก่อนล็อกอิน ดึงมาแค่ "รายชื่อห้อง" สำหรับ dropdown เท่านั้น
+  // ไม่ดึงฐานข้อมูลทั้งก้อนมาไว้ที่เบราว์เซอร์เหมือนโค้ดเดิม (ซึ่งจะมีเลขบัตร ปชช. ของผู้เช่าทุกคนติดมาด้วย)
+  static async getPublicState() {
+    const url = this.getSavedSheetUrl();
+    if (!url) return this.getEmptyState();
+    const apiKey = this.getSavedTenantApiKey();
     try {
-      const fetchUrl = `${url}?action=get`;
+      let fetchUrl = `${url}?action=getRoomList`;
+      if (apiKey) fetchUrl += `&apiKey=${encodeURIComponent(apiKey)}`;
       const res = await fetch(fetchUrl);
       const data = await res.json();
-      
-      let payload = data;
-      if (data && data.status === 'success' && data.data) {
-        payload = data.data;
+      if (data && data.status === 'success') {
+        return {
+          settings: { apartmentName: data.apartmentName || 'หอพักสมบัติ นนทบุรี' },
+          rooms: data.rooms || [], tenants: [], invoices: []
+        };
       }
-      
-      if (payload && typeof payload === 'object' && (payload.tenants || payload.rooms)) {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(payload));
-        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
-        return payload;
+      console.warn('getRoomList error:', data && data.message);
+    } catch (e) {
+      console.warn('getPublicState failed:', e);
+    }
+    return this.getEmptyState();
+  }
+
+  // [พอร์ทัลผู้เช่า] ล็อกอินจริง: ให้ Server ยืนยันเลขบัตร ปชช. + ห้องพัก แล้วส่งกลับเฉพาะบิลของผู้เช่าคนนั้น
+  static async fetchTenantBill(idCard, roomId) {
+    const url = this.getSavedSheetUrl();
+    if (!url) throw new Error('ยังไม่ได้เชื่อมต่อระบบกับ Google Sheets กรุณาเข้าใช้งานผ่านลิงก์ที่แอดมินส่งให้');
+    const apiKey = this.getSavedTenantApiKey();
+    let fetchUrl = `${url}?action=getTenantBill&idCard=${encodeURIComponent(idCard)}&roomId=${encodeURIComponent(roomId)}`;
+    if (apiKey) fetchUrl += `&apiKey=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(fetchUrl);
+    const data = await res.json();
+    if (data && data.status === 'success') return data;
+    throw new Error((data && data.message) || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบข้อมูลอีกครั้ง');
+  }
+
+  // [พอร์ทัลผู้เช่า] บันทึกการชำระเงิน (โอน/เงินสด) เฉพาะบิลของผู้เช่าคนนี้เท่านั้น
+  // Server จะยืนยันตัวตนซ้ำอีกครั้งและไม่ยอมให้แก้ไขบิลของห้องอื่น
+  static async submitPayment({ idCard, roomId, invoiceNumber, paymentMethod, slipDataUrl, slipHash, qrPayload }) {
+    const url = this.getSavedSheetUrl();
+    if (!url) throw new Error('ยังไม่ได้เชื่อมต่อระบบกับ Google Sheets กรุณาเข้าใช้งานผ่านลิงก์ที่แอดมินส่งให้');
+    const apiKey = this.getSavedTenantApiKey();
+
+    const syncLoader = document.createElement('div');
+    syncLoader.id = 'app-sync-loader';
+    syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
+    syncLoader.innerHTML = `
+      <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+      <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังส่งข้อมูลการชำระเงินไปยัง Google Sheets...</div>
+      <div style="font-size:0.88rem; color:#cbd5e1;">กรุณารอสักครู่ ระบบกำลังยืนยันยอดบิล</div>
+      <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+      </style>
+    `;
+    document.body.appendChild(syncLoader);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'submitTenantPayment', apiKey, idCard, roomId, invoiceNumber,
+          paymentMethod, slipDataUrl, slipHash, qrPayload
+        }),
+        redirect: 'follow'
+      });
+      if (!response.ok) throw new Error(`Server status ${response.status}`);
+      const resJson = await response.json();
+      if (resJson && resJson.status === 'error') {
+        throw new Error(resJson.message || 'Unknown server error');
       }
-    } catch (e) {}
-    return null;
+      return resJson;
+    } finally {
+      syncLoader.remove();
+    }
   }
 
   static getLoggedInTenant() {
@@ -283,17 +268,15 @@ class MyBillsApp {
   static currentPayMethod = 'transfer';
 
   static async computeSha256(base64Str) {
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(base64Str);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      return hashHex;
-    } catch (e) {
-      console.error("SHA-256 failed, fallback to timestamp:", e);
-      return 'hash_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
+    // [ความปลอดภัย] เดิมถ้าคำนวณแฮชไม่สำเร็จ (เช่น crypto.subtle ใช้ไม่ได้เพราะไม่ได้เปิดผ่าน HTTPS)
+    // จะ fallback เป็นค่าแฮชปลอมจาก timestamp/random ซึ่งทำให้ระบบตรวจจับสลิปซ้ำที่ฝั่ง Apps Script
+    // เจอค่าที่ไม่สัมพันธ์กับรูปจริงเลย (ใช้สลิปเดิมซ้ำได้เพราะแฮชสุ่มใหม่ทุกครั้ง) ตอนนี้จึงโยน error
+    // ออกไปแทน เพื่อให้ผู้เรียกใช้บล็อกการอัปโหลดและแจ้งผู้เช่าให้ลองใหม่แทนที่จะปล่อยผ่านอย่างเงียบๆ
+    const encoder = new TextEncoder();
+    const data = encoder.encode(base64Str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   static async scanQrCodeFromDataUrl(dataUrl) {
@@ -327,11 +310,15 @@ class MyBillsApp {
   }
 
   static async init() {
-    // 1. Resolve sheet url from query parameters
+    // 1. Resolve sheet url + apiKey from query parameters
     const urlParams = new URLSearchParams(window.location.search);
     const paramUrl = urlParams.get('sheetUrl');
     if (paramUrl) {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', paramUrl);
+    }
+    const paramKey = urlParams.get('apiKey');
+    if (paramKey) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY', paramKey);
     }
 
     // Show a modern startup loading screen
@@ -348,20 +335,27 @@ class MyBillsApp {
     `;
     document.body.appendChild(loader);
 
+    // [ความปลอดภัย] ไม่ดึงฐานข้อมูลทั้งก้อนมาไว้ที่เบราว์เซอร์อีกต่อไป
+    // - ถ้ายังไม่ได้ล็อกอิน: ดึงแค่รายชื่อห้อง (ไม่มีข้อมูลผู้เช่าคนอื่นติดมา) สำหรับ dropdown เท่านั้น
+    // - ถ้ามีเซสชันล็อกอินค้างอยู่: ให้ Server ยืนยันตัวตนอีกครั้งแล้วส่งกลับเฉพาะบิลของผู้เช่าคนนั้น
+    this.currentTenant = TenantDBService.getLoggedInTenant();
+
     try {
-      const cloudData = await TenantDBService.pullLatestFromCloud();
-      if (cloudData) {
-        this.state = cloudData;
-        console.log('✅ Real-time Cloud state fetched successfully on start');
+      if (this.currentTenant && this.currentTenant.idCard && this.currentTenant.assignedRoomId) {
+        const cleanIdCard = String(this.currentTenant.idCard).replace(/\D/g, '');
+        this.state = await TenantDBService.getPublicState(); // โหลดรายชื่อห้องไว้ก่อนเผื่อใช้แสดงผล
+        const billData = await TenantDBService.fetchTenantBill(cleanIdCard, this.currentTenant.assignedRoomId);
+        this.applyTenantBillData(billData);
+        TenantDBService.setLoggedInTenant(this.currentTenant);
       } else {
-        this.state = TenantDBService.getState();
+        this.state = await TenantDBService.getPublicState();
       }
     } catch (err) {
-      console.warn('Startup pull warning, falling back to local cache:', err);
-      this.state = TenantDBService.getState();
+      console.warn('Startup fetch warning, session may have expired:', err);
+      this.currentTenant = null;
+      TenantDBService.setLoggedInTenant(null);
+      this.state = await TenantDBService.getPublicState().catch(() => TenantDBService.getEmptyState());
     }
-
-    this.currentTenant = TenantDBService.getLoggedInTenant();
 
     // Remove loading overlay
     loader.style.opacity = '0';
@@ -369,6 +363,24 @@ class MyBillsApp {
 
     // Render screen
     this.render();
+  }
+
+  // รวมข้อมูลบิลที่ยืนยันโดย Server แล้ว (จาก getTenantBill / submitTenantPayment) เข้ากับ state ปัจจุบัน
+  static applyTenantBillData(billData) {
+    const existingRooms = (this.state && this.state.rooms) || [];
+    this.state = {
+      settings: billData.settings || (this.state && this.state.settings) || {},
+      rooms: existingRooms.length > 0 ? existingRooms : (billData.room ? [billData.room] : []),
+      invoices: billData.invoices || [],
+      tenants: [billData.tenant].filter(Boolean)
+    };
+    this.currentTenant = {
+      id: billData.tenant.id,
+      name: billData.tenant.name,
+      idCard: Formatters.formatIdCard(String(billData.tenant.idCard || '').replace(/\D/g, '')),
+      tel: billData.tenant.tel || '080-5991691',
+      assignedRoomId: billData.tenant.assignedRoomId
+    };
   }
 
   static render() {
@@ -462,40 +474,20 @@ class MyBillsApp {
         return;
       }
 
-      // Try pulling latest cloud data
-      const cloudData = await TenantDBService.pullLatestFromCloud();
-      if (cloudData) this.state = cloudData;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบ...'; }
 
-      const tenants = this.state.tenants || [];
-      const rooms = this.state.rooms || [];
-      
-      // 1. ค้นหาผู้เช่าที่ลงทะเบียนกับห้องพักที่เลือก
-      const tenantForRoom = tenants.find(t => t.assignedRoomId === selectedRoomId);
-      
-      if (!tenantForRoom) {
-        alert('❌ ไม่พบข้อมูลผู้เช่าลงทะเบียนในห้องพักนี้ กรุณาติดต่อผู้ดูแลระบบ');
-        return;
+      try {
+        // [ความปลอดภัย] ให้ Server เป็นผู้ยืนยันเลขบัตร ปชช. + ห้องพักเองทั้งหมด แล้วส่งกลับเฉพาะบิลของผู้เช่าคนนี้
+        // (ไม่ดึงฐานข้อมูลทั้งก้อนมากรองเองที่ฝั่ง client เหมือนเดิมอีกต่อไป)
+        const billData = await TenantDBService.fetchTenantBill(cleanInput, selectedRoomId);
+        this.applyTenantBillData(billData);
+        TenantDBService.setLoggedInTenant(this.currentTenant);
+        this.render();
+      } catch (err) {
+        alert('❌ ' + (err.message || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบข้อมูลอีกครั้ง'));
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> เข้าสู่ระบบเปิดดูบิล PDF ห้องพัก'; }
       }
-      
-      // 2. ตรวจสอบเลขบัตรประชาชนว่าตรงกันหรือไม่
-      const cleanTenantIdCard = String(tenantForRoom.idCard || '').replace(/\D/g, '');
-      if (cleanTenantIdCard !== cleanInput) {
-        alert('❌ เลขบัตรประชาชนไม่ถูกต้องสำหรับห้องพักที่เลือก กรุณาตรวจสอบอีกครั้ง');
-        return;
-      }
-
-      // 3. ผ่านการยืนยันตัวตน
-      const matched = {
-        id: tenantForRoom.id,
-        name: tenantForRoom.name,
-        idCard: Formatters.formatIdCard(cleanInput),
-        tel: tenantForRoom.tel || '080-5991691',
-        assignedRoomId: selectedRoomId
-      };
-
-      this.currentTenant = matched;
-      TenantDBService.setLoggedInTenant(matched);
-      this.render();
     });
   }
 
@@ -821,12 +813,10 @@ class MyBillsApp {
 
         const tenant = this.currentTenant;
         const rooms = this.state.rooms || [];
-        const room = rooms.find(r => r.id === tenant.assignedRoomId || r.currentTenantName === tenant.name) || { name: 'ยังไม่ระบุ' };
+        const room = rooms.find(r => r.id === tenant.assignedRoomId) || { name: 'ยังไม่ระบุ' };
 
         const invoices = this.state.invoices || [];
         const invIdx = invoices.findIndex(i => i.invoiceNumber === MyBillsApp.activeInvoiceNumber);
-
-        const todayStr = new Date().toISOString().slice(0, 10);
 
         let hashHex = '';
         let qrCodeData = null;
@@ -836,50 +826,39 @@ class MyBillsApp {
           hashHex = await MyBillsApp.computeSha256(this.currentSlipDataUrl);
           qrCodeData = await MyBillsApp.scanQrCodeFromDataUrl(this.currentSlipDataUrl);
         } catch (err) {
-          console.warn("Client slip preprocessing warning:", err);
+          console.error("Client slip preprocessing failed:", err);
+          analysisLoader.remove();
+          alert('❌ ไม่สามารถประมวลผลรูปสลิปได้ในเบราว์เซอร์นี้ กรุณาลองใหม่อีกครั้ง หรือเปิดผ่านลิงก์ HTTPS ของหอพัก');
+          return;
         } finally {
           analysisLoader.remove();
         }
 
-        if (invIdx !== -1) {
-          invoices[invIdx].status = 'paid';
-          invoices[invIdx].paidAmount = invoices[invIdx].totalAmount;
-          invoices[invIdx].outstandingAmount = 0;
-          invoices[invIdx].paymentDate = todayStr;
-          invoices[invIdx].slipUrl = this.currentSlipDataUrl;
-          invoices[invIdx].slipHash = hashHex;
-          invoices[invIdx].qrPayload = qrCodeData;
-        }
-
-        // Update room status to occupied if overdue
-        const roomObj = rooms.find(r => r.id === room.id);
-        if (roomObj && roomObj.status === 'overdue') {
-          roomObj.status = 'occupied';
-        }
+        const cleanIdCard = String(tenant.idCard || '').replace(/\D/g, '');
 
         try {
-          // Save state and block screen during sync to Google Sheets
-          await TenantDBService.saveState(this.state);
+          // [ความปลอดภัย] ส่งไปให้ Server ยืนยันตัวตน + ตรวจสอบสลิป + แก้ไขเฉพาะบิลของผู้เช่าคนนี้เท่านั้น
+          // (ไม่ส่ง state ทั้งก้อนไปเขียนทับฐานข้อมูลเหมือนเดิมอีกต่อไป)
+          const result = await TenantDBService.submitPayment({
+            idCard: cleanIdCard,
+            roomId: tenant.assignedRoomId,
+            invoiceNumber: MyBillsApp.activeInvoiceNumber,
+            paymentMethod: 'transfer',
+            slipDataUrl: this.currentSlipDataUrl,
+            slipHash: hashHex,
+            qrPayload: qrCodeData
+          });
 
-          // Notify via LINE Bot / LINE Message Log
-          this.sendLineNotify(invoices[invIdx] || { roomName: room.name, tenantName: tenant.name, totalAmount: 3500 });
+          if (invIdx !== -1 && result && result.invoice) {
+            invoices[invIdx] = Object.assign({}, invoices[invIdx], result.invoice);
+          }
 
           // Show Success Alert Popup & Open Receipt Modal
           alert('🟢 ยืนยันสลิปชำระเงินสำเร็จ!\n\nระบบทำความสะอาดและตรวจสอบความถูกต้องสลิปเรียบร้อยแล้ว');
-          
+
           this.render();
           this.openReceiptModal(invoices[invIdx]);
         } catch (err) {
-          // Revert status on failure so it doesn't trick the user
-          if (invIdx !== -1) {
-            invoices[invIdx].status = 'unpaid';
-            invoices[invIdx].paidAmount = 0;
-            invoices[invIdx].outstandingAmount = invoices[invIdx].totalAmount;
-            invoices[invIdx].paymentDate = null;
-            invoices[invIdx].slipUrl = null;
-            delete invoices[invIdx].slipHash;
-            delete invoices[invIdx].qrPayload;
-          }
           alert('❌ ปฏิเสธการชำระเงิน: ' + err.message);
         }
       });
@@ -908,103 +887,31 @@ class MyBillsApp {
     if (btnSubmitCashPay) {
       btnSubmitCashPay.addEventListener('click', async () => {
         const tenant = this.currentTenant;
-        const rooms = this.state.rooms || [];
-        const room = rooms.find(r => r.id === tenant.assignedRoomId || r.currentTenantName === tenant.name) || { name: 'ยังไม่ระบุ' };
         const invoices = this.state.invoices || [];
         const invIdx = invoices.findIndex(i => i.invoiceNumber === MyBillsApp.activeInvoiceNumber);
-        const todayStr = new Date().toISOString().slice(0, 10);
-
-        if (invIdx !== -1) {
-          invoices[invIdx].status = 'paid';
-          invoices[invIdx].paidAmount = invoices[invIdx].totalAmount;
-          invoices[invIdx].outstandingAmount = 0;
-          invoices[invIdx].paymentDate = todayStr;
-          invoices[invIdx].slipUrl = 'cash'; // Mark slipUrl as 'cash' to denote cash payment
-        }
-
-        const roomObj = rooms.find(r => r.id === room.id);
-        if (roomObj && roomObj.status === 'overdue') {
-          roomObj.status = 'occupied';
-        }
+        const cleanIdCard = String(tenant.idCard || '').replace(/\D/g, '');
 
         try {
-          // Save and Sync to Google Sheets
-          await TenantDBService.saveState(this.state);
+          // [ความปลอดภัย] Server จะยืนยันตัวตนอีกครั้งและแก้ไขเฉพาะบิลของผู้เช่าคนนี้ พร้อมแจ้งเตือน LINE เอง
+          const result = await TenantDBService.submitPayment({
+            idCard: cleanIdCard,
+            roomId: tenant.assignedRoomId,
+            invoiceNumber: MyBillsApp.activeInvoiceNumber,
+            paymentMethod: 'cash'
+          });
 
-          // LINE Notify - No amount listed
-          let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-          if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
-            localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-            url = null;
-          }
-          if (!url) {
-            url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
-          }
-          if (url && invoices[invIdx]) {
-            const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoices[invIdx].roomName} (${invoices[invIdx].tenantName || 'ผู้เช่า'}) ได้ชำระเงินด้วยเงินสดเรียบร้อยแล้ว!`;
-            fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain' },
-              body: JSON.stringify({
-                action: 'linePushNotify',
-                invoiceId: 'ALL',
-                messageText: messageText
-              }),
-              redirect: 'follow'
-            }).catch(() => {});
+          if (invIdx !== -1 && result && result.invoice) {
+            invoices[invIdx] = Object.assign({}, invoices[invIdx], result.invoice);
           }
 
           alert('🟢 บันทึกข้อมูลชำระเงินสดเรียบร้อยแล้ว!\n\nระบบได้รับการชำระเงินและแจ้งไปยังเจ้าหน้าที่เรียบร้อยแล้วครับ');
           this.render();
           if (invoices[invIdx]) this.openReceiptModal(invoices[invIdx]);
         } catch (err) {
-          // Revert status on failure
-          if (invIdx !== -1) {
-            invoices[invIdx].status = 'unpaid';
-            invoices[invIdx].paidAmount = 0;
-            invoices[invIdx].outstandingAmount = invoices[invIdx].totalAmount;
-            invoices[invIdx].paymentDate = null;
-            invoices[invIdx].slipUrl = null;
-          }
           alert('❌ เกิดข้อผิดพลาดในการส่งข้อมูลไปยัง Google Sheets: ' + err.message + '\n\nกรุณาตรวจการตั้งค่าสิทธิ์ หรืออัปเดตสคริปต์ Code.gs ตามขั้นตอน');
         }
       });
     }
-  }
-
-  static sendLineNotify(invoice) {
-    let url = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (url && (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj'))) {
-      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-      url = null;
-    }
-    if (!url) {
-      url = "https://script.google.com/macros/s/AKfycbyTntiFiQVtReuTcMWHGmfGlCZBpYF-h-CXbyhbullgiKT3aUMK5bB0ModzEAdqVtjE/exec";
-    }
-    if (!url) {
-      console.log("LINE Notify skipped: Google Sheets Web App URL not found.");
-      return;
-    }
-    // Message says "paid" but does not notify the totalAmount as requested by the user
-    const messageText = `🏠 หอพักสมบัติ นนทบุรี\n\n📢 ผู้เช่าห้อง ${invoice.roomName} (${invoice.tenantName || 'ผู้เช่า'}) ได้ทำการชำระเงินเรียบร้อยแล้ว!`;
-    
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'linePushNotify',
-        invoiceId: 'ALL', // Broadcast/Notify the admin channel
-        messageText: messageText
-      }),
-      redirect: 'follow'
-    })
-    .then(res => res.json())
-    .then(data => {
-      console.log("LINE Notification Response:", data);
-    })
-    .catch(err => {
-      console.error("Error sending LINE notification:", err);
-    });
   }
 
   // --- 3. OFFICIAL BILL POPUP MODAL ---
