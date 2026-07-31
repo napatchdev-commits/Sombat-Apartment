@@ -1456,7 +1456,7 @@ class BillingComponent {
                       <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : (inv.status === 'pending' ? 'btn-warning' : 'btn-danger')} btn-toggle-pay-status" data-id="${inv.id}">
                         ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : (inv.status === 'pending' ? '🟡 รอตรวจสอบ' : '🔴 ค้างชำระ')}
                       </button>
-                      ${inv.slipUrl ? (inv.slipUrl === 'cash' ? `
+                      ${inv.slipUrl && (inv.slipUrl === 'cash' || inv.slipUrl.startsWith('http') || inv.slipUrl.startsWith('data:')) ? (inv.slipUrl === 'cash' ? `
                         <span class="badge-pill" style="margin-top:0.35rem; display:block; text-align:center; font-size:0.72rem; background-color:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-weight:700; padding:2px 4px; border-radius:4px;">
                           💵 ชำระเงินสด
                         </span>

@@ -885,6 +885,11 @@ function readAndMergeSheetTabs(ss, data) {
           inv.trashFee = trashAmt;
           inv.fineAmount = calculatedFine;
           inv.totalAmount = totalAmt;
+          inv.slipUrl = (function(val) {
+            var s = String(val || "").trim();
+            if (s.indexOf("http") === 0 || s.indexOf("data:") === 0) return s;
+            return "";
+          })(row[17]);
           if (row[16]) {
             if (isPaid) {
               inv.status = 'paid';
@@ -922,7 +927,11 @@ function readAndMergeSheetTabs(ss, data) {
             status: isPaid ? 'paid' : (isPending ? 'pending' : 'unpaid'),
             paidAmount: isPaid ? totalAmt : 0,
             outstandingAmount: isPaid ? 0 : totalAmt,
-            slipUrl: String(row[17] || "")
+            slipUrl: (function(val) {
+              var s = String(val || "").trim();
+              if (s.indexOf("http") === 0 || s.indexOf("data:") === 0) return s;
+              return "";
+            })(row[17])
           };
           data.invoices.push(newInv);
         }
