@@ -1363,6 +1363,7 @@ class MyBillsApp {
 
             try {
               const result = await TenantDBService.submitPayment({
+                action: 'submitTenantPayment',
                 idCard: String(tenant.idCard).replace(/\D/g, ''),
                 roomId: tenant.assignedRoomId,
                 invoiceNumber: MyBillsApp.activeInvoiceNumber,
@@ -1399,6 +1400,7 @@ class MyBillsApp {
 
             try {
               const result = await TenantDBService.submitPayment({
+                action: 'submitTenantPayment',
                 idCard: String(tenant.idCard).replace(/\D/g, ''),
                 roomId: tenant.assignedRoomId,
                 invoiceNumber: MyBillsApp.activeInvoiceNumber,
