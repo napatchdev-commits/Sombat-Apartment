@@ -2,7 +2,7 @@
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - 100% COMPLETE APP CONTROLLER
 // Fully Interactive 10 Modules: Dashboard, Contracts, Tenants, Rooms, Billing,
 // Repairs, Accounting Ledger, Event Calendar, Reports & Settings System.
-// Real-Time Google Sheets Cloud Engine & Multi-File Document Attachment Engine
+// Real-Time Supabase Cloud Engine
 // ==========================================================================
 
 /* ==========================================================================
@@ -470,7 +470,7 @@ class DBService {
         bankAccountNo: '2401346663',
         bankAccountName: 'นางสมผิว น้ำวน',
         promptPayId: '0805991691',
-        googleSheetUrl: ''
+        supabaseUrl: ''
       },
       rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 200.0, commonFee: 100.0 },
       users: [
@@ -497,44 +497,43 @@ class DBService {
     return url.split('?')[0].trim();
   }
 
-  static getSavedSheetUrl() {
+  static getSavedSupabaseUrl() {
     const rawState = localStorage.getItem(this.STORAGE_KEY);
-    let fromState = '';
     if (rawState) {
       try {
         const parsed = JSON.parse(rawState);
-        if (parsed.settings && parsed.settings.googleSheetUrl) {
-          const url = parsed.settings.googleSheetUrl;
-          if (url.includes('script.google.com') || url.includes('macros') || url.includes('google.com')) {
+        // Migrate old googleSheetUrl to supabaseUrl
+        if (parsed.settings && parsed.settings.googleSheetUrl && !parsed.settings.supabaseUrl) {
+          const u = parsed.settings.googleSheetUrl;
+          if (u.includes('supabase.co')) {
+            parsed.settings.supabaseUrl = this.cleanUrl(u);
             delete parsed.settings.googleSheetUrl;
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(parsed));
+            return parsed.settings.supabaseUrl;
           } else {
-            fromState = this.cleanUrl(url);
+            delete parsed.settings.googleSheetUrl;
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(parsed));
           }
+        }
+        if (parsed.settings && parsed.settings.supabaseUrl) {
+          return this.cleanUrl(parsed.settings.supabaseUrl);
         }
       } catch (e) {}
     }
-    
-    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (fromStorage && (fromStorage.includes('script.google.com') || fromStorage.includes('macros') || fromStorage.includes('google.com'))) {
+    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL');
+    if (fromStorage && fromStorage.includes('supabase.co')) return this.cleanUrl(fromStorage);
+    // Migrate old localStorage key
+    const oldStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    if (oldStorage && oldStorage.includes('supabase.co')) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', oldStorage);
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    } else if (fromStorage && !fromState) {
-      fromState = this.cleanUrl(fromStorage);
+      return this.cleanUrl(oldStorage);
     }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const fromParam = urlParams.get('sheetUrl');
-    if (fromParam) {
-      const cleaned = this.cleanUrl(fromParam);
-      if (!cleaned.includes('script.google.com') && !cleaned.includes('macros') && !cleaned.includes('google.com')) {
-        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
-        return cleaned;
-      }
-    }
-    
-    if (fromState) return fromState;
     return 'https://bdeowpdjgiombqatdilh.supabase.co';
   }
+
+  // Backward-compat alias
+  static getSavedSheetUrl() { return this.getSavedSupabaseUrl(); }
 
   static getSavedApiKey() {
     const rawState = localStorage.getItem(this.STORAGE_KEY);
@@ -603,19 +602,15 @@ class DBService {
         }
       });
       if (migrated) {
-        // Save immediately to persist and trigger cloud sync with corrected dates
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
-        const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
-        if (url) {
-          this.syncToGoogleSheets(url, state).catch(() => {});
-        }
+        this.syncToSupabase(this.getSavedSupabaseUrl(), state).catch(() => {});
       }
     }
-    // Ensure googleSheetUrl is populated from persistent fallback
-    const savedUrl = this.getSavedSheetUrl();
-    if (savedUrl && (!state.settings || !state.settings.googleSheetUrl)) {
+    // Ensure supabaseUrl is populated
+    const savedUrl = this.getSavedSupabaseUrl();
+    if (savedUrl && (!state.settings || !state.settings.supabaseUrl)) {
       if (!state.settings) state.settings = {};
-      state.settings.googleSheetUrl = savedUrl;
+      state.settings.supabaseUrl = savedUrl;
     }
     
     // Ensure default users are always present in the state to prevent locking out administrators when the database is wiped/empty
@@ -631,10 +626,10 @@ class DBService {
   }
 
   static async saveState(state) {
-    if (state.settings && state.settings.googleSheetUrl) {
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', state.settings.googleSheetUrl);
+    if (state.settings && state.settings.supabaseUrl) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', state.settings.supabaseUrl);
     }
-    const url = (state.settings && state.settings.googleSheetUrl) ? state.settings.googleSheetUrl : this.getSavedSheetUrl();
+    const url = this.getSavedSupabaseUrl();
     if (url) {
       // Show blocking loader during sync
       const syncLoader = document.createElement('div');
@@ -651,7 +646,7 @@ class DBService {
       document.body.appendChild(syncLoader);
 
       try {
-        await this.syncToGoogleSheets(url, state);
+        await this.syncToSupabase(url, state);
       } catch (e) {
         console.error("Failed to sync to Supabase, state will be saved to local cache:", e);
         alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Supabase: ' + e.message + '\n\n(ข้อมูลถูกบันทึกในอุปกรณ์เครื่องนี้แล้ว แต่ไม่สามารถอัปโหลดไปยังเซิร์ฟเวอร์ Supabase ได้ กรุณาตรวจสอบ URL หรือ Anon Key ในหน้าตั้งค่า)');
@@ -672,7 +667,7 @@ class DBService {
     return match ? match[1] : cleaned;
   }
 
-  static async pullFromGoogleSheets(url) {
+  static async pullFromSupabase(url) {
     if (!url) return null;
     const apiKey = this.getSavedApiKey();
     try {
@@ -683,26 +678,21 @@ class DBService {
           'Authorization': `Bearer ${apiKey}`
         }
       });
-      if (!res.ok) {
-        throw new Error(`Supabase error: ${res.statusText}`);
-      }
+      if (!res.ok) throw new Error(`Supabase error: ${res.statusText}`);
       const array = await res.json();
       if (array && array.length > 0 && array[0].state) {
         const data = array[0].state;
         if (!data.settings) data.settings = {};
-        data.settings.googleSheetUrl = url;
+        data.settings.supabaseUrl = this.cleanUrl(url);
         if (apiKey) data.settings.apiKey = apiKey;
-        
-        // Ensure default users are always present in the state to prevent locking out administrators when database is wiped/empty
         if (!data.users || !Array.isArray(data.users) || data.users.length === 0) {
           data.users = [
-            { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
-            { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
-            { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
+            { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+            { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+            { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' }
           ];
         }
-
-        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
+        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(url));
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
         return data;
       }
@@ -712,15 +702,17 @@ class DBService {
     return null;
   }
 
-  static async syncToGoogleSheets(url, state) {
+  // Backward-compat alias
+  static async pullFromGoogleSheets(url) { return this.pullFromSupabase(url); }
+
+  static async syncToSupabase(url, state) {
     if (!url) throw new Error('กรุณาระบุ Supabase Project URL ก่อน');
     if (!state) {
-      console.warn("Blocked syncToGoogleSheets: state is null.");
-      return { status: "success", message: "Sync blocked: state is null" };
+      console.warn('Blocked syncToSupabase: state is null.');
+      return { status: 'success', message: 'Sync blocked: state is null' };
     }
     const apiKey = (state.settings && state.settings.apiKey) || this.getSavedApiKey();
-    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
-    
+    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(url));
     const baseUrl = this.getBaseSupabaseUrl(url);
     const response = await fetch(`${baseUrl}/rest/v1/apartment_state?on_conflict=id`, {
       method: 'POST',
@@ -730,11 +722,7 @@ class DBService {
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates'
       },
-      body: JSON.stringify({
-        id: 1,
-        state: state,
-        updated_at: new Date().toISOString()
-      })
+      body: JSON.stringify({ id: 1, state: state, updated_at: new Date().toISOString() })
     });
     if (!response.ok) {
       const errText = await response.text();
@@ -742,6 +730,9 @@ class DBService {
     }
     return { status: 'success', message: 'บันทึกข้อมูลเรียบร้อย' };
   }
+
+  // Backward-compat alias
+  static async syncToGoogleSheets(url, state) { return this.syncToSupabase(url, state); }
 
   static exportJSON() {
     const state = this.getState();
@@ -834,11 +825,11 @@ class NavbarComponent {
         </div>
 
         <div class="header-right">
-          <a href="tenant.html?sheetUrl=${encodeURIComponent(DBService.getSavedSheetUrl())}&apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills (สำหรับผู้เช่าล็อกอินสแกนสลิปผ่านเลขบัตรประชาชน)">
+          <a href="tenant.html?apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills">
             <i class="fa-solid fa-mobile-screen-button text-success"></i> <span class="desktop-only">เปิดระบบบิลผู้เช่า MyBills</span>
           </a>
 
-          <button id="btn-manual-sync-sheets" class="btn btn-secondary btn-sm" style="margin-right:0.5rem;" title="ดึงข้อมูลล่าสุดที่แก้ไขใน Google Sheets มาแสดงผลทันที">
+          <button id="btn-manual-sync-sheets" class="btn btn-secondary btn-sm" style="margin-right:0.5rem;" title="ดึงข้อมูลล่าสุดจาก Supabase">
             <i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>
           </button>
 
@@ -2088,13 +2079,7 @@ class App {
   static activeTab = 'dashboard';
 
   static async init() {
-    // 1. Check URL query parameters for sheetUrl shared link (?sheetUrl=...)
-    const urlParams = new URLSearchParams(window.location.search);
-    const paramUrl = urlParams.get('sheetUrl');
-    if (paramUrl) {
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', paramUrl);
-    }
-    const savedUrl = DBService.getSavedSheetUrl();
+    const savedUrl = DBService.getSavedSupabaseUrl();
 
     // Show a modern startup loading screen
     const loader = document.createElement('div');
@@ -2112,7 +2097,7 @@ class App {
 
     if (savedUrl) {
       try {
-        const cloudState = await DBService.pullFromGoogleSheets(savedUrl);
+        const cloudState = await DBService.pullFromSupabase(savedUrl);
         if (cloudState) {
           this.state = cloudState;
           console.log('✅ Real-time Cloud state fetched successfully on start');
@@ -2135,9 +2120,9 @@ class App {
     }
 
     // Ensure state settings contains savedUrl
-    if (savedUrl && (!this.state.settings || !this.state.settings.googleSheetUrl)) {
+    if (savedUrl && (!this.state.settings || !this.state.settings.supabaseUrl)) {
       if (!this.state.settings) this.state.settings = {};
-      this.state.settings.googleSheetUrl = savedUrl;
+      this.state.settings.supabaseUrl = savedUrl;
     }
 
     // Remove loading overlay
@@ -2153,17 +2138,17 @@ class App {
     this.setupGlobalEvents();
     this.switchTab(this.activeTab);
 
-    // Auto background poll every 15 seconds for live edits in Google Sheets
-    if (!window.sheetPollInterval && savedUrl) {
-      window.sheetPollInterval = setInterval(async () => {
-        const url = DBService.getSavedSheetUrl();
+    // Auto background poll every 15 seconds for live updates
+    if (!window.supabasePollInterval && savedUrl) {
+      window.supabasePollInterval = setInterval(async () => {
+        const url = DBService.getSavedSupabaseUrl();
         if (url && AuthService.getCurrentUser()) {
           try {
-            const cloudState = await DBService.pullFromGoogleSheets(url);
+            const cloudState = await DBService.pullFromSupabase(url);
             if (cloudState && JSON.stringify(cloudState) !== JSON.stringify(this.state)) {
               this.state = cloudState;
               this.switchTab(this.activeTab);
-              console.log('⚡ Live 2-way synced edits from Google Sheets');
+              console.log('✅ Live sync from Supabase');
             }
           } catch (e) {
             console.warn('Live background sync failed:', e);
@@ -4955,26 +4940,17 @@ class App {
         const roomName = tr.querySelector('td').textContent;
 
         rowData.forEach((val, cIdx) => {
-          let targetCol = null;
-          if (activeCol === 'elec') {
-            targetCol = cIdx === 0 ? 'elec' : (cIdx === 1 ? 'water' : (cIdx === 2 ? 'fine' : null));
-          } else if (activeCol === 'water') {
-            targetCol = cIdx === 0 ? 'water' : (cIdx === 1 ? 'fine' : null);
-          } else if (activeCol === 'fine') {
-            targetCol = cIdx === 0 ? 'fine' : null;
-          }
-
-          if (!targetCol) return;
-          const selector = targetCol === 'elec' ? '.elec-input' : (targetCol === 'water' ? '.water-input' : '.fine-input');
-          const input = tr.querySelector(selector);
-          
-          if (input) {
-            const cleanVal = val.replace(/[^0-9.]/g, '');
-            if (cleanVal !== '') {
-              const oldVal = input.value;
-              input.value = cleanVal;
-              pushUndo(roomId, targetCol, oldVal, cleanVal);
-              addHistory(`คัดลอกวาง ${roomName} (${targetCol}) จาก [${oldVal || 'ว่าง'}] เป็น [${cleanVal}]`);
+             const copyLinkBtn = document.getElementById('btn-copy-shared-link');
+    if (copyLinkBtn) {
+      copyLinkBtn.addEventListener('click', () => {
+        const url = DBService.getSavedSupabaseUrl();
+        navigator.clipboard.writeText(url).then(() => {
+          alert(`🔗 คัดลอก Supabase URL สำเร็จแล้ว!\n\n${url}`);
+        }).catch(() => {
+          prompt('คัดลอก Supabase URL ด้านล่างนี้:', url);
+        });
+      });
+    }��ดลอกวาง ${roomName} (${targetCol}) จาก [${oldVal || 'ว่าง'}] เป็น [${cleanVal}]`);
             }
           }
         });
@@ -5564,18 +5540,7 @@ class App {
         this.state.settings.lineNotifyToken = document.getElementById('setting-line-notify-token').value.trim();
 
         DBService.saveState(this.state);
-        
-        const url = this.state.settings.googleSheetUrl || DBService.getSavedSheetUrl();
-        if (url) {
-          try {
-            await DBService.syncToGoogleSheets(url, this.state);
-            alert('✅ บันทึกการตั้งค่า LINE Bot ลง Google Sheets เรียบร้อยแล้ว! (ทุกเครื่องดึงข้อมูลใช้งานตรงกัน 100%)');
-          } catch (err) {
-            alert('บันทึกการตั้งค่าเรียบร้อยแล้ว (การซิงค์ชีต: ' + err.message + ')');
-          }
-        } else {
-          alert('✅ บันทึกการตั้งค่า LINE Bot เรียบร้อยแล้ว!');
-        }
+        alert('✅ บันทึกการตั้งค่า LINE Bot เรียบร้อยแล้ว!');
       });
     }
 
@@ -5623,12 +5588,13 @@ class App {
     if (saveUrlBtn) {
       saveUrlBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        const urlInput = document.getElementById('sheets-url-input');
+        const urlInput = document.getElementById('supabase-url-input');
         const apiKeyInput = document.getElementById('api-key-input');
         if (urlInput) {
           const cleaned = DBService.cleanUrl(urlInput.value);
-          this.state.settings.googleSheetUrl = cleaned;
-          urlInput.value = cleaned; // Update the input field value visually too!
+          this.state.settings.supabaseUrl = cleaned;
+          localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', cleaned);
+          urlInput.value = cleaned;
         }
         if (apiKeyInput) {
           const apiKeyVal = apiKeyInput.value.trim();
@@ -5643,21 +5609,21 @@ class App {
     const syncSheetsBtn = document.getElementById('btn-sync-to-sheets');
     if (syncSheetsBtn) {
       syncSheetsBtn.addEventListener('click', async () => {
-        const url = this.state.settings.googleSheetUrl;
+        const url = DBService.getSavedSupabaseUrl();
         if (!url) {
-          alert('กรุณาใส่ Google Sheets Web App URL ในช่องก่อนกดบันทึกซิงค์ข้อมูล');
+          alert('กรุณาใส่ Supabase Project URL ก่อนซิงค์ข้อมูล');
           return;
         }
         syncSheetsBtn.disabled = true;
-        syncSheetsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งข้อมูลลง Google Sheets...';
+        syncSheetsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังซิงค์ข้อมูลลง Supabase...';
         try {
-          await DBService.syncToGoogleSheets(url, this.state);
-          alert('✅ บันทึกข้อมูลลง Google Sheets สำเร็จเรียบร้อยแล้ว!');
+          await DBService.syncToSupabase(url, this.state);
+          alert('✅ ซิงค์ข้อมูลลง Supabase สำเร็จเรียบร้อยแล้ว!');
         } catch (err) {
-          alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: ' + err.message);
+          alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Supabase: ' + err.message);
         } finally {
           syncSheetsBtn.disabled = false;
-          syncSheetsBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้';
+          syncSheetsBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ข้อมูลลง Supabase ตอนนี้';
         }
       });
     }
@@ -5753,9 +5719,9 @@ class App {
             }
           };
 
-          const url = DBService.getSavedSheetUrl();
+          const url = DBService.getSavedSupabaseUrl();
           if (url) {
-            await DBService.syncToGoogleSheets(url, cleanState);
+            await DBService.syncToSupabase(url, cleanState);
           }
           
           localStorage.setItem(DBService.STORAGE_KEY, JSON.stringify(cleanState));
