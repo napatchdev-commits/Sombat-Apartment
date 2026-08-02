@@ -120,7 +120,7 @@ class TenantDBService {
     }
     const saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (saved) return this.cleanUrl(saved);
-    return 'https://script.google.com/macros/s/AKfycbxjKerYfr4Odume1L3UsFTfBCWpVhTCzJROSPCaQ6nLXCyFaJscDO-T7TYkwnV1Q_G0/exec';
+    return 'https://bdeowpdjgiombqatdilh.supabase.co';
   }
 
   static getSavedTenantApiKey() {
@@ -129,7 +129,7 @@ class TenantDBService {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY', fromParam);
       return fromParam;
     }
-    return localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
+    return localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
   }
 
   static cleanUrl(url) {

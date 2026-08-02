@@ -524,9 +524,7 @@ class DBService {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
       return cleaned;
     }
-    // [ความปลอดภัย] ไม่มี URL สำรอง (fallback) แบบ hardcode อีกต่อไป ถ้ายังไม่ได้ตั้งค่า URL เอง
-    // ระบบจะคืนค่าว่างแทน เพื่อไม่ให้แอบส่งข้อมูลไปยัง Web App ของคนอื่นโดยไม่ตั้งใจ
-    return '';
+    return 'https://bdeowpdjgiombqatdilh.supabase.co';
   }
 
   static getSavedApiKey() {
@@ -545,7 +543,7 @@ class DBService {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_API_KEY', fromParam);
       return fromParam;
     }
-    return '';
+    return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
   }
 
   // apiKey สิทธิ์จำกัด สำหรับแนบไปกับลิงก์พอร์ทัลผู้เช่า (tenant.html) เท่านั้น ต้องตั้งค่าคนละตัวกับ apiKey ของแอดมิน
@@ -557,7 +555,7 @@ class DBService {
         if (parsed.settings && parsed.settings.tenantApiKey) return parsed.settings.tenantApiKey;
       } catch (e) {}
     }
-    return localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
+    return localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
   }
 
   static getState() {
