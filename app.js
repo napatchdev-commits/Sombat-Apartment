@@ -648,11 +648,22 @@ class DBService {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
   }
 
+  static getBaseSupabaseUrl(url) {
+    if (!url) return '';
+    let cleaned = url.split('?')[0].trim();
+    if (cleaned.endsWith('/')) {
+      cleaned = cleaned.slice(0, -1);
+    }
+    const match = cleaned.match(/^(https?:\/\/[^\/]+)/i);
+    return match ? match[1] : cleaned;
+  }
+
   static async pullFromGoogleSheets(url) {
     if (!url) return null;
     const apiKey = this.getSavedApiKey();
     try {
-      const res = await fetch(`${url}/rest/v1/apartment_state?id=eq.1`, {
+      const baseUrl = this.getBaseSupabaseUrl(url);
+      const res = await fetch(`${baseUrl}/rest/v1/apartment_state?id=eq.1`, {
         headers: {
           'apikey': apiKey,
           'Authorization': `Bearer ${apiKey}`
@@ -696,7 +707,8 @@ class DBService {
     const apiKey = (state.settings && state.settings.apiKey) || this.getSavedApiKey();
     localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
     
-    const response = await fetch(`${url}/rest/v1/apartment_state`, {
+    const baseUrl = this.getBaseSupabaseUrl(url);
+    const response = await fetch(`${baseUrl}/rest/v1/apartment_state`, {
       method: 'POST',
       headers: {
         'apikey': apiKey,

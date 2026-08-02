@@ -170,9 +170,20 @@ class TenantDBService {
     };
   }
 
+  static getBaseSupabaseUrl(url) {
+    if (!url) return '';
+    let cleaned = url.split('?')[0].trim();
+    if (cleaned.endsWith('/')) {
+      cleaned = cleaned.slice(0, -1);
+    }
+    const match = cleaned.match(/^(https?:\/\/[^\/]+)/i);
+    return match ? match[1] : cleaned;
+  }
+
   static async uploadBase64ToStorage(url, apiKey, base64Data, roomId, ext = 'png') {
     if (!base64Data) return '';
     try {
+      const baseUrl = this.getBaseSupabaseUrl(url);
       const parts = base64Data.split(';base64,');
       const mime = parts[0].split(':')[1] || 'image/png';
       const raw = window.atob(parts[1]);
@@ -184,7 +195,7 @@ class TenantDBService {
       const blob = new Blob([uInt8Array], { type: mime });
 
       const filename = `slip_${roomId}_${Date.now()}.${ext}`;
-      const uploadUrl = `${url}/storage/v1/object/slips/${filename}`;
+      const uploadUrl = `${baseUrl}/storage/v1/object/slips/${filename}`;
 
       const res = await fetch(uploadUrl, {
         method: 'POST',
@@ -199,7 +210,7 @@ class TenantDBService {
         const txt = await res.text();
         throw new Error(`อัปโหลดรูปภาพไม่สำเร็จ: ${txt || res.statusText}`);
       }
-      return `${url}/storage/v1/object/public/slips/${filename}`;
+      return `${baseUrl}/storage/v1/object/public/slips/${filename}`;
     } catch (e) {
       console.error('Storage upload error:', e);
       throw new Error('ระบบอัปโหลดสลิป/รูปภาพขัดข้อง: ' + e.message);
@@ -209,8 +220,9 @@ class TenantDBService {
   static async getPublicState() {
     const url = this.getSavedSheetUrl();
     const apiKey = this.getSavedTenantApiKey();
+    const baseUrl = this.getBaseSupabaseUrl(url);
     
-    const res = await fetch(`${url}/rest/v1/rpc/get_room_list`, {
+    const res = await fetch(`${baseUrl}/rest/v1/rpc/get_room_list`, {
       method: 'POST',
       headers: {
         'apikey': apiKey,
@@ -235,8 +247,9 @@ class TenantDBService {
   static async fetchTenantBill(idCard, roomId) {
     const url = this.getSavedSheetUrl();
     const apiKey = this.getSavedTenantApiKey();
+    const baseUrl = this.getBaseSupabaseUrl(url);
 
-    const res = await fetch(`${url}/rest/v1/rpc/get_tenant_bill`, {
+    const res = await fetch(`${baseUrl}/rest/v1/rpc/get_tenant_bill`, {
       method: 'POST',
       headers: {
         'apikey': apiKey,
@@ -255,6 +268,7 @@ class TenantDBService {
   static async submitPayment(paymentData) {
     const url = this.getSavedSheetUrl();
     const apiKey = this.getSavedTenantApiKey();
+    const baseUrl = this.getBaseSupabaseUrl(url);
 
     if (paymentData.action === 'submitTenantPayment') {
       let slipUrl = '';
@@ -262,7 +276,7 @@ class TenantDBService {
         slipUrl = await this.uploadBase64ToStorage(url, apiKey, paymentData.slipDataUrl, paymentData.roomId);
       }
       
-      const res = await fetch(`${url}/rest/v1/rpc/submit_tenant_payment`, {
+      const res = await fetch(`${baseUrl}/rest/v1/rpc/submit_tenant_payment`, {
         method: 'POST',
         headers: {
           'apikey': apiKey,
@@ -288,7 +302,7 @@ class TenantDBService {
         imageUrl = await this.uploadBase64ToStorage(url, apiKey, paymentData.imageDataUrl, paymentData.roomId);
       }
 
-      const res = await fetch(`${url}/rest/v1/rpc/submit_tenant_repair`, {
+      const res = await fetch(`${baseUrl}/rest/v1/rpc/submit_tenant_repair`, {
         method: 'POST',
         headers: {
           'apikey': apiKey,
