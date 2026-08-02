@@ -1057,3 +1057,204 @@ body {
     }
 }
 
+/* ==========================================================================
+   DARK MODE SELECTOR & PWA SAFARI/ANDROID NATIVE STYLES
+   ========================================================================== */
+body.dark {
+    --bg-app: #090d16;
+    --bg-card: #151f32;
+    --bg-sidebar: #0f172a;
+    --border-color: #243249;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --primary-light: rgba(37, 99, 235, 0.15);
+    --success-light: rgba(16, 185, 129, 0.15);
+    --danger-light: rgba(239, 68, 68, 0.15);
+    --warning-light: rgba(245, 158, 11, 0.15);
+    --info-light: rgba(6, 182, 212, 0.15);
+}
+
+body.dark .glass-card,
+body.dark .navbar,
+body.dark .custom-table,
+body.dark .modal-dialog,
+body.dark .form-control {
+    background-color: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark select.form-control option {
+    background-color: #1e293b;
+    color: #f1f5f9;
+}
+
+/* Touch feedback active scale animations */
+.btn:active, 
+.menu-item:active, 
+.action-buttons button:active,
+.pwa-bottom-nav-item:active {
+    transform: scale(0.96);
+    opacity: 0.9;
+}
+
+/* ==========================================================================
+   MOBILE FIRST RESPONSIVE WORKSPACE OVERRIDES
+   ========================================================================== */
+
+/* Bottom Nav bar container */
+.pwa-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 60px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    display: none;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(60px + env(safe-area-inset-bottom));
+}
+
+.pwa-bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.pwa-bottom-nav-item i {
+    font-size: 1.15rem;
+    margin-bottom: 0.2rem;
+}
+
+.pwa-bottom-nav-item.active {
+    color: var(--primary);
+}
+
+/* Hamburger button in Navbar header */
+.hamburger-toggle-btn {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1.45rem;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    /* Safe area margins for notched devices */
+    body {
+        padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important;
+        overflow-x: hidden;
+    }
+
+    /* Hide Sidebar (transform into Drawer) */
+    .app-sidebar {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        height: 100vh !important;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 10000 !important;
+        box-shadow: 10px 0 30px rgba(0,0,0,0.15);
+    }
+
+    .app-sidebar.drawer-open {
+        transform: translateX(0);
+    }
+
+    /* Sidebar overlay drawer backdrop */
+    .sidebar-drawer-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+    }
+
+    .sidebar-drawer-overlay.active {
+        display: block;
+    }
+
+    /* Enable Hamburger Toggle Button */
+    .hamburger-toggle-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Enable Mobile Bottom Bar Navigation */
+    .pwa-bottom-nav {
+        display: grid !important;
+    }
+
+    /* Tables: Cards transformation to prevent horizontal scroll */
+    .custom-table, .custom-table thead, .custom-table tbody, .custom-table tr, .custom-table td {
+        display: block;
+    }
+
+    .custom-table thead {
+        display: none; /* Hide header columns on small mobile cards */
+    }
+
+    .custom-table tr {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        margin-bottom: 0.75rem;
+        padding: 0.85rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .custom-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: none;
+        border-bottom: 1px dashed var(--border-color);
+        padding: 0.5rem 0 !important;
+        text-align: right !important;
+        font-size: 0.88rem;
+    }
+
+    .custom-table td:last-child {
+        border-bottom: none;
+    }
+
+    .custom-table td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        color: var(--text-muted);
+        text-align: left;
+        float: left;
+        margin-right: 1rem;
+    }
+
+    .custom-table td .action-buttons {
+        justify-content: flex-end;
+        width: 100%;
+    }
+}
+
+

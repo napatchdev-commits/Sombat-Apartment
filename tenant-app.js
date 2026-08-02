@@ -170,19 +170,60 @@ class TenantDBService {
     };
   }
 
+  static async uploadBase64ToStorage(url, apiKey, base64Data, roomId, ext = 'png') {
+    if (!base64Data) return '';
+    try {
+      const parts = base64Data.split(';base64,');
+      const mime = parts[0].split(':')[1] || 'image/png';
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
+      const blob = new Blob([uInt8Array], { type: mime });
+
+      const filename = `slip_${roomId}_${Date.now()}.${ext}`;
+      const uploadUrl = `${url}/storage/v1/object/slips/${filename}`;
+
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': mime
+        },
+        body: blob
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`อัปโหลดรูปภาพไม่สำเร็จ: ${txt || res.statusText}`);
+      }
+      return `${url}/storage/v1/object/public/slips/${filename}`;
+    } catch (e) {
+      console.error('Storage upload error:', e);
+      throw new Error('ระบบอัปโหลดสลิป/รูปภาพขัดข้อง: ' + e.message);
+    }
+  }
+
   static async getPublicState() {
     const url = this.getSavedSheetUrl();
     const apiKey = this.getSavedTenantApiKey();
-    let fetchUrl = `${url}?action=getRoomList`;
-    if (apiKey) fetchUrl += `&apiKey=${encodeURIComponent(apiKey)}`;
-
-    const res = await fetch(fetchUrl);
+    
+    const res = await fetch(`${url}/rest/v1/rpc/get_room_list`, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
     const data = await res.json();
     if (data.status === 'error') {
       throw new Error(data.message || 'เกิดข้อผิดพลาดในการโหลดฐานข้อมูลห้อง');
     }
     return {
-      settings: data.settings || { apartmentName: 'หอพักสมบัติ นนทบุรี' },
+      settings: { apartmentName: data.apartmentName || 'หอพักสมบัติ นนทบุรี' },
       rooms: (data.rooms && data.rooms.length > 0) ? data.rooms : this.getInitialRooms(),
       invoices: [],
       tenants: [],
@@ -194,11 +235,16 @@ class TenantDBService {
   static async fetchTenantBill(idCard, roomId) {
     const url = this.getSavedSheetUrl();
     const apiKey = this.getSavedTenantApiKey();
-    
-    let fetchUrl = `${url}?action=getTenantBill&idCard=${encodeURIComponent(idCard)}&roomId=${encodeURIComponent(roomId)}`;
-    if (apiKey) fetchUrl += `&apiKey=${encodeURIComponent(apiKey)}`;
 
-    const res = await fetch(fetchUrl);
+    const res = await fetch(`${url}/rest/v1/rpc/get_tenant_bill`, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ p_id_card: idCard, p_room_id: roomId })
+    });
     const data = await res.json();
     if (data.status === 'error') {
       throw new Error(data.message || 'ไม่พบข้อมูลใบแจ้งหนี้หรือรหัสบัตรไม่ถูกต้อง');
@@ -209,18 +255,61 @@ class TenantDBService {
   static async submitPayment(paymentData) {
     const url = this.getSavedSheetUrl();
     const apiKey = this.getSavedTenantApiKey();
-    
-    const payload = Object.assign({}, paymentData, { apiKey: apiKey });
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-    const result = await response.json();
-    if (result.status === 'error') {
-      throw new Error(result.message || 'การทำรายการฝั่งคลาวด์ไม่สำเร็จ');
+
+    if (paymentData.action === 'submitTenantPayment') {
+      let slipUrl = '';
+      if (paymentData.paymentMethod === 'transfer' && paymentData.slipDataUrl) {
+        slipUrl = await this.uploadBase64ToStorage(url, apiKey, paymentData.slipDataUrl, paymentData.roomId);
+      }
+      
+      const res = await fetch(`${url}/rest/v1/rpc/submit_tenant_payment`, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          p_id_card: paymentData.idCard,
+          p_room_id: paymentData.roomId,
+          p_invoice_number: paymentData.invoiceNumber,
+          p_payment_method: paymentData.paymentMethod,
+          p_slip_url: slipUrl
+        })
+      });
+      const result = await res.json();
+      if (result.status === 'error') {
+        throw new Error(result.message || 'บันทึกการชำระเงินไม่สำเร็จ');
+      }
+      return result;
+    } else if (paymentData.action === 'submitTenantRepair') {
+      let imageUrl = '';
+      if (paymentData.imageDataUrl) {
+        imageUrl = await this.uploadBase64ToStorage(url, apiKey, paymentData.imageDataUrl, paymentData.roomId);
+      }
+
+      const res = await fetch(`${url}/rest/v1/rpc/submit_tenant_repair`, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          p_id_card: paymentData.idCard,
+          p_room_id: paymentData.roomId,
+          p_title: paymentData.title,
+          p_description: paymentData.description,
+          p_image_url: imageUrl
+        })
+      });
+      const result = await res.json();
+      if (result.status === 'error') {
+        throw new Error(result.message || 'ส่งแจ้งซ่อมไม่สำเร็จ');
+      }
+      return result;
     }
-    return result;
+    throw new Error('ไม่รองรับประเภทการส่งข้อมูลนี้');
   }
 }
 
@@ -238,6 +327,11 @@ class MyBillsApp {
   static async init() {
     TenantDBService.getSavedSheetUrl();
     TenantDBService.getSavedTenantApiKey();
+
+    // Auto-detect and apply system dark mode
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.body.classList.add('dark');
+    }
 
     // Show loading overlay
     const loader = document.createElement('div');

@@ -651,53 +651,70 @@ class DBService {
   static async pullFromGoogleSheets(url) {
     if (!url) return null;
     const apiKey = this.getSavedApiKey();
-    let fetchUrl = url.includes('?') ? `${url}&action=get` : `${url}?action=get`;
-    if (apiKey) fetchUrl += `&apiKey=${encodeURIComponent(apiKey)}`;
-    const res = await fetch(fetchUrl);
-    const data = await res.json();
-    if (data && data.status === 'error') {
-      console.error('Google Sheets ปฏิเสธคำขอ:', data.message);
-      return null;
-    }
-    if (data && typeof data === 'object' && (data.tenants || data.rooms)) {
-      if (!data.settings) data.settings = {};
-      data.settings.googleSheetUrl = url;
-      if (apiKey) data.settings.apiKey = apiKey;
-      
-      // Ensure default users are always present in the state to prevent locking out administrators when database is wiped/empty
-      if (!data.users || !Array.isArray(data.users) || data.users.length === 0) {
-        data.users = [
-          { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
-          { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
-          { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
-        ];
+    try {
+      const res = await fetch(`${url}/rest/v1/apartment_state?id=eq.1`, {
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Supabase error: ${res.statusText}`);
       }
+      const array = await res.json();
+      if (array && array.length > 0 && array[0].state) {
+        const data = array[0].state;
+        if (!data.settings) data.settings = {};
+        data.settings.googleSheetUrl = url;
+        if (apiKey) data.settings.apiKey = apiKey;
+        
+        // Ensure default users are always present in the state to prevent locking out administrators when database is wiped/empty
+        if (!data.users || !Array.isArray(data.users) || data.users.length === 0) {
+          data.users = [
+            { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+            { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
+            { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
+          ];
+        }
 
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
-      return data;
+        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+        return data;
+      }
+    } catch (e) {
+      console.error('Failed to pull from Supabase:', e);
     }
     return null;
   }
 
   static async syncToGoogleSheets(url, state) {
-    if (!url) throw new Error('กรุณาระบุ Google Sheets Web App URL ก่อน');
+    if (!url) throw new Error('กรุณาระบุ Supabase Project URL ก่อน');
     if (!state || !state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
       console.warn("Blocked syncToGoogleSheets: state has 0 rooms. Preventing data loss.");
       return { status: "success", message: "Sync blocked: state is empty" };
     }
-    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
     const apiKey = (state.settings && state.settings.apiKey) || this.getSavedApiKey();
-    const response = await fetch(url, {
+    localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
+    
+    const response = await fetch(`${url}/rest/v1/apartment_state`, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sync', data: state, apiKey: apiKey })
+      headers: {
+        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        id: 1,
+        state: state,
+        updated_at: new Date().toISOString()
+      })
     });
-    const result = await response.json();
-    if (result && result.status === 'error') {
-      throw new Error(result.message || 'เกิดข้อผิดพลาดในการซิงค์ข้อมูล');
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`เกิดข้อผิดพลาดในการบันทึกข้อมูล Supabase: ${errText || response.statusText}`);
     }
-    return result;
+    return { status: 'success', message: 'บันทึกข้อมูลเรียบร้อย' };
   }
 
   static exportJSON() {
@@ -1792,31 +1809,35 @@ class SettingsComponent {
         </div>
 
         <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-solid fa-cloud text-primary"></i> เชื่อมต่อซิงค์ข้อมูล Google Sheets แบบเรียลไทม์ (ทุกเครื่องตรงกัน 100%)</h3>
+          <h3><i class="fa-solid fa-circle-half-stroke text-primary"></i> ตั้งค่าธีมระบบ (Appearance)</h3>
           <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-            ระบบจะดึงข้อมูลจาก Google Sheets เสมอแม้ล้างแคชหรือเปิดจากคอมพิวเตอร์เครื่องใหม่
+            เลือกโหมดการแสดงผลของหน้าต่างแอดมินและผู้ใช้งาน (รองรับโหมดกลางคืนถนอมสายตา)
+          </p>
+          <div style="display:flex; gap:1rem; margin-top:1rem;">
+            <button class="btn btn-primary" id="btn-theme-light" style="flex:1;"><i class="fa-solid fa-sun text-warning"></i> โหมดสว่าง (Light Mode)</button>
+            <button class="btn btn-secondary" id="btn-theme-dark" style="flex:1;"><i class="fa-solid fa-moon text-info"></i> โหมดมืด (Dark Mode)</button>
+          </div>
+        </div>
+
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-database text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & ฐานข้อมูล Supabase</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            ระบบเชื่อมต่อข้อมูลหลักผ่าน Supabase Database เพื่อจัดเก็บประวัติข้อมูลห้องพัก บิล และผู้เช่าแบบเรียลไทม์
           </p>
           <div class="form-group" style="margin-top:1rem;">
-            <label>Google Apps Script Web App URL:</label>
-            <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
+            <label>Supabase Project URL:</label>
+            <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://your-project.supabase.co">
           </div>
           <div class="form-group" style="margin-top:1rem;">
-            <label>API Key (รหัสลับที่ได้จากการรัน setApiSecretKey() ใน Apps Script):</label>
-            <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัสลับ API Key ที่นี่...">
+            <label>Supabase API Key (Anon Key):</label>
+            <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัส Supabase Anon Key ที่นี่...">
             <p class="text-muted" style="font-size:0.8rem; margin-top:0.35rem;">
-              ⚠️ ต้องตรงกับรหัสที่ตั้งไว้ในฝั่ง Apps Script มิฉะนั้นระบบจะเชื่อมต่อ/บันทึกข้อมูลไม่ได้
-            </p>
-          </div>
-          <div class="form-group" style="margin-top:1rem;">
-            <label>Tenant API Key (รหัสลับสำหรับพอร์ทัลผู้เช่า จากการรัน setTenantApiKey() ใน Apps Script):</label>
-            <input type="text" id="tenant-api-key-input" class="form-control" value="${settings.tenantApiKey || ''}" placeholder="วางรหัสลับ Tenant API Key ที่นี่...">
-            <p class="text-muted" style="font-size:0.8rem; margin-top:0.35rem;">
-              ⚠️ ต้องเป็นคนละรหัสกับ API Key ของแอดมินด้านบนเสมอ เพราะรหัสนี้จะถูกฝังไปกับลิงก์ที่ส่งให้ผู้เช่า (คนอื่นเปิดดูซอร์สโค้ดเห็นได้) ห้ามใช้รหัสเดียวกับแอดมินเด็ดขาด
+              ⚠️ ต้องเปิดสิทธิ์การอ่าน/เขียน (Insert/Select) ในตาราง `apartment_state` ฝั่ง Supabase
             </p>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1rem;">
-            <button class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-save"></i> บันทึก URL</button>
-            <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกข้อมูลลง Google Sheets ตอนนี้</button>
+            <button class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-save"></i> บันทึกการตั้งค่า</button>
+            <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ข้อมูลลง Supabase ตอนนี้</button>
             <button class="btn btn-secondary" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> คัดลอกลิงก์แชร์เชื่อมต่อทุกเครื่อง</button>
           </div>
         </div>
@@ -1901,6 +1922,13 @@ class App {
       this.state = DBService.getState();
     }
 
+    // Apply Dark/Light theme on startup
+    if (this.state.settings && this.state.settings.theme === 'dark') {
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+    }
+
     // Ensure state settings contains savedUrl
     if (savedUrl && (!this.state.settings || !this.state.settings.googleSheetUrl)) {
       if (!this.state.settings) this.state.settings = {};
@@ -1956,10 +1984,34 @@ class App {
     if (appRoot && !document.getElementById('sidebar-container')) {
       appRoot.innerHTML = `
         <div id="sidebar-container"></div>
+        <div class="sidebar-drawer-overlay" id="sidebar-drawer-overlay"></div>
         <div class="main-content-wrapper">
           <div id="navbar-container"></div>
           <main id="main-workspace" class="main-workspace"></main>
         </div>
+        <!-- PWA Mobile Bottom Navigation Bar -->
+        <nav class="pwa-bottom-nav">
+          <button class="pwa-bottom-nav-item" data-tab="dashboard">
+            <i class="fa-solid fa-chart-line"></i>
+            <span>ภาพรวม</span>
+          </button>
+          <button class="pwa-bottom-nav-item" data-tab="rooms">
+            <i class="fa-solid fa-house"></i>
+            <span>ห้องพัก</span>
+          </button>
+          <button class="pwa-bottom-nav-item" data-tab="billing">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+            <span>จัดการบิล</span>
+          </button>
+          <button class="pwa-bottom-nav-item" data-tab="repairs">
+            <i class="fa-solid fa-wrench"></i>
+            <span>แจ้งซ่อม</span>
+          </button>
+          <button class="pwa-bottom-nav-item" data-tab="settings">
+            <i class="fa-solid fa-gears"></i>
+            <span>ตั้งค่า</span>
+          </button>
+        </nav>
       `;
     }
 
@@ -2055,6 +2107,15 @@ class App {
       case 'settings': workspace.innerHTML = SettingsComponent.render(this.state); this.bindSettingsEvents(); break;
       default: workspace.innerHTML = DashboardComponent.render(this.state);
     }
+
+    // Update active state on bottom nav bar items
+    document.querySelectorAll('.pwa-bottom-nav-item').forEach(item => {
+      if (item.getAttribute('data-tab') === tabId) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
   }
 
   static setupGlobalEvents() {
@@ -2112,13 +2173,39 @@ class App {
         return;
       }
 
-      // 6. Mobile Toggle Button
+      // 6. Mobile Toggle Button (Drawer)
       const mobileToggle = e.target.closest('#mobile-toggle-btn');
       if (mobileToggle) {
         e.preventDefault();
         e.stopPropagation();
         const sidebar = document.getElementById('app-sidebar');
-        if (sidebar) sidebar.classList.toggle('active');
+        const overlay = document.getElementById('sidebar-drawer-overlay');
+        if (sidebar) sidebar.classList.toggle('drawer-open');
+        if (overlay) overlay.classList.toggle('active');
+        return;
+      }
+
+      // 6.1 Sidebar Drawer Backdrop Overlay Click
+      const drawerOverlay = e.target.closest('#sidebar-drawer-overlay');
+      if (drawerOverlay) {
+        e.preventDefault();
+        const sidebar = document.getElementById('app-sidebar');
+        if (sidebar) sidebar.classList.remove('drawer-open', 'active');
+        drawerOverlay.classList.remove('active');
+        return;
+      }
+
+      // 6.2 PWA Mobile Bottom Navigation Click
+      const bottomNavItem = e.target.closest('.pwa-bottom-nav-item');
+      if (bottomNavItem) {
+        e.preventDefault();
+        const tab = bottomNavItem.getAttribute('data-tab');
+        this.switchTab(tab);
+        // Close sidebar if open
+        const sidebar = document.getElementById('app-sidebar');
+        const overlay = document.getElementById('sidebar-drawer-overlay');
+        if (sidebar) sidebar.classList.remove('drawer-open', 'active');
+        if (overlay) overlay.classList.remove('active');
         return;
       }
 
@@ -3919,6 +4006,8 @@ class App {
   static openCreateBillModal(preselectedRoom = null) {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
+    dialog.style.maxWidth = '95vw';
+    dialog.style.width = '1000px';
 
     const getRoomPrevMeters = (room) => {
       if (!room) return { elecPrev: 1000, waterPrev: 100 };
@@ -3950,180 +4039,564 @@ class App {
       return `${nextYear}-${nextMonthFormatted}-05`;
     };
 
-    const getTempReading = (roomObj) => {
-      if (!roomObj || !this.state.tempMeterReadings) return null;
-      return this.state.tempMeterReadings.find(tr => tr.roomName === roomObj.name);
-    };
-
-    const initialRoom = preselectedRoom || (this.state.rooms.length > 0 ? this.state.rooms[0] : null);
-    const initialMeters = getRoomPrevMeters(initialRoom);
     const currentMonthStr = new Date().toISOString().slice(0, 7);
-    const initialTemp = getTempReading(initialRoom);
-    const initialElecCurr = (initialTemp && initialTemp.elecCurr !== null && initialTemp.elecCurr !== undefined) ? initialTemp.elecCurr : "";
-    const initialWaterCurr = (initialTemp && initialTemp.waterCurr !== null && initialTemp.waterCurr !== undefined) ? initialTemp.waterCurr : "";
-    const initialMonth = (initialTemp && initialTemp.monthKey) ? initialTemp.monthKey : currentMonthStr;
-    const defaultDueDate = getNextMonth05(initialMonth);
-    const initialFine = (initialTemp && initialTemp.fineAmount !== undefined) ? initialTemp.fineAmount : 0;
+    const defaultDueDate = getNextMonth05(currentMonthStr);
+    
+    // Sort rooms by floor then name
+    const rooms = [...this.state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
 
-    dialog.innerHTML = `
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-calculator text-primary"></i> คำนวณออกบิลแจ้งหนี้ประจำเดือน</h3>
-        <button class="close-modal-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form id="bill-form">
-          <div class="form-group">
-            <label>เลือกห้องพัก *</label>
-            <select id="bill-room-select" class="form-control" required>
-              <option value="">-- เลือกห้องพัก --</option>
-              ${this.state.rooms.map(r => `<option value="${r.id}" ${initialRoom && initialRoom.id === r.id ? 'selected' : ''}>ห้อง ${r.name}</option>`).join('')}
-            </select>
-          </div>
+    // Build map of previous readings for each room
+    const prevReadings = {};
+    rooms.forEach(r => {
+      prevReadings[r.id] = getRoomPrevMeters(r);
+    });
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-            <div class="form-group">
-              <label>รอบเดือน *</label>
-              <input type="month" id="bill-month" class="form-control" value="${initialMonth}" required>
-            </div>
-            <div class="form-group">
-              <label>กำหนดชำระ *</label>
-              <input type="date" id="bill-due-date" class="form-control" value="${defaultDueDate}" required>
-            </div>
-          </div>
+    // Load any existing temporary meter readings from state
+    if (!this.state.tempMeterReadings) this.state.tempMeterReadings = [];
 
-          <div style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:var(--radius-md); padding:0.85rem; margin-top:1rem; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <span style="font-weight:700; font-size:0.9rem; color:#1e293b; display:block;"><i class="fa-solid fa-house-user text-primary"></i> อัตราค่าเช่าห้องพักรายเดือน</span>
-              <span style="font-size:0.78rem; color:#64748b;">(ดึงข้อมูลราคาค่าห้องจากระบบอัตโนมัติ)</span>
-            </div>
-            <div style="font-size:1.15rem; font-weight:800; color:var(--primary);" id="bill-room-rent-label">
-              ฿${(initialRoom ? (initialRoom.baseRent !== undefined ? initialRoom.baseRent : 3500) : 3500).toLocaleString()}
-            </div>
-          </div>
+    // History stack and undo stack
+    const undoStack = [];
+    const editHistory = [];
 
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
-            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> จดเลขมิเตอร์ไฟฟ้า (เรท ฿${this.state.rates.electricityRate}/ยูนิต)</h4>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-              <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="bill-elec-prev" class="form-control" value="${initialMeters.elecPrev}"></div>
-              <div class="form-group"><label>มิเตอร์ไฟครั้งนี้ *:</label><input type="number" id="bill-elec-curr" class="form-control" value="${initialElecCurr}" placeholder="กรอกเลขมิเตอร์ไฟล่าสุด..." required></div>
-            </div>
-          </div>
-
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
-            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> จดเลขมิเตอร์น้ำประปา (เรท ฿${this.state.rates.waterRate}/ยูนิต)</h4>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-              <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="bill-water-prev" class="form-control" value="${initialMeters.waterPrev}"></div>
-              <div class="form-group"><label>มิเตอร์น้ำครั้งนี้ *:</label><input type="number" id="bill-water-curr" class="form-control" value="${initialWaterCurr}" placeholder="กรอกเลขมิเตอร์น้ำล่าสุด..." required></div>
-            </div>
-          </div>
-
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
-            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> ค่าปรับเพิ่มเติม</h4>
-            <div class="form-group">
-              <label>ค่าปรับ / อื่นๆ (บาท):</label>
-              <input type="number" id="bill-fine" class="form-control" value="${initialFine}" placeholder="ระบุค่าปรับ (ถ้ามี)...">
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
-            <i class="fa-solid fa-file-invoice"></i> คำนวณและสร้างใบแจ้งหนี้
-          </button>
-        </form>
-      </div>
-    `;
-
-    modal.classList.add('active');
-    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
-
-    const roomSelect = document.getElementById('bill-room-select');
-    if (roomSelect) {
-      roomSelect.addEventListener('change', (e) => {
-        const selectedRoom = this.state.rooms.find(r => r.id === e.target.value);
-        if (selectedRoom) {
-          const meters = getRoomPrevMeters(selectedRoom);
-          const tempReading = getTempReading(selectedRoom);
-          
-          document.getElementById('bill-elec-prev').value = meters.elecPrev;
-          document.getElementById('bill-elec-curr').value = (tempReading && tempReading.elecCurr !== null && tempReading.elecCurr !== undefined) ? tempReading.elecCurr : "";
-          document.getElementById('bill-water-prev').value = meters.waterPrev;
-          document.getElementById('bill-water-curr').value = (tempReading && tempReading.waterCurr !== null && tempReading.waterCurr !== undefined) ? tempReading.waterCurr : "";
-          
-          if (tempReading && tempReading.monthKey) {
-            document.getElementById('bill-month').value = tempReading.monthKey;
-            document.getElementById('bill-due-date').value = getNextMonth05(tempReading.monthKey);
-          } else {
-            document.getElementById('bill-month').value = currentMonthStr;
-            document.getElementById('bill-due-date').value = defaultDueDate;
-          }
-          
-          document.getElementById('bill-fine').value = (tempReading && tempReading.fineAmount !== undefined) ? tempReading.fineAmount : 0;
-          
-          const rentLabel = document.getElementById('bill-room-rent-label');
-          if (rentLabel) {
-            rentLabel.textContent = `฿${(selectedRoom.baseRent !== undefined ? selectedRoom.baseRent : 3500).toLocaleString()}`;
-          }
-        }
-      });
-    }
-
-    const monthInput = document.getElementById('bill-month');
-    if (monthInput) {
-      monthInput.addEventListener('change', (e) => {
-        const selectedMonth = e.target.value;
-        const newDueDate = getNextMonth05(selectedMonth);
-        const dueDateInput = document.getElementById('bill-due-date');
-        if (dueDateInput) {
-          dueDateInput.value = newDueDate;
-        }
-      });
-    }
-
-    document.getElementById('bill-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const roomId = document.getElementById('bill-room-select').value;
+    // Helper to calculate total amount for a row
+    const calculateRowTotal = (roomId, elecCurr, waterCurr, fineAmount) => {
       const room = this.state.rooms.find(r => r.id === roomId);
-      if (!room) return alert('กรุณาเลือกห้องพัก');
-
-      const monthKey = document.getElementById('bill-month').value;
-      const dueDate = document.getElementById('bill-due-date').value;
-      const elecPrev = parseFloat(document.getElementById('bill-elec-prev').value) || 0;
-      const elecCurr = parseFloat(document.getElementById('bill-elec-curr').value) || 0;
-      const waterPrev = parseFloat(document.getElementById('bill-water-prev').value) || 0;
-      const waterCurr = parseFloat(document.getElementById('bill-water-curr').value) || 0;
-
-      // Save latest meter readings to room object for automatic autofill next month
-      room.lastElecMeter = elecCurr;
-      room.lastWaterMeter = waterCurr;
-
-      const elecUnits = Math.max(0, elecCurr - elecPrev);
-      const waterUnits = Math.max(0, waterCurr - waterPrev);
+      if (!room) return 0;
+      const prev = prevReadings[roomId];
+      const elecPrev = prev.elecPrev;
+      const waterPrev = prev.waterPrev;
+      
+      const elecUnits = Math.max(0, (parseFloat(elecCurr) || 0) - elecPrev);
+      const waterUnits = Math.max(0, (parseFloat(waterCurr) || 0) - waterPrev);
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
       const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
       const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
-      const fineAmt = parseFloat(document.getElementById('bill-fine').value) || 0;
-      const total = rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
+      const fineAmt = parseFloat(fineAmount) || 0;
+      return rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
+    };
 
-      const newInv = {
-        id: 'inv_' + Date.now(),
-        invoiceNumber: `INV${monthKey.replace('-', '')}-${room.name}`,
-        monthKey, roomId: room.id, roomName: room.name,
-        tenantId: room.currentTenantId || 't1',
-        tenantName: room.currentTenantName || 'ผู้เช่า',
-        issueDate: new Date().toISOString().slice(0, 10),
-        dueDate,
-        waterPrev, waterCurr, elecPrev, elecCurr,
-        rentAmount: rentAmt, waterAmount: waterAmt, elecAmount: elecAmt, trashFee: trashFee,
-        fineAmount: fineAmt,
-        totalAmount: total, paidAmount: 0, outstandingAmount: total,
-        status: 'unpaid'
-      };
+    const renderExcelRows = () => {
+      return rooms.map((r, index) => {
+        const prev = prevReadings[r.id];
+        const temp = this.state.tempMeterReadings.find(t => t.roomId === r.id) || {};
+        const elecCurr = temp.elecCurr !== undefined && temp.elecCurr !== null ? temp.elecCurr : '';
+        const waterCurr = temp.waterCurr !== undefined && temp.waterCurr !== null ? temp.waterCurr : '';
+        const fineAmount = temp.fineAmount !== undefined && temp.fineAmount !== null ? temp.fineAmount : 0;
+        const total = calculateRowTotal(r.id, elecCurr, waterCurr, fineAmount);
 
-      this.state.invoices.unshift(newInv);
-      DBService.saveState(this.state);
-      modal.classList.remove('active');
-      this.switchTab('billing');
+        const isElecError = elecCurr !== '' && parseFloat(elecCurr) < prev.elecPrev;
+        const isWaterError = waterCurr !== '' && parseFloat(waterCurr) < prev.waterPrev;
+
+        return `
+          <tr data-room-id="${r.id}" data-index="${index}">
+            <td style="font-weight:700; text-align:center; background:#f8fafc; color:#334155;">ห้อง ${r.name}</td>
+            <td style="font-size:0.82rem; color:#475569;">${r.currentTenantName || '<span class="text-muted">(ห้องว่าง)</span>'}</td>
+            <td style="text-align:right; font-weight:600; color:#64748b; background:#f8fafc;">${prev.elecPrev}</td>
+            <td>
+              <input type="number" 
+                class="excel-input elec-input ${isElecError ? 'excel-input-error' : ''}" 
+                data-room-id="${r.id}" 
+                data-col="elec"
+                value="${elecCurr}" 
+                placeholder="กรอกเลข...">
+            </td>
+            <td class="elec-usage-cell" style="text-align:right; font-weight:600;">${elecCurr === '' ? '-' : Math.max(0, parseFloat(elecCurr) - prev.elecPrev)}</td>
+            <td style="text-align:right; font-weight:600; color:#64748b; background:#f8fafc;">${prev.waterPrev}</td>
+            <td>
+              <input type="number" 
+                class="excel-input water-input ${isWaterError ? 'excel-input-error' : ''}" 
+                data-room-id="${r.id}" 
+                data-col="water"
+                value="${waterCurr}" 
+                placeholder="กรอกเลข...">
+            </td>
+            <td class="water-usage-cell" style="text-align:right; font-weight:600;">${waterCurr === '' ? '-' : Math.max(0, parseFloat(waterCurr) - prev.waterPrev)}</td>
+            <td>
+              <input type="number" 
+                class="excel-input fine-input" 
+                data-room-id="${r.id}" 
+                data-col="fine"
+                value="${fineAmount}" 
+                placeholder="0">
+            </td>
+            <td class="total-cell" style="text-align:right; font-weight:800; color:var(--primary); background:#f0f7ff;">
+              ฿${total.toLocaleString()}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    };
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:0.5rem;"><i class="fa-solid fa-table text-primary"></i> กรอกค่าน้ำไฟประจำเดือน (Excel Grid View)</h3>
+        <span id="excel-sync-indicator" style="font-size:0.8rem; color:#10b981; font-weight:600; margin-left:1rem; display:none;"><i class="fa-solid fa-circle-check"></i> บันทึกอัตโนมัติเรียบร้อย</span>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:0.75rem;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1rem;">
+          <div class="form-group">
+            <label style="font-weight:700;">รอบเดือนบิล *</label>
+            <input type="month" id="excel-bill-month" class="form-control" value="${currentMonthStr}" required>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">กำหนดชำระ *</label>
+            <input type="date" id="excel-due-date" class="form-control" value="${defaultDueDate}" required>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; background:#f8fafc; padding:0.5rem 1rem; border-radius:8px; border:1px solid #e2e8f0;">
+          <span style="font-size:0.8rem; color:#64748b; font-weight:600;">
+            💡 เคล็ดลับ: ใช้ <b>ปุ่มลูกศร (Up/Down)</b> หรือ <b>Enter/Tab</b> เคลื่อนย้าย และสามารถ <b>ก๊อปค่าน้ำไฟจาก Excel แล้วกด Ctrl+V วางได้โดยตรง</b>
+          </span>
+          <button class="btn btn-secondary btn-sm" id="btn-excel-undo" title="ย้อนกลับการแก้ไข (Ctrl+Z)" disabled>
+            <i class="fa-solid fa-arrow-rotate-left"></i> ย้อนกลับ (Undo)
+          </button>
+        </div>
+
+        <div style="max-height: 48vh; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px;">
+          <table class="custom-table" style="margin:0; width:100%; border-collapse:collapse; min-width:800px;">
+            <thead style="position: sticky; top: 0; z-index: 100; background:#f1f5f9;">
+              <tr>
+                <th style="width:100px; text-align:center;">ห้อง</th>
+                <th style="width:140px;">ผู้เช่า</th>
+                <th style="width:90px; text-align:right;">ไฟครั้งก่อน</th>
+                <th style="width:110px;">ไฟครั้งนี้</th>
+                <th style="width:90px; text-align:right;">หน่วยใช้ไป</th>
+                <th style="width:90px; text-align:right;">น้ำครั้งก่อน</th>
+                <th style="width:110px;">น้ำครั้งนี้</th>
+                <th style="width:90px; text-align:right;">หน่วยใช้ไป</th>
+                <th style="width:100px;">ค่าปรับ/อื่นๆ</th>
+                <th style="width:120px; text-align:right;">ยอดรวมสุทธิ</th>
+              </tr>
+            </thead>
+            <tbody id="excel-grid-body">
+              ${renderExcelRows()}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- History Panel -->
+        <div style="margin-top:0.75rem; background:#fafafa; border:1px solid #e2e8f0; border-radius:8px; padding:0.65rem 1rem;">
+          <h4 style="font-size:0.82rem; color:#334155; margin-bottom:0.35rem; display:flex; align-items:center; gap:0.25rem;"><i class="fa-solid fa-clock-rotate-left"></i> ประวัติการแก้ไขล่าสุด:</h4>
+          <div id="excel-history-log" style="max-height:80px; overflow-y:auto; font-size:0.78rem; color:#64748b; line-height:1.45;">
+            <span style="font-style:italic;">ยังไม่มีประวัติการแก้ไขในเซสชันนี้</span>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem; position:sticky; bottom:0; background:#ffffff; padding:0.5rem 0;">
+          <button class="btn btn-secondary" id="btn-excel-close">ปิดหน้าต่าง</button>
+          <button class="btn btn-primary" id="btn-excel-save-all" style="min-width:180px;"><i class="fa-solid fa-file-invoice"></i> บันทึกและออกบิลทั้งหมด</button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    
+    const styleTagId = 'excel-spreadsheet-styles';
+    if (!document.getElementById(styleTagId)) {
+      const styles = document.createElement('style');
+      styles.id = styleTagId;
+      styles.innerHTML = `
+        .excel-input {
+          width: 100%;
+          border: 1px solid transparent;
+          background: transparent;
+          padding: 0.35rem 0.5rem;
+          text-align: right;
+          font-family: inherit;
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: inherit;
+          border-radius: 4px;
+          outline: none;
+          transition: all 0.15s;
+        }
+        .excel-input:hover {
+          border-color: #cbd5e1;
+          background: #ffffff;
+        }
+        .excel-input:focus {
+          border-color: var(--primary);
+          background: #ffffff;
+          box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+        }
+        .excel-input-error {
+          border-color: var(--danger) !important;
+          background-color: #fef2f2 !important;
+          color: var(--danger) !important;
+        }
+        body.dark .excel-input:focus {
+          background-color: #0d1527;
+        }
+        body.dark .excel-input:hover {
+          border-color: #475569;
+          background-color: #1e293b;
+        }
+      `;
+      document.head.appendChild(styles);
+    }
+
+    const gridBody = document.getElementById('excel-grid-body');
+    const monthInput = document.getElementById('excel-bill-month');
+    const dueDateInput = document.getElementById('excel-due-date');
+    const undoBtn = document.getElementById('btn-excel-undo');
+    const historyLog = document.getElementById('excel-history-log');
+    const indicator = document.getElementById('excel-sync-indicator');
+
+    if (monthInput && dueDateInput) {
+      monthInput.addEventListener('change', (e) => {
+        dueDateInput.value = getNextMonth05(e.target.value);
+      });
+    }
+
+    const pushUndo = (roomId, col, oldVal, newVal) => {
+      undoStack.push({ roomId, col, oldVal, newVal });
+      undoBtn.disabled = false;
+    };
+
+    const addHistory = (logText) => {
+      editHistory.unshift(`[${new Date().toLocaleTimeString()}] ${logText}`);
+      historyLog.innerHTML = editHistory.map(h => `<div>${h}</div>`).join('');
+    };
+
+    const updateRowLive = (tr) => {
+      const roomId = tr.getAttribute('data-room-id');
+      const prev = prevReadings[roomId];
+      
+      const elecInput = tr.querySelector('.elec-input');
+      const waterInput = tr.querySelector('.water-input');
+      const fineInput = tr.querySelector('.fine-input');
+
+      const elecCurr = elecInput.value;
+      const waterCurr = waterInput.value;
+      const fineVal = fineInput.value;
+
+      if (elecCurr !== '' && parseFloat(elecCurr) < prev.elecPrev) {
+        elecInput.classList.add('excel-input-error');
+      } else {
+        elecInput.classList.remove('excel-input-error');
+      }
+
+      if (waterCurr !== '' && parseFloat(waterCurr) < prev.waterPrev) {
+        waterInput.classList.add('excel-input-error');
+      } else {
+        waterInput.classList.remove('excel-input-error');
+      }
+
+      const elecUsageCell = tr.querySelector('.elec-usage-cell');
+      const waterUsageCell = tr.querySelector('.water-usage-cell');
+      const totalCell = tr.querySelector('.total-cell');
+
+      const elecUnits = elecCurr === '' ? 0 : Math.max(0, parseFloat(elecCurr) - prev.elecPrev);
+      const waterUnits = waterCurr === '' ? 0 : Math.max(0, parseFloat(waterCurr) - prev.waterPrev);
+
+      elecUsageCell.textContent = elecCurr === '' ? '-' : elecUnits;
+      waterUsageCell.textContent = waterCurr === '' ? '-' : waterUnits;
+
+      const total = calculateRowTotal(roomId, elecCurr, waterCurr, fineVal);
+      totalCell.textContent = `฿${total.toLocaleString()}`;
+    };
+
+    let autoSaveTimeout = null;
+    const saveTempReadingsToState = () => {
+      const temp = [];
+      const trs = gridBody.querySelectorAll('tr');
+      trs.forEach(tr => {
+        const roomId = tr.getAttribute('data-room-id');
+        const room = this.state.rooms.find(r => r.id === roomId);
+        const elecCurr = tr.querySelector('.elec-input').value;
+        const waterCurr = tr.querySelector('.water-input').value;
+        const fineAmount = tr.querySelector('.fine-input').value;
+        
+        temp.push({
+          roomId,
+          roomName: room ? room.name : '',
+          elecCurr: elecCurr === '' ? null : parseFloat(elecCurr),
+          waterCurr: waterCurr === '' ? null : parseFloat(waterCurr),
+          fineAmount: parseFloat(fineAmount) || 0,
+          monthKey: monthInput.value
+        });
+      });
+
+      this.state.tempMeterReadings = temp;
+
+      if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+      autoSaveTimeout = setTimeout(() => {
+        DBService.saveState(this.state).then(() => {
+          indicator.style.display = 'inline-block';
+          setTimeout(() => {
+            indicator.style.display = 'none';
+          }, 2000);
+        });
+      }, 1500);
+    };
+
+    gridBody.addEventListener('focusin', (e) => {
+      if (e.target.classList.contains('excel-input')) {
+        e.target.select();
+      }
     });
+
+    gridBody.addEventListener('change', (e) => {
+      if (e.target.classList.contains('excel-input')) {
+        const input = e.target;
+        const tr = input.closest('tr');
+        const roomId = tr.getAttribute('data-room-id');
+        const roomName = tr.querySelector('td').textContent;
+        const col = input.getAttribute('data-col');
+        const newVal = input.value;
+        
+        const temp = this.state.tempMeterReadings.find(t => t.roomId === roomId) || {};
+        const oldVal = col === 'elec' ? temp.elecCurr : (col === 'water' ? temp.waterCurr : temp.fineAmount);
+        
+        pushUndo(roomId, col, oldVal, newVal);
+        
+        const colLabel = col === 'elec' ? 'เลขไฟ' : (col === 'water' ? 'เลขน้ำ' : 'ค่าปรับ');
+        addHistory(`แก้ไข ${roomName} (${colLabel}) จาก [${oldVal ?? 'ว่าง'}] เป็น [${newVal}]`);
+        
+        saveTempReadingsToState();
+      }
+    });
+
+    gridBody.addEventListener('input', (e) => {
+      if (e.target.classList.contains('excel-input')) {
+        updateRowLive(e.target.closest('tr'));
+      }
+    });
+
+    gridBody.addEventListener('keydown', (e) => {
+      if (!e.target.classList.contains('excel-input')) return;
+      
+      const input = e.target;
+      const col = input.getAttribute('data-col');
+      const tr = input.closest('tr');
+      const index = parseInt(tr.getAttribute('data-index'));
+      const colClass = col === 'elec' ? '.elec-input' : (col === 'water' ? '.water-input' : '.fine-input');
+
+      let targetTr = null;
+      let targetInput = null;
+
+      if (e.key === 'Enter' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        targetTr = gridBody.querySelector(`tr[data-index="${index + 1}"]`);
+        if (targetTr) targetInput = targetTr.querySelector(colClass);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        targetTr = gridBody.querySelector(`tr[data-index="${index - 1}"]`);
+        if (targetTr) targetInput = targetTr.querySelector(colClass);
+      } else if (e.key === 'ArrowRight' && input.selectionEnd === input.value.length) {
+        const nextCol = col === 'elec' ? '.water-input' : (col === 'water' ? '.fine-input' : null);
+        if (nextCol) targetInput = tr.querySelector(nextCol);
+      } else if (e.key === 'ArrowLeft' && input.selectionStart === 0) {
+        const prevCol = col === 'fine' ? '.water-input' : (col === 'water' ? '.elec-input' : null);
+        if (prevCol) targetInput = tr.querySelector(prevCol);
+      }
+
+      if (targetInput) {
+        targetInput.focus();
+        targetInput.select();
+      }
+    });
+
+    gridBody.addEventListener('paste', (e) => {
+      if (!e.target.classList.contains('excel-input')) return;
+      e.preventDefault();
+      
+      const clipboardData = e.clipboardData || window.clipboardData;
+      const pastedText = clipboardData.getData('text');
+      if (!pastedText) return;
+
+      const activeInput = e.target;
+      const activeCol = activeInput.getAttribute('data-col');
+      const activeTr = activeInput.closest('tr');
+      const startIndex = parseInt(activeTr.getAttribute('data-index'));
+
+      const pasteRows = pastedText.split(/\r?\n/).map(row => row.split('\t'));
+      
+      pasteRows.forEach((rowData, rIdx) => {
+        if (rowData.length === 1 && rowData[0] === "") return;
+        const targetIndex = startIndex + rIdx;
+        const tr = gridBody.querySelector(`tr[data-index="${targetIndex}"]`);
+        if (!tr) return;
+
+        const roomId = tr.getAttribute('data-room-id');
+        const roomName = tr.querySelector('td').textContent;
+
+        rowData.forEach((val, cIdx) => {
+          let targetCol = null;
+          if (activeCol === 'elec') {
+            targetCol = cIdx === 0 ? 'elec' : (cIdx === 1 ? 'water' : (cIdx === 2 ? 'fine' : null));
+          } else if (activeCol === 'water') {
+            targetCol = cIdx === 0 ? 'water' : (cIdx === 1 ? 'fine' : null);
+          } else if (activeCol === 'fine') {
+            targetCol = cIdx === 0 ? 'fine' : null;
+          }
+
+          if (!targetCol) return;
+          const selector = targetCol === 'elec' ? '.elec-input' : (targetCol === 'water' ? '.water-input' : '.fine-input');
+          const input = tr.querySelector(selector);
+          
+          if (input) {
+            const cleanVal = val.replace(/[^0-9.]/g, '');
+            if (cleanVal !== '') {
+              const oldVal = input.value;
+              input.value = cleanVal;
+              pushUndo(roomId, targetCol, oldVal, cleanVal);
+              addHistory(`คัดลอกวาง ${roomName} (${targetCol}) จาก [${oldVal || 'ว่าง'}] เป็น [${cleanVal}]`);
+            }
+          }
+        });
+        updateRowLive(tr);
+      });
+
+      saveTempReadingsToState();
+      alert('📋 วางข้อมูลจาก Excel เรียบร้อยแล้ว!');
+    });
+
+    undoBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (undoStack.length === 0) return;
+      
+      const lastAction = undoStack.pop();
+      const tr = gridBody.querySelector(`tr[data-room-id="${lastAction.roomId}"]`);
+      if (tr) {
+        const selector = lastAction.col === 'elec' ? '.elec-input' : (lastAction.col === 'water' ? '.water-input' : '.fine-input');
+        const input = tr.querySelector(selector);
+        if (input) {
+          input.value = lastAction.oldVal ?? '';
+          updateRowLive(tr);
+          const roomName = tr.querySelector('td').textContent;
+          addHistory(`Undo ย้อนกลับ ${roomName} จาก [${lastAction.newVal}] กลับเป็น [${lastAction.oldVal ?? 'ว่าง'}]`);
+          saveTempReadingsToState();
+        }
+      }
+      if (undoStack.length === 0) undoBtn.disabled = true;
+    });
+
+    const handleCtrlZ = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undoBtn.click();
+      }
+    };
+    document.addEventListener('keydown', handleCtrlZ);
+
+    const handleClose = () => {
+      document.removeEventListener('keydown', handleCtrlZ);
+      modal.classList.remove('active');
+    };
+    
+    document.getElementById('btn-excel-close').addEventListener('click', handleClose);
+    modal.querySelector('.close-modal-btn').addEventListener('click', handleClose);
+
+    document.getElementById('btn-excel-save-all').addEventListener('click', async (e) => {
+      e.preventDefault();
+      
+      const monthKey = monthInput.value;
+      const dueDate = dueDateInput.value;
+      if (!monthKey || !dueDate) return alert('กรุณาระบุเดือนและกำหนดชำระบิล');
+
+      const errorInputs = gridBody.querySelectorAll('.excel-input-error');
+      if (errorInputs.length > 0) {
+        if (!confirm('⚠️ ตรวจพบมิเตอร์ไฟหรือน้ำน้อยกว่าครั้งก่อนในบางห้อง ต้องการละเว้นและออกบิลต่อไปใช่หรือไม่?')) {
+          return;
+        }
+      }
+
+      const saveBtn = document.getElementById('btn-excel-save-all');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกและสร้างบิลทั้งหมด...';
+
+      try {
+        const invoices = this.state.invoices || [];
+        const trs = gridBody.querySelectorAll('tr');
+        let generatedCount = 0;
+
+        trs.forEach(tr => {
+          const roomId = tr.getAttribute('data-room-id');
+          const room = this.state.rooms.find(r => r.id === roomId);
+          if (!room || !room.occupied) return;
+
+          const prev = prevReadings[roomId];
+          const elecCurrVal = tr.querySelector('.elec-input').value;
+          const waterCurrVal = tr.querySelector('.water-input').value;
+          const fineVal = tr.querySelector('.fine-input').value;
+
+          if (elecCurrVal === '' || waterCurrVal === '') return;
+
+          const elecCurr = parseFloat(elecCurrVal) || 0;
+          const waterCurr = parseFloat(waterCurrVal) || 0;
+          const fineAmt = parseFloat(fineVal) || 0;
+
+          room.lastElecMeter = elecCurr;
+          room.lastWaterMeter = waterCurr;
+
+          const elecUnits = Math.max(0, elecCurr - prev.elecPrev);
+          const waterUnits = Math.max(0, waterCurr - prev.waterPrev);
+          const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
+          const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
+          const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
+          const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
+          const internetFee = room.type === 'rt_air' ? (this.state.rates.internetFee || 200) : 0;
+          const commonFee = this.state.rates.commonFee || 100;
+          
+          const total = rentAmt + elecAmt + waterAmt + trashFee + internetFee + commonFee + fineAmt;
+
+          const existsIdx = invoices.findIndex(inv => inv.roomId === room.id && inv.monthKey === monthKey);
+          
+          const invoiceObj = {
+            id: existsIdx !== -1 ? invoices[existsIdx].id : 'inv_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            invoiceNumber: `INV${monthKey.replace('-', '')}-${room.name}`,
+            monthKey,
+            roomId: room.id,
+            roomName: room.name,
+            tenantId: room.currentTenantId || 't_unknown',
+            tenantName: room.currentTenantName || 'ผู้เช่า',
+            issueDate: new Date().toISOString().slice(0, 10),
+            dueDate,
+            waterPrev: prev.waterPrev,
+            waterCurr,
+            elecPrev: prev.elecPrev,
+            elecCurr,
+            rentAmount: rentAmt,
+            waterAmount: waterAmt,
+            elecAmount: elecAmt,
+            trashFee: trashFee,
+            internetFee: internetFee,
+            commonFee: commonFee,
+            fineAmount: fineAmt,
+            totalAmount: total,
+            paidAmount: 0,
+            outstandingAmount: total,
+            status: 'unpaid',
+            slipUrl: ''
+          };
+
+          if (existsIdx !== -1) {
+            invoices[existsIdx] = invoiceObj;
+          } else {
+            invoices.unshift(invoiceObj);
+          }
+          generatedCount++;
+        });
+
+        this.state.tempMeterReadings = [];
+        this.state.invoices = invoices;
+
+        await DBService.saveState(this.state);
+        alert(`✅ ประมวลผลออกบิลและบันทึกข้อมูลสำเร็จรวม ${generatedCount} ห้องพัก!`);
+        handleClose();
+        this.switchTab('billing');
+      } catch (err) {
+        alert('⚠️ เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fa-solid fa-file-invoice"></i> บันทึกและออกบิลทั้งหมด';
+      }
+    });
+  }
   }
 
   // --- 4. REPAIRS EVENTS ---
@@ -4585,13 +5058,44 @@ class App {
       });
     }
 
+    // Theme Switcher Bindings
+    const themeLightBtn = document.getElementById('btn-theme-light');
+    const themeDarkBtn = document.getElementById('btn-theme-dark');
+    if (themeLightBtn && themeDarkBtn) {
+      themeLightBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.body.classList.remove('dark');
+        this.state.settings.theme = 'light';
+        DBService.saveState(this.state);
+        themeLightBtn.className = 'btn btn-primary';
+        themeDarkBtn.className = 'btn btn-secondary';
+      });
+      themeDarkBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.body.classList.add('dark');
+        this.state.settings.theme = 'dark';
+        DBService.saveState(this.state);
+        themeDarkBtn.className = 'btn btn-primary';
+        themeLightBtn.className = 'btn btn-secondary';
+      });
+      
+      // Initial visual state
+      const isDark = (this.state.settings && this.state.settings.theme === 'dark');
+      if (isDark) {
+        themeLightBtn.className = 'btn btn-secondary';
+        themeDarkBtn.className = 'btn btn-primary';
+      } else {
+        themeLightBtn.className = 'btn btn-primary';
+        themeDarkBtn.className = 'btn btn-secondary';
+      }
+    }
+
     const saveUrlBtn = document.getElementById('btn-save-sheets-url');
     if (saveUrlBtn) {
       saveUrlBtn.addEventListener('click', (e) => {
         e.preventDefault();
         const urlInput = document.getElementById('sheets-url-input');
         const apiKeyInput = document.getElementById('api-key-input');
-        const tenantApiKeyInput = document.getElementById('tenant-api-key-input');
         if (urlInput) {
           const cleaned = DBService.cleanUrl(urlInput.value);
           this.state.settings.googleSheetUrl = cleaned;
@@ -4602,17 +5106,8 @@ class App {
           this.state.settings.apiKey = apiKeyVal;
           localStorage.setItem('SOMBAT_APARTMENT_SAVED_API_KEY', apiKeyVal);
         }
-        if (tenantApiKeyInput) {
-          const tenantApiKeyVal = tenantApiKeyInput.value.trim();
-          if (tenantApiKeyVal && this.state.settings.apiKey && tenantApiKeyVal === this.state.settings.apiKey) {
-            alert('⚠️ ห้ามใช้ Tenant API Key ซ้ำกับ API Key ของแอดมินเด็ดขาด กรุณาตั้งค่าคนละรหัส (รันฟังก์ชัน setTenantApiKey() ใน Apps Script เพื่อสร้างรหัสใหม่)');
-            return;
-          }
-          this.state.settings.tenantApiKey = tenantApiKeyVal;
-          localStorage.setItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY', tenantApiKeyVal);
-        }
         DBService.saveState(this.state);
-        alert('บันทึก Google Sheets Web App URL และ API Key เรียบร้อยแล้ว!');
+        alert('บันทึกการตั้งค่าเชื่อมต่อ Supabase เรียบร้อยแล้ว!');
       });
     }
 

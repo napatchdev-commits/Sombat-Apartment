@@ -2,7 +2,12 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Sombat Rent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="manifest" href="manifest.json">
     <meta name="description" content="ระบบจัดการห้องเช่า (Rental Management System) Sombat Apartment Enterprise Edition - ระบบบันทึกผู้เช่า ออกบิลอัตโนมัติ สแกน Dynamic PromptPay QR และระบบรายงาน">
     <title>🏠 ระบบจัดการห้องเช่า - Sombat Apartment Enterprise Edition</title>
     
@@ -56,5 +61,14 @@
 
     <!-- Standalone 100% Reliable App Controller -->
     <script src="app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('✅ Service Worker registered', reg.scope))
+            .catch(err => console.error('❌ Service Worker registration failed', err));
+        });
+      }
+    </script>
 </body>
 </html>

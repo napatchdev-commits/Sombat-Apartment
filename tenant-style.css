@@ -549,5 +549,54 @@ body {
         display: flex;
         flex-direction: column;
         justify-content: center;
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-top: env(safe-area-inset-top);
     }
 }
+
+/* Dark Mode Theme overrides for Tenant Portal */
+body.dark {
+    background: #090d16 !important;
+}
+
+body.dark #tenant-app-root {
+    background: #0d1527 !important;
+    color: #f1f5f9;
+}
+
+body.dark .tenant-card,
+body.dark .white-card,
+body.dark .bill-summary-box,
+body.dark .form-control {
+    background-color: #152238 !important;
+    color: #f1f5f9 !important;
+    border-color: #243550 !important;
+}
+
+body.dark .brand-header h1,
+body.dark h3,
+body.dark h4,
+body.dark .amount,
+body.dark .tenant-label {
+    color: #ffffff !important;
+}
+
+body.dark .text-muted,
+body.dark .brand-header p {
+    color: #94a3b8 !important;
+}
+
+body.dark input.form-control,
+body.dark select.form-control {
+    background-color: #0d1527 !important;
+    color: #ffffff !important;
+}
+
+/* Touch feedback active scale animations */
+.btn:active, 
+.menu-card:active,
+.repair-card-item:active {
+    transform: scale(0.96);
+    opacity: 0.9;
+}
+
