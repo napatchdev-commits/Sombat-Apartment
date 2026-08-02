@@ -582,8 +582,8 @@ class DBService {
     if (!state) {
       state = this.getInitialState();
     }
-    if (!state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
-      state.rooms = this.getInitialRooms();
+    if (!state.rooms || !Array.isArray(state.rooms)) {
+      state.rooms = [];
     }
     if (state.invoices && Array.isArray(state.invoices)) {
       state.invoices = this.getUniqueInvoices(state.invoices);
@@ -714,9 +714,9 @@ class DBService {
 
   static async syncToGoogleSheets(url, state) {
     if (!url) throw new Error('กรุณาระบุ Supabase Project URL ก่อน');
-    if (!state || !state.rooms || !Array.isArray(state.rooms) || state.rooms.length === 0) {
-      console.warn("Blocked syncToGoogleSheets: state has 0 rooms. Preventing data loss.");
-      return { status: "success", message: "Sync blocked: state is empty" };
+    if (!state) {
+      console.warn("Blocked syncToGoogleSheets: state is null.");
+      return { status: "success", message: "Sync blocked: state is null" };
     }
     const apiKey = (state.settings && state.settings.apiKey) || this.getSavedApiKey();
     localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
