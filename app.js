@@ -4597,7 +4597,6 @@ class App {
       }
     });
   }
-  }
 
   // --- 4. REPAIRS EVENTS ---
   static bindRepairsEvents() {
