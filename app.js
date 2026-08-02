@@ -1832,7 +1832,7 @@ class SettingsComponent {
             <label>Supabase API Key (Anon Key):</label>
             <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัส Supabase Anon Key ที่นี่...">
             <p class="text-muted" style="font-size:0.8rem; margin-top:0.35rem;">
-              ⚠️ ต้องเปิดสิทธิ์การอ่าน/เขียน (Insert/Select) ในตาราง `apartment_state` ฝั่ง Supabase
+              ⚠️ ต้องเปิดสิทธิ์การอ่าน/เขียน (Insert/Select) ในตาราง \`apartment_state\` ฝั่ง Supabase
             </p>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1rem;">
