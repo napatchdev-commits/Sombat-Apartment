@@ -8,7 +8,7 @@
 /* ==========================================================================
    0. PASSWORD HASHING HELPER
    ให้แฮชรหัสผ่านด้วย SHA-256 ก่อนเก็บ/เปรียบเทียบ แทนการเก็บรหัสผ่านตัวจริง (plaintext)
-   ไว้ใน localStorage หรือ Google Sheets โดยตรง (หมายเหตุ: ระบบนี้ยังตรวจสอบฝั่ง client
+   ไว้ใน localStorage หรือ Supabase โดยตรง (หมายเหตุ: ระบบนี้ยังตรวจสอบฝั่ง client
    เป็นหลักเพื่อคุมสิทธิ์การใช้งานหน้าเว็บ ไม่ใช่ระบบยืนยันตัวตนที่ทดแทนการป้องกันฝั่ง server
    การป้องกันข้อมูลจริงยังคงอยู่ที่ apiKey/TENANT_API_KEY ใน Code.gs)
    ========================================================================== */
@@ -321,11 +321,11 @@ class LineService {
     const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
 
     // Append sheetUrl + apiKey (สิทธิ์จำกัดสำหรับผู้เช่า) ไปกับลิงก์ ให้พอร์ทัลผู้เช่าดึงข้อมูลจริงได้
-    const savedUrl = DBService.getSavedSheetUrl();
+    const savedUrl = DBService.getSavedSupabaseUrl();
     const savedTenantKey = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
     if (savedUrl) {
       const sep = url.includes('?') ? '&' : '?';
-      url += `${sep}sheetUrl=${encodeURIComponent(savedUrl)}`;
+      url += `${sep}supabaseUrl=${encodeURIComponent(savedUrl)}`;
       if (savedTenantKey) url += `&apiKey=${encodeURIComponent(savedTenantKey)}`;
     }
 
@@ -349,11 +349,11 @@ class LineService {
     let url = tenantUrl || (localStorage.getItem('SOMBAT_TENANT_PORTAL_URL') || (window.location.origin + '/tenant.html'));
     const botUrl = lineBotUrl !== undefined ? lineBotUrl : (localStorage.getItem('SOMBAT_LINE_BOT_URL') || '');
 
-    const savedUrl = DBService.getSavedSheetUrl();
+    const savedUrl = DBService.getSavedSupabaseUrl();
     const savedTenantKey = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
     if (savedUrl) {
       const sep = url.includes('?') ? '&' : '?';
-      url += `${sep}sheetUrl=${encodeURIComponent(savedUrl)}`;
+      url += `${sep}supabaseUrl=${encodeURIComponent(savedUrl)}`;
       if (savedTenantKey) url += `&apiKey=${encodeURIComponent(savedTenantKey)}`;
     }
 
@@ -532,8 +532,6 @@ class DBService {
     return 'https://bdeowpdjgiombqatdilh.supabase.co';
   }
 
-  // Backward-compat alias
-  static getSavedSheetUrl() { return this.getSavedSupabaseUrl(); }
 
   static getSavedApiKey() {
     const rawState = localStorage.getItem(this.STORAGE_KEY);
@@ -702,8 +700,6 @@ class DBService {
     return null;
   }
 
-  // Backward-compat alias
-  static async pullFromGoogleSheets(url) { return this.pullFromSupabase(url); }
 
   static async syncToSupabase(url, state) {
     if (!url) throw new Error('กรุณาระบุ Supabase Project URL ก่อน');
@@ -731,8 +727,6 @@ class DBService {
     return { status: 'success', message: 'บันทึกข้อมูลเรียบร้อย' };
   }
 
-  // Backward-compat alias
-  static async syncToGoogleSheets(url, state) { return this.syncToSupabase(url, state); }
 
   static exportJSON() {
     const state = this.getState();
@@ -829,8 +823,8 @@ class NavbarComponent {
             <i class="fa-solid fa-mobile-screen-button text-success"></i> <span class="desktop-only">เปิดระบบบิลผู้เช่า MyBills</span>
           </a>
 
-          <button id="btn-manual-sync-sheets" class="btn btn-secondary btn-sm" style="margin-right:0.5rem;" title="ดึงข้อมูลล่าสุดจาก Supabase">
-            <i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>
+          <button id="btn-manual-sync-supabase" class="btn btn-secondary btn-sm" style="margin-right:0.5rem;" title="ดึงข้อมูลล่าสุดจาก Supabase">
+            <i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลล่าสุด</span>
           </button>
 
           <div class="notification-dropdown-wrapper">
@@ -1507,7 +1501,7 @@ class BillingComponent {
                     <td>
                       <div class="action-buttons">
                         <button class="btn btn-secondary btn-xs btn-edit-bill" data-id="${inv.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
-                        <button class="btn btn-primary btn-xs btn-save-pdf-bill" data-id="${inv.id}" title="บันทึก PDF ลงชีต"><i class="fa-solid fa-file-pdf"></i> บันทึก PDF</button>
+                        <button class="btn btn-primary btn-xs btn-save-pdf-bill" data-id="${inv.id}" title="บันทึก PDF ลง Supabase"><i class="fa-solid fa-file-pdf"></i> บันทึก PDF</button>
                         <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}"><i class="fa-solid fa-print text-warning"></i> พิมพ์บิล</button>
                         <button class="btn btn-secondary btn-xs btn-send-line" data-id="${inv.id}"><i class="fa-brands fa-line text-success"></i> LINE</button>
                         <button class="btn btn-danger btn-xs btn-delete-bill" data-id="${inv.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
@@ -1715,7 +1709,7 @@ class RatesComponent {
         <div class="view-header">
           <div>
             <h2><i class="fa-solid fa-sliders text-primary"></i> ตั้งค่าเรท & ค่าบริการสาธารณูปโภค (Rates & Service Fees)</h2>
-            <p>กำหนดเรทค่าน้ำ ค่าไฟ ค่าขยะ และเพิ่ม/แก้ไข/ลบ รายการค่าบริการอื่นๆ เพื่อบันทึกลงชีตและออกบิลอัตโนมัติ</p>
+            <p>กำหนดเรทค่าน้ำ ค่าไฟ ค่าขยะ และเพิ่ม/แก้ไข/ลบ รายการค่าบริการอื่นๆ เพื่อบันทึกลง Supabase และออกบิลอัตโนมัติ</p>
           </div>
         </div>
 
@@ -1746,7 +1740,7 @@ class RatesComponent {
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div>
               <h3><i class="fa-solid fa-boxes-packing text-primary"></i> 2. รายการค่าใช้จ่ายและค่าบริการเสริมอื่นๆ (Custom Service Fees)</h3>
-              <p class="text-muted text-sm">สามารถเพิ่ม แก้ไข ลบ รายการค่าบริการอื่นๆ เพื่อนำไปบันทึกลงชีตและคำนวณในบิลได้</p>
+              <p class="text-muted text-sm">สามารถเพิ่ม แก้ไข ลบ รายการค่าบริการอื่นๆ เพื่อนำไปบันทึกลง Supabase และคำนวณในบิลได้</p>
             </div>
             <button id="btn-add-custom-fee" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> เพิ่มรายการค่าใช้จ่ายใหม่</button>
           </div>
@@ -1823,7 +1817,7 @@ class SettingsComponent {
             </div>
 
             <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1.25rem;">
-              <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า LINE Bot ลงชีต</button>
+              <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า LINE Bot ลง Supabase</button>
               <button type="button" class="btn btn-secondary" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ทดสอบส่งข้อความ LINE</button>
             </div>
           </form>
@@ -1847,7 +1841,7 @@ class SettingsComponent {
           </p>
           <div class="form-group" style="margin-top:1rem;">
             <label>Supabase Project URL:</label>
-            <input type="url" id="sheets-url-input" class="form-control" value="${settings.googleSheetUrl || ''}" placeholder="https://your-project.supabase.co">
+            <input type="url" id="supabase-url-input" class="form-control" value="${settings.supabaseUrl || ''}" placeholder="https://your-project.supabase.co">
           </div>
           <div class="form-group" style="margin-top:1rem;">
             <label>Supabase API Key (Anon Key):</label>
@@ -1857,8 +1851,8 @@ class SettingsComponent {
             </p>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1rem;">
-            <button class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-save"></i> บันทึกการตั้งค่า</button>
-            <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ข้อมูลลง Supabase ตอนนี้</button>
+            <button class="btn btn-primary" id="btn-save-supabase-url"><i class="fa-solid fa-save"></i> บันทึกการตั้งค่า</button>
+            <button class="btn btn-success" id="btn-sync-to-supabase"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ข้อมูลลง Supabase ตอนนี้</button>
             <button class="btn btn-secondary" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> คัดลอกลิงก์แชร์เชื่อมต่อทุกเครื่อง</button>
           </div>
           
@@ -2031,7 +2025,7 @@ class MeterEntryComponent {
 
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; background:#f8fafc; padding:0.65rem 1rem; border-radius:8px; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">
             <span>
-              💡 <b>คำแนะนำ</b>: กด <b>Enter</b> หรือ <b>ลูกศรขึ้น/ลง</b> เพื่อย้ายแถว, กด <b>Tab</b> เพื่อสลับช่อง และสามารถคัดลอกค่าน้ำไฟจาก <b>Excel / Google Sheets</b> แล้วกด <b>Ctrl+V</b> วางลงในตารางได้โดยตรง!
+              💡 <b>คำแนะนำ</b>: กด <b>Enter</b> หรือ <b>ลูกศรขึ้น/ลง</b> เพื่อย้ายแถว, กด <b>Tab</b> เพื่อสลับช่อง และสามารถคัดลอกค่าน้ำไฟจาก <b>Excel</b> แล้วกด <b>Ctrl+V</b> วางลงในตารางได้โดยตรง!
             </span>
           </div>
 
@@ -2401,10 +2395,10 @@ class App {
       }
 
       // 7. Manual Sync Sheets Button
-      const syncBtn = e.target.closest('#btn-manual-sync-sheets');
+      const syncBtn = e.target.closest('#btn-manual-sync-supabase');
       if (syncBtn) {
         e.preventDefault();
-        this.handleManualSyncSheets(syncBtn);
+        this.handleManualSyncSupabase(syncBtn);
         return;
       }
     });
@@ -2421,29 +2415,29 @@ class App {
     });
   }
 
-  static async handleManualSyncSheets(syncBtn) {
-    const url = DBService.getSavedSheetUrl();
+  static async handleManualSyncSupabase(syncBtn) {
+    const url = DBService.getSavedSupabaseUrl();
     if (!url) {
-      alert('กรุณาตั้งค่า Google Sheets Web App URL ก่อนกดดึงข้อมูล');
+      alert('กรุณาตั้งค่า Supabase Project URL ก่อนกดดึงข้อมูล');
       return;
     }
     syncBtn.disabled = true;
     syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-primary"></i> <span class="desktop-only">กำลังดึงข้อมูล...</span>';
     try {
       const mergeUrl = url.includes('?') ? `${url}&merge=true` : `${url}?merge=true`;
-      const cloudState = await DBService.pullFromGoogleSheets(mergeUrl);
+      const cloudState = await DBService.pullFromSupabase(mergeUrl);
       if (cloudState) {
         this.state = cloudState;
         this.switchTab(this.activeTab);
-        alert('✅ ดึงข้อมูลล่าสุดที่แก้ไขใน Google Sheets เรียบร้อยแล้ว!');
+        alert('✅ ดึงข้อมูลล่าสุดที่แก้ไขใน Supabase เรียบร้อยแล้ว!');
       } else {
-        alert('ไม่พบข้อมูลใหม่จาก Google Sheets');
+        alert('ไม่พบข้อมูลใหม่จาก Supabase');
       }
     } catch (err) {
-      alert('เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets: ' + err.message);
+      alert('เกิดข้อผิดพลาดในการดึงข้อมูลจาก Supabase: ' + err.message);
     } finally {
       syncBtn.disabled = false;
-      syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลจากชีตล่าสุด</span>';
+      syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลล่าสุด</span>';
     }
   }
 
@@ -2535,7 +2529,7 @@ class App {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.getAttribute('data-id');
         const name = e.currentTarget.getAttribute('data-name');
-        if (confirm(`คุณต้องการลบห้องพัก "${name}" ออกจากระบบใช่หรือไม่?\n\n(ระบบจะทำการซิงค์ลบข้อมูลลง Google Sheets อัตโนมัติ)`)) {
+        if (confirm(`คุณต้องการลบห้องพัก "${name}" ออกจากระบบใช่หรือไม่?\n\n(ระบบจะทำการซิงค์ลบข้อมูลลง Supabase อัตโนมัติ)`)) {
           const idx = this.state.rooms.findIndex(r => r.id === id);
           if (idx !== -1) {
             this.state.rooms.splice(idx, 1);
@@ -2672,7 +2666,7 @@ class App {
       </div>
       <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
         <div style="background:#eff6ff; border: 1px solid #bfdbfe; color:#1e3a8a; padding:1rem; border-radius:8px; margin-bottom:1.25rem; font-size:0.9rem; line-height:1.4;">
-          <i class="fa-solid fa-circle-info"></i> ระบบจะไปดึงเลขอ่านมิเตอร์น้ำและไฟล่าสุดประจำเดือนที่คุณกรอกลงใน Google Sheets แท็บ <strong>"จดเลขอ่านน้ำไฟ"</strong> มาคำนวณและออกใบแจ้งหนี้ให้กับทุกห้องที่มีสถานะ "มีผู้เช่า" โดยอัตโนมัติ
+          <i class="fa-solid fa-circle-info"></i> ระบบจะไปดึงเลขอ่านมิเตอร์น้ำและไฟล่าสุดประจำเดือนที่คุณกรอกไว้ในตารางกรอกมิเตอร์ (บันทึกลง Supabase) มาคำนวณและออกใบแจ้งหนี้ให้กับทุกห้องที่มีสถานะ "มีผู้เช่า" โดยอัตโนมัติ
         </div>
         <form id="bulk-billing-form">
           <div class="form-group">
@@ -2719,8 +2713,8 @@ class App {
       body.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem 1rem;">
           <div style="width:45px; height:45px; border:4px solid #cbd5e1; border-top-color:#f97316; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
-          <div style="font-weight:bold; font-size:1.1rem; color:#334155;">กำลังดึงเลขอ่านน้ำไฟล่าสุดจาก Google Sheets...</div>
-          <div style="font-size:0.85rem; color:#64748b; margin-top:0.25rem;">ระบบกำลังดึงข้อมูลแท็บ "จดเลขอ่านน้ำไฟ" เพื่อประมวลผล</div>
+          <div style="font-weight:bold; font-size:1.1rem; color:#334155;">กำลังดึงเลขอ่านน้ำไฟล่าสุดจาก Supabase...</div>
+          <div style="font-size:0.85rem; color:#64748b; margin-top:0.25rem;">ระบบกำลังดึงข้อมูลตารางกรอกมิเตอร์เพื่อประมวลผล</div>
           <style>
             @keyframes spin { to { transform: rotate(360deg); } }
           </style>
@@ -2728,10 +2722,10 @@ class App {
       `;
 
       try {
-        // Sync and pull the latest state with merge option from Google Sheets
-        const savedUrl = DBService.getSavedSheetUrl();
+        // Sync and pull the latest state with merge option from Supabase
+        const savedUrl = DBService.getSavedSupabaseUrl();
         const syncUrl = savedUrl + (savedUrl.includes('?') ? '&merge=true' : '?merge=true');
-        const freshState = await DBService.pullFromGoogleSheets(syncUrl);
+        const freshState = await DBService.pullFromSupabase(syncUrl);
         
         if (freshState) {
           this.state = freshState;
@@ -2739,7 +2733,7 @@ class App {
 
         const readings = this.state.tempMeterReadings || [];
         if (readings.length === 0) {
-          throw new Error('ไม่พบข้อมูลมิเตอร์น้ำไฟในแท็บ "จดเลขอ่านน้ำไฟ" ของ Google Sheets กรุณากรอกและบันทึกในชีตก่อน');
+          throw new Error('ไม่พบข้อมูลมิเตอร์น้ำไฟในตารางกรอกมิเตอร์ กรุณากรอกและบันทึกข้อมูลก่อน');
         }
 
         const rooms = this.state.rooms || [];
@@ -2851,7 +2845,7 @@ class App {
         this.switchTab('billing');
 
         let msg = `🟢 ออกบิลแบบกลุ่มสำเร็จ!\n\nสร้างใบแจ้งหนี้เสร็จเรียบร้อยทั้งหมด ${successCount} ห้อง`;
-        if (skipCount > 0) msg += `\n(ข้าม ${skipCount} ห้องที่ไม่มีข้อมูลเลขอ่านใน Google Sheets)`;
+        if (skipCount > 0) msg += `\n(ข้าม ${skipCount} ห้องที่ไม่มีข้อมูลเลขอ่าน)`;
         if (errorMessages.length > 0) msg += `\n\n⚠️ ห้องที่เกิดข้อผิดพลาดและถูกข้าม:\n` + errorMessages.join('\n');
 
         alert(msg);
@@ -3693,15 +3687,15 @@ class App {
         const id = e.currentTarget.getAttribute('data-id');
         const inv = this.state.invoices.find(i => i.id === id);
         if (inv) {
-          inv.pdfUrl = `https://sombat-apartment.vercel.app/tenant.html?sheetUrl=${encodeURIComponent(DBService.getSavedSheetUrl())}&apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}&idCard=${encodeURIComponent(inv.idCard || '')}&roomId=${encodeURIComponent(inv.roomId || '')}`;
+          inv.pdfUrl = `https://sombat-apartment.vercel.app/tenant.html?supabaseUrl=${encodeURIComponent(DBService.getSavedSupabaseUrl())}&apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}&idCard=${encodeURIComponent(inv.idCard || '')}&roomId=${encodeURIComponent(inv.roomId || '')}`;
           DBService.saveState(this.state);
-          const url = (this.state.settings && this.state.settings.googleSheetUrl) ? this.state.settings.googleSheetUrl : DBService.getSavedSheetUrl();
+          const url = (this.state.settings && this.state.settings.supabaseUrl) ? this.state.settings.supabaseUrl : DBService.getSavedSupabaseUrl();
           if (url) {
             try {
-              await DBService.syncToGoogleSheets(url, this.state);
-              alert(`✅ บันทึก PDF บิลและอัปโหลดลิงก์/เอกสารของห้อง ${inv.roomName} ลงแถวหลังใน Google Sheets เรียบร้อยแล้ว!`);
+              await DBService.syncToSupabase(url, this.state);
+              alert(`✅ บันทึก PDF บิลและอัปโหลดลิงก์/เอกสารของห้อง ${inv.roomName} ลง Supabase เรียบร้อยแล้ว!`);
             } catch (err) {
-              alert(`✅ บันทึก PDF บิลเรียบร้อยแล้ว! (การซิงค์ชีต: ${err.message})`);
+              alert(`✅ บันทึก PDF บิลเรียบร้อยแล้ว! (การซิงค์ Supabase: ${err.message})`);
             }
           } else {
             alert(`✅ บันทึก PDF บิลเรียบร้อยแล้ว!`);
@@ -3813,24 +3807,29 @@ class App {
       pushBtn.addEventListener('click', async () => {
         const invId = invSelect ? invSelect.value : 'ALL';
         const msgText = textarea.value;
-        const sheetUrl = (this.state.settings && this.state.settings.googleSheetUrl) || DBService.getSavedSheetUrl();
+        const supabaseUrl = (this.state.settings && this.state.settings.supabaseUrl) || DBService.getSavedSupabaseUrl();
 
-        if (!sheetUrl) {
-          return alert('⚠️ ยังไม่ได้บันทึก Google Sheets Web App URL ในระบบ!\n\nกรุณาไปที่เมนู "ตั้งค่า" แล้วระบุและบันทึก Web App URL ก่อนครับ');
+        if (!supabaseUrl) {
+          return alert('⚠️ ยังไม่ได้บันทึก Supabase Project URL ในระบบ!\n\nกรุณาไปที่เมนู "ตั้งค่า" แล้วระบุและบันทึก Supabase Project URL ก่อนครับ');
         }
 
         pushBtn.disabled = true;
         pushBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังยิงข้อความเข้า LINE ผู้เช่าทันที...`;
 
         try {
-          const response = await fetch(sheetUrl, {
+          const baseUrl = DBService.getBaseSupabaseUrl(supabaseUrl);
+          const apiKey = (this.state.settings && this.state.settings.apiKey) || DBService.getSavedApiKey();
+          const response = await fetch(`${baseUrl}/functions/v1/line-notify`, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`
+            },
             body: JSON.stringify({
               action: 'linePushNotify',
               invoiceId: invId,
-              messageText: msgText,
-              apiKey: (this.state.settings && this.state.settings.apiKey) || DBService.getSavedApiKey()
+              messageText: msgText
             })
           });
 
@@ -3841,7 +3840,7 @@ class App {
             alert(`⚠️ การส่งข้อความ LINE ล้มเหลว:\n\n${res.message || 'กรุณาตรวจสอบ Channel Access Token ในการตั้งค่า'}`);
           }
         } catch (err) {
-          alert(`⚠️ ไม่สามารถเชื่อมต่อ Google Apps Script ได้:\n${err.toString()}`);
+          alert(`⚠️ ไม่สามารถเชื่อมต่อ Supabase Edge Function ได้:\n${err.toString()}`);
         } finally {
           pushBtn.disabled = false;
           pushBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ⚡ กดส่ง LINE Bot แจ้งเตือนตรงหาผู้เช่าทันที (Instant Auto Push)`;
@@ -3960,7 +3959,7 @@ class App {
           </div>
 
           <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
-            <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไขใบแจ้งหนี้ลงชีต
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไขใบแจ้งหนี้ลง Supabase
           </button>
         </form>
       </div>
@@ -4028,20 +4027,20 @@ class App {
         const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) {
           submitBtn.disabled = true;
-          submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูลลง Google Sheets...`;
+          submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูลลง Supabase...`;
         }
 
         try {
           await DBService.saveState(this.state);
           modal.classList.remove('active');
-          alert('✅ แก้ไขข้อมูลบิลค่าเช่าและซิงค์ลง Google Sheets เรียบร้อยแล้ว!');
+          alert('✅ แก้ไขข้อมูลบิลค่าเช่าและซิงค์ลง Supabase เรียบร้อยแล้ว!');
           this.switchTab('billing');
         } catch (err) {
           alert(`❌ เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${err.message}`);
         } finally {
           if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = `<i class="fa-solid fa-save"></i> บันทึกการแก้ไขใบแจ้งหนี้ลงชีต`;
+            submitBtn.innerHTML = `<i class="fa-solid fa-save"></i> บันทึกการแก้ไขใบแจ้งหนี้ลง Supabase`;
           }
         }
       }
@@ -4064,7 +4063,7 @@ class App {
           <img id="view-slip-img" src="${inv.slipUrl}" alt="Slip" style="max-width:100%; max-height:480px; display:block; border-radius:8px;"
                onerror="this.style.display='none'; document.getElementById('view-slip-fallback').style.display='block';">
           <div id="view-slip-fallback" style="display:none; padding:1.5rem; color:#b91c1c; font-size:0.85rem; font-weight:600; max-width:320px;">
-            <i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถแสดงรูปสลิปได้ (ไฟล์อาจถูกลบ หรือยังไม่ได้ตั้งค่าสิทธิ์แชร์ใน Google Drive)<br>
+            <i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถแสดงรูปสลิปได้ (ไฟล์อาจถูกลบ หรือยังไม่ได้ตั้งค่าสิทธิ์การเข้าถึง Supabase Storage)<br>
             <span style="font-weight:400;">ลองกด "ดาวน์โหลดรูปสลิป" ด้านล่าง หรือเปิดลิงก์โดยตรงเพื่อตรวจสอบ</span>
           </div>
         </div>
@@ -4388,7 +4387,7 @@ class App {
       </div>
       <div class="modal-body">
         <p style="font-size:0.95rem; color:#475569; line-height:1.6; margin-bottom:1.25rem;">
-          คุณสามารถทำการสำรองบิลทั้งหมดประจำเดือนนั้นๆ ไปยังแผ่นงาน Google Sheets แท็บใหม่ (เช่น <code>สำรองบิล_2026-07</code>) และล้างข้อมูลบิลเหล่านั้นออกจากระบบหลักเพื่อเพิ่มประสิทธิภาพความเร็วในการทำงานของตัวเครื่อง
+          คุณสามารถทำการสำรองบิลทั้งหมดประจำเดือนนั้นๆ ไปเป็นไฟล์ CSV สำรอง (เช่น <code>สำรองบิล_2026-07</code>) และล้างข้อมูลบิลเหล่านั้นออกจากระบบหลักเพื่อเพิ่มประสิทธิภาพความเร็วในการทำงานของตัวเครื่อง
         </p>
 
         <form id="archive-bills-form">
@@ -4405,7 +4404,7 @@ class App {
           <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:1rem; margin-bottom:1.5rem;">
             <div style="font-weight:700; color:#b45309; margin-bottom:0.25rem;"><i class="fa-solid fa-triangle-exclamation"></i> ข้อควรระวัง</div>
             <p style="font-size:0.85rem; color:#b45309; line-height:1.5; margin:0;">
-              ข้อมูลบิลของเดือนที่เลือกทั้งหมดจะถูกลบออกจากตัวระบบหลัก (หน้าเว็บนี้และหน้ามือถือของลูกค้าจะมองไม่เห็นบิลเดือนนี้แล้ว) แต่บิลจะถูกเก็บไว้ถาวรในตารางชีตแท็บใหม่ของแอดมิน คุณยังสามารถคลิกเปิดดู ยึด หรือพิมพ์บิลย้อนหลังจากตารางใน Google Sheets ได้ตามปกติครับ
+              ข้อมูลบิลของเดือนที่เลือกทั้งหมดจะถูกลบออกจากตัวระบบหลัก (หน้าเว็บนี้และหน้ามือถือของลูกค้าจะมองไม่เห็นบิลเดือนนี้แล้ว) แต่บิลจะถูกส่งออกเป็นไฟล์ CSV สำรองให้ดาวน์โหลดไว้ถาวร คุณยังสามารถเปิดดูหรือพิมพ์บิลย้อนหลังจากไฟล์ CSV นั้นได้ตามปกติครับ
             </p>
           </div>
 
@@ -4940,17 +4939,26 @@ class App {
         const roomName = tr.querySelector('td').textContent;
 
         rowData.forEach((val, cIdx) => {
-             const copyLinkBtn = document.getElementById('btn-copy-shared-link');
-    if (copyLinkBtn) {
-      copyLinkBtn.addEventListener('click', () => {
-        const url = DBService.getSavedSupabaseUrl();
-        navigator.clipboard.writeText(url).then(() => {
-          alert(`🔗 คัดลอก Supabase URL สำเร็จแล้ว!\n\n${url}`);
-        }).catch(() => {
-          prompt('คัดลอก Supabase URL ด้านล่างนี้:', url);
-        });
-      });
-    }��ดลอกวาง ${roomName} (${targetCol}) จาก [${oldVal || 'ว่าง'}] เป็น [${cleanVal}]`);
+          let targetCol = null;
+          if (activeCol === 'elec') {
+            targetCol = cIdx === 0 ? 'elec' : (cIdx === 1 ? 'water' : (cIdx === 2 ? 'fine' : null));
+          } else if (activeCol === 'water') {
+            targetCol = cIdx === 0 ? 'water' : (cIdx === 1 ? 'fine' : null);
+          } else if (activeCol === 'fine') {
+            targetCol = cIdx === 0 ? 'fine' : null;
+          }
+
+          if (!targetCol) return;
+          const selector = targetCol === 'elec' ? '.elec-input' : (targetCol === 'water' ? '.water-input' : '.fine-input');
+          const input = tr.querySelector(selector);
+
+          if (input) {
+            const cleanVal = val.replace(/[^0-9.]/g, '');
+            if (cleanVal !== '') {
+              const oldVal = input.value;
+              input.value = cleanVal;
+              pushUndo(roomId, targetCol, oldVal, cleanVal);
+              addHistory(`คัดลอกวาง ${roomName} (${targetCol}) จาก [${oldVal || 'ว่าง'}] เป็น [${cleanVal}]`);
             }
           }
         });
@@ -5584,7 +5592,7 @@ class App {
       }
     }
 
-    const saveUrlBtn = document.getElementById('btn-save-sheets-url');
+    const saveUrlBtn = document.getElementById('btn-save-supabase-url');
     if (saveUrlBtn) {
       saveUrlBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -5606,7 +5614,7 @@ class App {
       });
     }
 
-    const syncSheetsBtn = document.getElementById('btn-sync-to-sheets');
+    const syncSheetsBtn = document.getElementById('btn-sync-to-supabase');
     if (syncSheetsBtn) {
       syncSheetsBtn.addEventListener('click', async () => {
         const url = DBService.getSavedSupabaseUrl();
@@ -5631,16 +5639,16 @@ class App {
     const copyLinkBtn = document.getElementById('btn-copy-shared-link');
     if (copyLinkBtn) {
       copyLinkBtn.addEventListener('click', () => {
-        const url = this.state.settings.googleSheetUrl || DBService.getSavedSheetUrl();
+        const url = this.state.settings.supabaseUrl || DBService.getSavedSupabaseUrl();
         if (!url) {
-          alert('กรุณาใส่ Google Sheets Web App URL ก่อนกดคัดลอกลิงก์แชร์');
+          alert('กรุณาใส่ Supabase Project URL ก่อนกดคัดลอกลิงก์แชร์');
           return;
         }
-        const sharedUrl = `${window.location.origin}${window.location.pathname}?sheetUrl=${encodeURIComponent(url)}`;
+        const sharedUrl = `${window.location.origin}${window.location.pathname}?supabaseUrl=${encodeURIComponent(url)}`;
         navigator.clipboard.writeText(sharedUrl).then(() => {
-          alert(`🔗 คัดลอกลิงก์เชื่อมต่อฐานข้อมูลชีตสำเร็จแล้ว!\n\n${sharedUrl}\n\nคุณสามารถส่งลิงก์นี้ให้คอมพิวเตอร์ หรือ มือถือเครื่องอื่นเปิดใช้งาน เพื่อดึงและซิงค์ข้อมูลจาก Google Sheets เดียวกันได้ทันที โดยข้อมูลไม่หายแม้ล้างแคช!`);
+          alert(`🔗 คัดลอกลิงก์เชื่อมต่อฐานข้อมูล Supabase สำเร็จแล้ว!\n\n${sharedUrl}\n\nคุณสามารถส่งลิงก์นี้ให้คอมพิวเตอร์ หรือ มือถือเครื่องอื่นเปิดใช้งาน เพื่อดึงและซิงค์ข้อมูลจาก Supabase โปรเจกต์เดียวกันได้ทันที โดยข้อมูลไม่หายแม้ล้างแคช!`);
         }).catch(() => {
-          prompt('คัดลอกลิงก์เชื่อมต่อฐานข้อมูลชีตด้านล่างนี้:', sharedUrl);
+          prompt('คัดลอกลิงก์เชื่อมต่อฐานข้อมูล Supabase ด้านล่างนี้:', sharedUrl);
         });
       });
     }

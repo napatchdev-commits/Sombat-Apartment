@@ -111,19 +111,21 @@ class TenantDBService {
     return rooms;
   }
 
-  static getSavedSheetUrl() {
-    const fromParam = new URLSearchParams(window.location.search).get('sheetUrl');
+  static getSavedSupabaseUrl() {
+    const fromParam = new URLSearchParams(window.location.search).get('supabaseUrl') || new URLSearchParams(window.location.search).get('sheetUrl');
     if (fromParam) {
       const cleaned = this.cleanUrl(fromParam);
       if (!cleaned.includes('script.google.com') && !cleaned.includes('macros') && !cleaned.includes('google.com')) {
-        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
+        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', cleaned);
         return cleaned;
       }
     }
-    const saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    const saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL') || localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (saved && (saved.includes('script.google.com') || saved.includes('macros') || saved.includes('google.com'))) {
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     } else if (saved) {
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(saved));
+      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       return this.cleanUrl(saved);
     }
     return 'https://bdeowpdjgiombqatdilh.supabase.co';
@@ -226,7 +228,7 @@ class TenantDBService {
   }
 
   static async getPublicState() {
-    const url = this.getSavedSheetUrl();
+    const url = this.getSavedSupabaseUrl();
     const apiKey = this.getSavedTenantApiKey();
     const baseUrl = this.getBaseSupabaseUrl(url);
     
@@ -253,7 +255,7 @@ class TenantDBService {
   }
 
   static async fetchTenantBill(idCard, roomId) {
-    const url = this.getSavedSheetUrl();
+    const url = this.getSavedSupabaseUrl();
     const apiKey = this.getSavedTenantApiKey();
     const baseUrl = this.getBaseSupabaseUrl(url);
 
@@ -274,7 +276,7 @@ class TenantDBService {
   }
 
   static async submitPayment(paymentData) {
-    const url = this.getSavedSheetUrl();
+    const url = this.getSavedSupabaseUrl();
     const apiKey = this.getSavedTenantApiKey();
     const baseUrl = this.getBaseSupabaseUrl(url);
 
@@ -347,7 +349,7 @@ class MyBillsApp {
 
 
   static async init() {
-    TenantDBService.getSavedSheetUrl();
+    TenantDBService.getSavedSupabaseUrl();
     TenantDBService.getSavedTenantApiKey();
 
     // Auto-detect and apply system dark mode
@@ -438,8 +440,8 @@ class MyBillsApp {
     const apartmentName = (this.state.settings && this.state.settings.apartmentName) || 'หอพักสมบัติ นนทบุรี';
     const rooms = this.state.rooms || [];
 
-    const hasSheetUrl = !!localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || !!(new URLSearchParams(window.location.search).get('sheetUrl'));
-    const warningBanner = hasSheetUrl ? '' : `
+    const hasSupabaseUrl = !!localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL') || !!localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || !!(new URLSearchParams(window.location.search).get('supabaseUrl')) || !!(new URLSearchParams(window.location.search).get('sheetUrl'));
+    const warningBanner = hasSupabaseUrl ? '' : `
       <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:0.85rem; font-size:0.82rem; color:#b45309; text-align:center; margin-bottom:1.25rem; line-height:1.5;">
         ⚠️ <strong>ระบบยังไม่ได้เชื่อมต่อกับ Supabase</strong><br>
         คุณกำลังดู <u>ข้อมูลตัวอย่าง (Demo/Mock)</u> กรุณาเข้าใช้งานผ่านลิงก์เชื่อมต่อฐานข้อมูลคลาวด์ที่ส่งจากระบบแอดมิน
@@ -1451,7 +1453,7 @@ class MyBillsApp {
             analysisLoader.innerHTML = `
               <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
               <div style="font-weight:700; font-size:1.1rem; margin-bottom:0.25rem;">กำลังส่งหลักฐานสลิป...</div>
-              <div style="font-size:0.85rem; color:#cbd5e1;">ระบบกำลังจัดเก็บภาพสลิปลง Google Drive</div>
+              <div style="font-size:0.85rem; color:#cbd5e1;">ระบบกำลังจัดเก็บภาพสลิปลง Supabase Storage</div>
               <style>
                 @keyframes spin { to { transform: rotate(360deg); } }
               </style>
