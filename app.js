@@ -880,7 +880,7 @@ class SidebarComponent {
       { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'reports', label: 'ระบบรายงาน', icon: 'fa-chart-line', roles: ['super_admin', 'admin'] },
       { id: 'rates', label: 'ตั้งค่าเรท & ค่าบริการ', icon: 'fa-sliders', roles: ['super_admin', 'admin'] },
-      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & Google Sheets', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
+      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & Supabase', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
     ];
   }
 
@@ -912,8 +912,8 @@ class SidebarComponent {
         </nav>
 
         <div class="sidebar-footer">
-          <p><i class="fa-solid fa-cloud text-success"></i> Real-time Google Sheets Active</p>
-          <span class="version">v3.5 Enterprise Edition</span>
+          <p><i class="fa-solid fa-cloud text-success"></i> Real-time Supabase Active</p>
+          <span class="version">v4.0 Enterprise Edition</span>
         </div>
       </aside>
     `;
@@ -1775,13 +1775,13 @@ class SettingsComponent {
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
-          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Google Sheets</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท) ตั้งค่าระบบ LINE Bot และบันทึกข้อมูลซิงค์คลาวด์ Google Sheets</p></div>
+          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Supabase</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท) ตั้งค่าระบบ LINE Bot และบันทึกข้อมูลซิงค์ฐานข้อมูลคลาวด์ Supabase</p></div>
         </div>
 
         <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot & LINE Notify (บันทึกลงชีต แก้ไขได้ทุกเครื่อง 100%)</h3>
+          <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot & LINE Notify (บันทึกข้อมูลแบบเรียลไทม์)</h3>
           <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-            ระบุ Token เพื่อส่งบิล ใบเสร็จ และแจ้งเตือนชำระเงินอัตโนมัติไปยัง LINE กลุ่มผู้บริหาร/ผู้เช่า (ซิงค์ลง Google Sheets ใช้งานตรงกันทุกเครื่อง)
+            ระบุ Token เพื่อส่งบิล ใบเสร็จ และแจ้งเตือนชำระเงินอัตโนมัติไปยัง LINE กลุ่มผู้บริหาร/ผู้เช่า (ซิงค์ลง Supabase ใช้งานตรงกันทุกเครื่อง)
           </p>
           
           <form id="line-bot-settings-form" style="margin-top:1rem;">
