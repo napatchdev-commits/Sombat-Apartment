@@ -1295,4 +1295,67 @@ body.dark select.form-control option {
     }
 }
 
+/* Excel Spreadsheet Grid Styling */
+.excel-grid-table {
+    margin: 0;
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+}
+.excel-grid-table th, .excel-grid-table td {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    font-size: 0.88rem;
+    vertical-align: middle;
+}
+.excel-grid-table th {
+    background: #f1f5f9;
+    font-weight: 700;
+    color: #475569;
+}
+body.dark .excel-grid-table th {
+    background: #1e293b;
+    color: #cbd5e1;
+}
+
+.excel-input {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 0.35rem 0.5rem;
+    text-align: right;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: inherit;
+    border-radius: 4px;
+    outline: none;
+    transition: all 0.15s;
+}
+.excel-input:hover {
+    border-color: #cbd5e1;
+    background: #ffffff;
+}
+.excel-input:focus {
+    border-color: var(--primary);
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+.excel-input-error {
+    border-color: var(--danger) !important;
+    background-color: #fef2f2 !important;
+    color: var(--danger) !important;
+}
+body.dark .excel-input:focus {
+    background-color: #0d1527;
+}
+body.dark .excel-input:hover {
+    border-color: #475569;
+    background-color: #1e293b;
+}
+body.dark .excel-input-error {
+    background-color: #2d1e1f !important;
+    color: #f87171 !important;
+}
+
 

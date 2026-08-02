@@ -900,6 +900,7 @@ class SidebarComponent {
       { id: 'tenants', label: 'ข้อมูลผู้เช่า', icon: 'fa-user', colorClass: 'nav-icon-blue', roles: ['super_admin', 'admin'] },
       { id: 'rooms', label: 'ข้อมูลห้องเช่า', icon: 'fa-hotel', colorClass: 'nav-icon-cyan', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'roomtypes', label: 'ประเภทห้องเช่า', icon: 'fa-layer-group', colorClass: 'nav-icon-pink', roles: ['super_admin', 'admin'] },
+      { id: 'meter-entry', label: 'ตารางกรอกมิเตอร์', icon: 'fa-table-cells', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'repairs', label: 'ระบบแจ้งซ่อม', icon: 'fa-screwdriver-wrench', colorClass: 'nav-icon-purple', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', colorClass: 'nav-icon-slate', roles: ['super_admin', 'admin'] },
@@ -1909,6 +1910,175 @@ class SettingsComponent {
   }
 }
 
+class MeterEntryComponent {
+  static render(state) {
+    const rawInvoices = state.invoices || [];
+    const rooms = [...state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+
+    const getRoomPrevMeters = (room) => {
+      if (!room) return { elecPrev: 0, waterPrev: 0 };
+      let elecPrev = room.lastElecMeter;
+      let waterPrev = room.lastWaterMeter;
+      if (elecPrev === undefined || waterPrev === undefined || elecPrev === null || waterPrev === null) {
+        const roomInvoices = rawInvoices.filter(i => i.roomId === room.id);
+        if (roomInvoices.length > 0) {
+          elecPrev = roomInvoices[0].elecCurr || 0;
+          waterPrev = roomInvoices[0].waterCurr || 0;
+        } else {
+          elecPrev = 0;
+          waterPrev = 0;
+        }
+      }
+      return { elecPrev, waterPrev };
+    };
+
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+    const getNextMonth05 = (monthStr) => {
+      if (!monthStr) return "";
+      const [year, month] = monthStr.split('-').map(Number);
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear++;
+      }
+      const nextMonthFormatted = String(nextMonth).padStart(2, '0');
+      return `${nextYear}-${nextMonthFormatted}-05`;
+    };
+    const defaultDueDate = getNextMonth05(currentMonthStr);
+
+    if (!state.tempMeterReadings) state.tempMeterReadings = [];
+
+    const renderRows = () => {
+      return rooms.map((r, index) => {
+        const prev = getRoomPrevMeters(r);
+        const temp = state.tempMeterReadings.find(t => t.roomId === r.id) || {};
+        const elecCurr = temp.elecCurr !== undefined && temp.elecCurr !== null ? temp.elecCurr : '';
+        const waterCurr = temp.waterCurr !== undefined && temp.waterCurr !== null ? temp.waterCurr : '';
+        const fineAmount = temp.fineAmount !== undefined && temp.fineAmount !== null ? temp.fineAmount : 0;
+        
+        const elecUnits = elecCurr === '' ? 0 : Math.max(0, parseFloat(elecCurr) - prev.elecPrev);
+        const waterUnits = waterCurr === '' ? 0 : Math.max(0, parseFloat(waterCurr) - prev.waterPrev);
+        const elecAmt = elecUnits * (state.rates.electricityRate || 8);
+        const waterAmt = waterUnits * (state.rates.waterRate || 20);
+        const rentAmt = r.baseRent ? Number(r.baseRent) : 2500;
+        const trashFee = (state.rates && state.rates.trashFee !== undefined) ? Number(state.rates.trashFee) : 20;
+        const total = rentAmt + elecAmt + waterAmt + trashFee + parseFloat(fineAmount);
+
+        const isElecError = elecCurr !== '' && parseFloat(elecCurr) < prev.elecPrev;
+        const isWaterError = waterCurr !== '' && parseFloat(waterCurr) < prev.waterPrev;
+
+        return `
+          <tr data-room-id="${r.id}" data-index="${index}">
+            <td style="font-weight:700; text-align:center; background:#f8fafc; color:#334155; position:sticky; left:0; z-index:10; border-right:2px solid var(--border-color);">ห้อง ${r.name}</td>
+            <td style="font-size:0.82rem; color:#475569;">${r.currentTenantName || '<span class="text-muted">(ห้องว่าง)</span>'}</td>
+            <td style="text-align:right; font-weight:600; color:#64748b; background:#f8fafc;">${prev.elecPrev}</td>
+            <td>
+              <input type="number" 
+                class="excel-input elec-input ${isElecError ? 'excel-input-error' : ''}" 
+                data-room-id="${r.id}" 
+                data-col="elec"
+                value="${elecCurr}" 
+                placeholder="กรอกเลข...">
+            </td>
+            <td class="elec-usage-cell" style="text-align:right; font-weight:600; color:#0f766e;">${elecCurr === '' ? '-' : elecUnits}</td>
+            <td style="text-align:right; font-weight:600; color:#64748b; background:#f8fafc;">${prev.waterPrev}</td>
+            <td>
+              <input type="number" 
+                class="excel-input water-input ${isWaterError ? 'excel-input-error' : ''}" 
+                data-room-id="${r.id}" 
+                data-col="water"
+                value="${waterCurr}" 
+                placeholder="กรอกเลข...">
+            </td>
+            <td class="water-usage-cell" style="text-align:right; font-weight:600; color:#1d4ed8;">${waterCurr === '' ? '-' : waterUnits}</td>
+            <td>
+              <input type="number" 
+                class="excel-input fine-input" 
+                data-room-id="${r.id}" 
+                data-col="fine"
+                value="${fineAmount}" 
+                placeholder="0">
+            </td>
+            <td class="total-cell" style="text-align:right; font-weight:800; color:var(--primary); background:#f0f7ff;">
+              ฿${total.toLocaleString()}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    };
+
+    return `
+      <div class="view-container animate-fade-in">
+        <div class="view-header" style="flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h2><i class="fa-solid fa-table-cells text-primary"></i> ตารางกรอกมิเตอร์ (Spreadsheet Input Grid)</h2>
+            <p>กรอกเลขจดมิเตอร์น้ำไฟประจำเดือนสะดวกรวดเร็วแบบ Excel บันทึกข้อมูลคลาวด์อัตโนมัติ</p>
+          </div>
+          <div class="header-actions" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <span id="excel-sync-indicator" style="font-size:0.85rem; color:#10b981; font-weight:600; display:none;">
+              <i class="fa-solid fa-circle-check"></i> บันทึกอัตโนมัติเรียบร้อย
+            </span>
+            <button class="btn btn-secondary" id="btn-excel-undo" title="ย้อนกลับการแก้ไข (Ctrl+Z)" disabled>
+              <i class="fa-solid fa-arrow-rotate-left"></i> ย้อนกลับ (Undo)
+            </button>
+            <button class="btn btn-primary" id="btn-excel-save-all"><i class="fa-solid fa-save"></i> บันทึกข้อมูลทั้งหมด</button>
+          </div>
+        </div>
+
+        <div class="glass-card" style="padding:1.25rem;">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1rem;">
+            <div class="form-group">
+              <label style="font-weight:700; font-size:0.88rem; color:#475569; display:block; margin-bottom:0.35rem;">รอบเดือนจดมิเตอร์ *</label>
+              <input type="month" id="excel-bill-month" class="form-control" value="${currentMonthStr}" required>
+            </div>
+            <div class="form-group">
+              <label style="font-weight:700; font-size:0.88rem; color:#475569; display:block; margin-bottom:0.35rem;">กำหนดชำระบิล *</label>
+              <input type="date" id="excel-due-date" class="form-control" value="${defaultDueDate}" required>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; background:#f8fafc; padding:0.65rem 1rem; border-radius:8px; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">
+            <span>
+              💡 <b>คำแนะนำ</b>: กด <b>Enter</b> หรือ <b>ลูกศรขึ้น/ลง</b> เพื่อย้ายแถว, กด <b>Tab</b> เพื่อสลับช่อง และสามารถคัดลอกค่าน้ำไฟจาก <b>Excel / Google Sheets</b> แล้วกด <b>Ctrl+V</b> วางลงในตารางได้โดยตรง!
+            </span>
+          </div>
+
+          <div class="table-responsive" style="max-height: 55vh; overflow: auto; border: 1px solid #cbd5e1; border-radius: 8px;">
+            <table class="excel-grid-table" style="margin:0; width:100%; border-collapse:collapse; min-width:900px;">
+              <thead style="position: sticky; top: 0; z-index: 100; background:#f1f5f9;">
+                <tr>
+                  <th style="width:100px; text-align:center; position:sticky; left:0; z-index:11; background:#f1f5f9; border-right:2px solid var(--border-color);">ห้อง</th>
+                  <th style="width:140px;">ผู้เช่า</th>
+                  <th style="width:100px; text-align:right;">ไฟครั้งก่อน</th>
+                  <th style="width:120px;">ไฟครั้งนี้</th>
+                  <th style="width:100px; text-align:right;">หน่วยใช้ไป</th>
+                  <th style="width:100px; text-align:right;">น้ำครั้งก่อน</th>
+                  <th style="width:120px;">น้ำครั้งนี้</th>
+                  <th style="width:100px; text-align:right;">หน่วยใช้ไป</th>
+                  <th style="width:110px;">ค่าปรับ/อื่นๆ</th>
+                  <th style="width:130px; text-align:right;">คำนวณยอดรวม</th>
+                </tr>
+              </thead>
+              <tbody id="excel-grid-body">
+                ${renderRows()}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- History Panel -->
+          <div style="margin-top:0.75rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.65rem 1rem;">
+            <h4 style="font-size:0.82rem; color:#334155; margin-bottom:0.35rem; display:flex; align-items:center; gap:0.25rem;"><i class="fa-solid fa-clock-rotate-left"></i> ประวัติการแก้ไขล่าสุดในหน้านี้:</h4>
+            <div id="excel-history-log" style="max-height:80px; overflow-y:auto; font-size:0.78rem; color:#64748b; line-height:1.45;">
+              <span style="font-style:italic;">ยังไม่มีประวัติการแก้ไขในเซสชันนี้</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
 /* ==========================================================================
    5. MAIN APPLICATION CONTROLLER
    ========================================================================== */
@@ -2133,6 +2303,7 @@ class App {
       case 'tenants': workspace.innerHTML = TenantsComponent.render(this.state); this.bindTenantsEvents(); break;
       case 'rooms': workspace.innerHTML = RoomsComponent.render(this.state); this.bindRoomsEvents(); break;
       case 'roomtypes': workspace.innerHTML = RoomTypesComponent.render(this.state); this.bindRoomTypesEvents(); break;
+      case 'meter-entry': workspace.innerHTML = MeterEntryComponent.render(this.state); this.bindMeterEntryEvents(); break;
       case 'billing': workspace.innerHTML = BillingComponent.render(this.state); this.bindBillingEvents(); break;
       case 'repairs': workspace.innerHTML = RepairsComponent.render(this.state); this.bindRepairsEvents(); break;
       case 'accounting': workspace.innerHTML = AccountingComponent.render(this.state); this.bindAccountingEvents(); break;
@@ -3094,6 +3265,349 @@ class App {
       this.state.tenants.splice(idx, 1);
       DBService.saveState(this.state);
       this.switchTab('tenants');
+    }
+  }
+
+  // --- 2.5 METER ENTRY GRID EVENTS ---
+  static bindMeterEntryEvents() {
+    const rawInvoices = this.state.invoices || [];
+    const rooms = [...this.state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+
+    const getRoomPrevMeters = (room) => {
+      if (!room) return { elecPrev: 0, waterPrev: 0 };
+      let elecPrev = room.lastElecMeter;
+      let waterPrev = room.lastWaterMeter;
+      if (elecPrev === undefined || waterPrev === undefined || elecPrev === null || waterPrev === null) {
+        const roomInvoices = rawInvoices.filter(i => i.roomId === room.id);
+        if (roomInvoices.length > 0) {
+          elecPrev = roomInvoices[0].elecCurr || 0;
+          waterPrev = roomInvoices[0].waterCurr || 0;
+        } else {
+          elecPrev = 0;
+          waterPrev = 0;
+        }
+      }
+      return { elecPrev, waterPrev };
+    };
+
+    const prevReadings = {};
+    rooms.forEach(r => {
+      prevReadings[r.id] = getRoomPrevMeters(r);
+    });
+
+    const getNextMonth05 = (monthStr) => {
+      if (!monthStr) return "";
+      const [year, month] = monthStr.split('-').map(Number);
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear++;
+      }
+      const nextMonthFormatted = String(nextMonth).padStart(2, '0');
+      return `${nextYear}-${nextMonthFormatted}-05`;
+    };
+
+    const undoStack = [];
+    const editHistory = [];
+
+    const calculateRowTotal = (roomId, elecCurr, waterCurr, fineAmount) => {
+      const room = this.state.rooms.find(r => r.id === roomId);
+      if (!room) return 0;
+      const prev = prevReadings[roomId];
+      const elecPrev = prev.elecPrev;
+      const waterPrev = prev.waterPrev;
+      
+      const elecUnits = Math.max(0, (parseFloat(elecCurr) || 0) - elecPrev);
+      const waterUnits = Math.max(0, (parseFloat(waterCurr) || 0) - waterPrev);
+      const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
+      const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
+      const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 2500;
+      const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
+      const fineAmt = parseFloat(fineAmount) || 0;
+      return rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
+    };
+
+    const gridBody = document.getElementById('excel-grid-body');
+    const monthInput = document.getElementById('excel-bill-month');
+    const dueDateInput = document.getElementById('excel-due-date');
+    const undoBtn = document.getElementById('btn-excel-undo');
+    const historyLog = document.getElementById('excel-history-log');
+    const indicator = document.getElementById('excel-sync-indicator');
+
+    if (monthInput && dueDateInput) {
+      monthInput.addEventListener('change', (e) => {
+        dueDateInput.value = getNextMonth05(e.target.value);
+        saveTempReadingsToState();
+      });
+      dueDateInput.addEventListener('change', () => {
+        saveTempReadingsToState();
+      });
+    }
+
+    const pushUndo = (roomId, col, oldVal, newVal) => {
+      undoStack.push({ roomId, col, oldVal, newVal });
+      if (undoBtn) undoBtn.disabled = false;
+    };
+
+    const addHistory = (logText) => {
+      editHistory.unshift(`[${new Date().toLocaleTimeString()}] ${logText}`);
+      if (historyLog) historyLog.innerHTML = editHistory.map(h => `<div>${h}</div>`).join('');
+    };
+
+    const updateRowLive = (tr) => {
+      const roomId = tr.getAttribute('data-room-id');
+      const prev = prevReadings[roomId];
+      
+      const elecInput = tr.querySelector('.elec-input');
+      const waterInput = tr.querySelector('.water-input');
+      const fineInput = tr.querySelector('.fine-input');
+
+      const elecCurr = elecInput.value;
+      const waterCurr = waterInput.value;
+      const fineVal = fineInput.value;
+
+      if (elecCurr !== '' && parseFloat(elecCurr) < prev.elecPrev) {
+        elecInput.classList.add('excel-input-error');
+      } else {
+        elecInput.classList.remove('excel-input-error');
+      }
+
+      if (waterCurr !== '' && parseFloat(waterCurr) < prev.waterPrev) {
+        waterInput.classList.add('excel-input-error');
+      } else {
+        waterInput.classList.remove('excel-input-error');
+      }
+
+      const elecUsageCell = tr.querySelector('.elec-usage-cell');
+      const waterUsageCell = tr.querySelector('.water-usage-cell');
+      const totalCell = tr.querySelector('.total-cell');
+
+      const elecUnits = elecCurr === '' ? 0 : Math.max(0, parseFloat(elecCurr) - prev.elecPrev);
+      const waterUnits = waterCurr === '' ? 0 : Math.max(0, parseFloat(waterCurr) - prev.waterPrev);
+
+      elecUsageCell.textContent = elecCurr === '' ? '-' : elecUnits;
+      waterUsageCell.textContent = waterCurr === '' ? '-' : waterUnits;
+
+      const total = calculateRowTotal(roomId, elecCurr, waterCurr, fineVal);
+      totalCell.textContent = `฿${total.toLocaleString()}`;
+    };
+
+    let autoSaveTimeout = null;
+    const saveTempReadingsToState = () => {
+      if (!gridBody) return;
+      const temp = [];
+      const trs = gridBody.querySelectorAll('tr');
+      trs.forEach(tr => {
+        const roomId = tr.getAttribute('data-room-id');
+        const room = this.state.rooms.find(r => r.id === roomId);
+        const elecCurr = tr.querySelector('.elec-input').value;
+        const waterCurr = tr.querySelector('.water-input').value;
+        const fineAmount = tr.querySelector('.fine-input').value;
+        
+        temp.push({
+          roomId,
+          roomName: room ? room.name : '',
+          elecCurr: elecCurr === '' ? null : parseFloat(elecCurr),
+          waterCurr: waterCurr === '' ? null : parseFloat(waterCurr),
+          fineAmount: parseFloat(fineAmount) || 0,
+          monthKey: monthInput ? monthInput.value : new Date().toISOString().slice(0, 7)
+        });
+      });
+
+      this.state.tempMeterReadings = temp;
+
+      if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+      autoSaveTimeout = setTimeout(() => {
+        DBService.saveState(this.state).then(() => {
+          if (indicator) {
+            indicator.style.display = 'inline-block';
+            setTimeout(() => {
+              indicator.style.display = 'none';
+            }, 2000);
+          }
+        });
+      }, 1500);
+    };
+
+    if (gridBody) {
+      gridBody.addEventListener('focusin', (e) => {
+        if (e.target.classList.contains('excel-input')) {
+          e.target.select();
+        }
+      });
+
+      gridBody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('excel-input')) {
+          const input = e.target;
+          const tr = input.closest('tr');
+          const roomId = tr.getAttribute('data-room-id');
+          const roomName = tr.querySelector('td').textContent;
+          const col = input.getAttribute('data-col');
+          const newVal = input.value;
+          
+          if (!this.state.tempMeterReadings) this.state.tempMeterReadings = [];
+          const temp = this.state.tempMeterReadings.find(t => t.roomId === roomId) || {};
+          const oldVal = col === 'elec' ? temp.elecCurr : (col === 'water' ? temp.waterCurr : temp.fineAmount);
+          
+          pushUndo(roomId, col, oldVal, newVal);
+          
+          const colLabel = col === 'elec' ? 'เลขไฟ' : (col === 'water' ? 'เลขน้ำ' : 'ค่าปรับ');
+          addHistory(`แก้ไข ${roomName} (${colLabel}) จาก [${oldVal ?? 'ว่าง'}] เป็น [${newVal}]`);
+          
+          saveTempReadingsToState();
+        }
+      });
+
+      gridBody.addEventListener('input', (e) => {
+        if (e.target.classList.contains('excel-input')) {
+          updateRowLive(e.target.closest('tr'));
+        }
+      });
+
+      gridBody.addEventListener('keydown', (e) => {
+        if (!e.target.classList.contains('excel-input')) return;
+        
+        const input = e.target;
+        const col = input.getAttribute('data-col');
+        const tr = input.closest('tr');
+        const index = parseInt(tr.getAttribute('data-index'));
+        const colClass = col === 'elec' ? '.elec-input' : (col === 'water' ? '.water-input' : '.fine-input');
+
+        let targetTr = null;
+        let targetInput = null;
+
+        if (e.key === 'Enter' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          targetTr = gridBody.querySelector(`tr[data-index="${index + 1}"]`);
+          if (targetTr) targetInput = targetTr.querySelector(colClass);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          targetTr = gridBody.querySelector(`tr[data-index="${index - 1}"]`);
+          if (targetTr) targetInput = targetTr.querySelector(colClass);
+        } else if (e.key === 'ArrowRight' && input.selectionEnd === input.value.length) {
+          const nextCol = col === 'elec' ? '.water-input' : (col === 'water' ? '.fine-input' : null);
+          if (nextCol) targetInput = tr.querySelector(nextCol);
+        } else if (e.key === 'ArrowLeft' && input.selectionStart === 0) {
+          const prevCol = col === 'fine' ? '.water-input' : (col === 'water' ? '.elec-input' : null);
+          if (prevCol) targetInput = tr.querySelector(prevCol);
+        }
+
+        if (targetInput) {
+          targetInput.focus();
+          targetInput.select();
+        }
+      });
+
+      gridBody.addEventListener('paste', (e) => {
+        if (!e.target.classList.contains('excel-input')) return;
+        e.preventDefault();
+        
+        const clipboardData = e.clipboardData || window.clipboardData;
+        const pastedText = clipboardData.getData('text');
+        if (!pastedText) return;
+
+        const activeInput = e.target;
+        const activeCol = activeInput.getAttribute('data-col');
+        const activeTr = activeInput.closest('tr');
+        const startIndex = parseInt(activeTr.getAttribute('data-index'));
+
+        const pasteRows = pastedText.split(/\r?\n/).map(row => row.split('\t'));
+        
+        pasteRows.forEach((rowData, rIdx) => {
+          if (rowData.length === 1 && rowData[0] === "") return;
+          const targetIndex = startIndex + rIdx;
+          const tr = gridBody.querySelector(`tr[data-index="${targetIndex}"]`);
+          if (!tr) return;
+
+          const roomId = tr.getAttribute('data-room-id');
+          const roomName = tr.querySelector('td').textContent;
+
+          rowData.forEach((val, cIdx) => {
+            let targetCol = null;
+            if (activeCol === 'elec') {
+              targetCol = cIdx === 0 ? 'elec' : (cIdx === 1 ? 'water' : (cIdx === 2 ? 'fine' : null));
+            } else if (activeCol === 'water') {
+              targetCol = cIdx === 0 ? 'water' : (cIdx === 1 ? 'fine' : null);
+            } else if (activeCol === 'fine') {
+              targetCol = cIdx === 0 ? 'fine' : null;
+            }
+
+            if (!targetCol) return;
+            const selector = targetCol === 'elec' ? '.elec-input' : (targetCol === 'water' ? '.water-input' : '.fine-input');
+            const input = tr.querySelector(selector);
+            
+            if (input) {
+              const cleanVal = val.replace(/[^0-9.]/g, '');
+              if (cleanVal !== '') {
+                const oldVal = input.value;
+                input.value = cleanVal;
+                pushUndo(roomId, targetCol, oldVal, cleanVal);
+                addHistory(`คัดลอกวาง ${roomName} (${targetCol}) จาก [${oldVal || 'ว่าง'}] เป็น [${cleanVal}]`);
+              }
+            }
+          });
+          updateRowLive(tr);
+        });
+
+        saveTempReadingsToState();
+        alert('📋 วางข้อมูลจาก Excel เรียบร้อยแล้ว!');
+      });
+    }
+
+    if (undoBtn) {
+      undoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (undoStack.length === 0) return;
+        
+        const lastAction = undoStack.pop();
+        const tr = gridBody.querySelector(`tr[data-room-id="${lastAction.roomId}"]`);
+        if (tr) {
+          const selector = lastAction.col === 'elec' ? '.elec-input' : (lastAction.col === 'water' ? '.water-input' : '.fine-input');
+          const input = tr.querySelector(selector);
+          if (input) {
+            input.value = lastAction.oldVal ?? '';
+            updateRowLive(tr);
+            const roomName = tr.querySelector('td').textContent;
+            addHistory(`Undo ย้อนกลับ ${roomName} จาก [${lastAction.newVal}] กลับเป็น [${lastAction.oldVal ?? 'ว่าง'}]`);
+            saveTempReadingsToState();
+          }
+        }
+        if (undoStack.length === 0) undoBtn.disabled = true;
+      });
+    }
+
+    const handleCtrlZ = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        const focused = document.activeElement;
+        if (focused && focused.classList.contains('excel-input')) {
+          e.preventDefault();
+          if (undoBtn) undoBtn.click();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleCtrlZ);
+
+    // Save all button
+    const saveAllBtn = document.getElementById('btn-excel-save-all');
+    if (saveAllBtn) {
+      saveAllBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        saveAllBtn.disabled = true;
+        saveAllBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...';
+        
+        try {
+          saveTempReadingsToState();
+          await DBService.saveState(this.state);
+          alert('✅ บันทึกข้อมูลค่าน้ำไฟล่าสุดลงคลาวด์เรียบร้อยแล้ว!');
+        } catch (err) {
+          alert('❌ เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + err.message);
+        } finally {
+          saveAllBtn.disabled = false;
+          saveAllBtn.innerHTML = '<i class="fa-solid fa-save"></i> บันทึกข้อมูลทั้งหมด';
+        }
+      });
     }
   }
 
