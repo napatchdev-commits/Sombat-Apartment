@@ -629,7 +629,7 @@ class DBService {
       syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
       syncLoader.innerHTML = `
         <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
-        <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังบันทึกข้อมูลไปยัง Google Sheets...</div>
+        <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังบันทึกข้อมูลไปยัง Supabase...</div>
         <div style="font-size:0.88rem; color:#cbd5e1;">กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูล</div>
         <style>
           @keyframes spin { to { transform: rotate(360deg); } }
@@ -640,7 +640,8 @@ class DBService {
       try {
         await this.syncToGoogleSheets(url, state);
       } catch (e) {
-        console.error("Failed to sync to Google Sheets, state will be saved to local cache:", e);
+        console.error("Failed to sync to Supabase, state will be saved to local cache:", e);
+        alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Supabase: ' + e.message + '\n\n(ข้อมูลถูกบันทึกในอุปกรณ์เครื่องนี้แล้ว แต่ไม่สามารถอัปโหลดไปยังเซิร์ฟเวอร์ Supabase ได้ กรุณาตรวจสอบ URL หรือ Anon Key ในหน้าตั้งค่า)');
       } finally {
         syncLoader.remove();
       }
@@ -708,7 +709,7 @@ class DBService {
     localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', url);
     
     const baseUrl = this.getBaseSupabaseUrl(url);
-    const response = await fetch(`${baseUrl}/rest/v1/apartment_state`, {
+    const response = await fetch(`${baseUrl}/rest/v1/apartment_state?on_conflict=id`, {
       method: 'POST',
       headers: {
         'apikey': apiKey,
@@ -3917,90 +3918,71 @@ class App {
         syncLoader.innerHTML = `
           <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#d97706; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
           <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังสร้างแฟ้มสำรองข้อมูลและล้างบิลเก่า...</div>
-          <div style="font-size:0.88rem; color:#cbd5e1;">ระบบกำลังเขียนข้อมูลไปยัง Google Sheets และอัปเดตระบบ</div>
+          <div style="font-size:0.88rem; color:#cbd5e1;">ระบบกำลังเขียนข้อมูลไปยัง Supabase และอัปเดตระบบ</div>
           <style>
             @keyframes spin { to { transform: rotate(360deg); } }
           </style>
         `;
         document.body.appendChild(syncLoader);
 
-        const url = DBService.getSavedSheetUrl();
         try {
-          // Send request to Apps Script Web App to archive in Google Sheets
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'archiveInvoices',
-              monthKey: selectedMonth,
-              invoices: targetInvoices,
-              apiKey: (this.state.settings && this.state.settings.apiKey) || DBService.getSavedApiKey()
-            }),
-            redirect: 'follow'
-          });
-          const result = await response.json();
+          // Generate and trigger local CSV download
+          const headers = [
+            "เลขที่บิล", "รอบเดือน", "ห้องพัก", "ชื่อผู้เช่า", "วันที่ออกบิล", "กำหนดชำระ",
+            "ไฟครั้งก่อน", "ไฟครั้งนี้", "หน่วยที่ใช้ (ไฟ)", "ค่าไฟฟ้า",
+            "น้ำครั้งก่อน", "น้ำครั้งนี้", "หน่วยที่ใช้ (น้ำ)", "ค่าน้ำประปา",
+            "ค่าเช่าห้อง", "ค่าขยะ", "ค่าใช้จ่ายอื่น", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ"
+          ];
           
-          if (result && result.status === 'success') {
-            // Generate and trigger local CSV download
-            const headers = [
-              "เลขที่บิล", "รอบเดือน", "ห้องพัก", "ชื่อผู้เช่า", "วันที่ออกบิล", "กำหนดชำระ",
-              "ไฟครั้งก่อน", "ไฟครั้งนี้", "หน่วยที่ใช้ (ไฟ)", "ค่าไฟฟ้า",
-              "น้ำครั้งก่อน", "น้ำครั้งนี้", "หน่วยที่ใช้ (น้ำ)", "ค่าน้ำประปา",
-              "ค่าเช่าห้อง", "ค่าขยะ", "ค่าใช้จ่ายอื่น", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ"
-            ];
-            
-            const rows = targetInvoices.map(inv => {
-              const statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : 'ค้างชำระ';
-              const elecUnits = (inv.elecCurr || 0) - (inv.elecPrev || 0);
-              const waterUnits = (inv.waterCurr || 0) - (inv.waterPrev || 0);
-              let otherAmt = 0;
-              if (inv.customFees && Array.isArray(inv.customFees)) {
-                otherAmt = inv.customFees.reduce((sum, f) => sum + (f.amount || 0), 0);
-              }
-              return [
-                inv.invoiceNumber || "",
-                inv.monthKey || "",
-                inv.roomName || "",
-                inv.tenantName || "",
-                inv.issueDate || "",
-                inv.dueDate || "",
-                inv.elecPrev || 0,
-                inv.elecCurr || 0,
-                elecUnits >= 0 ? elecUnits : 0,
-                inv.elecAmount || 0,
-                inv.waterPrev || 0,
-                inv.waterCurr || 0,
-                waterUnits >= 0 ? waterUnits : 0,
-                inv.waterAmount || 0,
-                inv.rentAmount || 0,
-                inv.trashFee !== undefined ? inv.trashFee : 20,
-                otherAmt,
-                inv.totalAmount || 0,
-                statusStr
-              ];
-            });
-            
-            try {
-              ExportService.exportToCSV(`สำรองบิล_${selectedMonth}.csv`, headers, rows);
-            } catch (csvErr) {
-              console.error("Local CSV download failed:", csvErr);
+          const rows = targetInvoices.map(inv => {
+            const statusStr = (inv.status === 'paid') ? 'ชำระแล้ว' : 'ค้างชำระ';
+            const elecUnits = (inv.elecCurr || 0) - (inv.elecPrev || 0);
+            const waterUnits = (inv.waterCurr || 0) - (inv.waterPrev || 0);
+            let otherAmt = 0;
+            if (inv.customFees && Array.isArray(inv.customFees)) {
+              otherAmt = inv.customFees.reduce((sum, f) => sum + (f.amount || 0), 0);
             }
-
-            // Delete invoices from active state client-side
-            this.state.invoices = this.state.invoices.filter(i => i.monthKey !== selectedMonth);
-            
-            // Save state, which syncs the clean invoices database state to DB_STATE and active sheet
-            await DBService.saveState(this.state);
-            
-            alert(`📦 สำรองบิลรอบเดือน ${Formatters.thaiMonthBE(selectedMonth)} สำเร็จ!\n\n1. ดาวน์โหลดเป็นไฟล์ Excel (.csv) ลงเครื่องเรียบร้อย\n2. สำรองประวัติลงแท็บใหม่ใน Google Sheets เรียบร้อย\n3. ลบรายการออกจากระบบบิลหลักเรียบร้อยครับ`);
-            modal.classList.remove('active');
-            this.switchTab('billing');
-          } else {
-            alert('เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ' + (result.message || 'ไม่ทราบสาเหตุ'));
+            return [
+              inv.invoiceNumber || "",
+              inv.monthKey || "",
+              inv.roomName || "",
+              inv.tenantName || "",
+              inv.issueDate || "",
+              inv.dueDate || "",
+              inv.elecPrev || 0,
+              inv.elecCurr || 0,
+              elecUnits >= 0 ? elecUnits : 0,
+              inv.elecAmount || 0,
+              inv.waterPrev || 0,
+              inv.waterCurr || 0,
+              waterUnits >= 0 ? waterUnits : 0,
+              inv.waterAmount || 0,
+              inv.rentAmount || 0,
+              inv.trashFee !== undefined ? inv.trashFee : 20,
+              otherAmt,
+              inv.totalAmount || 0,
+              statusStr
+            ];
+          });
+          
+          try {
+            ExportService.exportToCSV(`สำรองบิล_${selectedMonth}.csv`, headers, rows);
+          } catch (csvErr) {
+            console.error("Local CSV download failed:", csvErr);
           }
+
+          // Delete invoices from active state client-side
+          this.state.invoices = this.state.invoices.filter(i => i.monthKey !== selectedMonth);
+          
+          // Save state, which syncs the clean invoices database state to Supabase
+          await DBService.saveState(this.state);
+          
+          alert(`📦 สำรองบิลรอบเดือน ${Formatters.thaiMonthBE(selectedMonth)} สำเร็จ!\n\n1. ดาวน์โหลดเป็นไฟล์ Excel (.csv) ลงเครื่องเรียบร้อย\n2. บันทึกข้อมูลและล้างบิลเก่าออกจากระบบ Supabase เรียบร้อยครับ`);
+          modal.classList.remove('active');
+          this.switchTab('billing');
         } catch (err) {
           console.error("Archive request failed:", err);
-          alert("❌ ไม่สามารถเชื่อมต่อกับ Google Sheets ได้ กรุณาลองใหม่อีกครั้ง: " + err.message);
+          alert("❌ ไม่สามารถบันทึกข้อมูลสำรองได้: " + err.message);
         } finally {
           syncLoader.remove();
         }

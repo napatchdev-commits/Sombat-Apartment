@@ -433,8 +433,8 @@ class MyBillsApp {
     const hasSheetUrl = !!localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL') || !!(new URLSearchParams(window.location.search).get('sheetUrl'));
     const warningBanner = hasSheetUrl ? '' : `
       <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:0.85rem; font-size:0.82rem; color:#b45309; text-align:center; margin-bottom:1.25rem; line-height:1.5;">
-        ⚠️ <strong>ระบบยังไม่ได้เชื่อมต่อกับ Google Sheets</strong><br>
-        คุณกำลังดู <u>ข้อมูลตัวอย่าง (Demo/Mock)</u> กรุณาเข้าใช้งานผ่านลิงก์ที่แอดมินส่งให้ทาง LINE
+        ⚠️ <strong>ระบบยังไม่ได้เชื่อมต่อกับ Supabase</strong><br>
+        คุณกำลังดู <u>ข้อมูลตัวอย่าง (Demo/Mock)</u> กรุณาเข้าใช้งานผ่านลิงก์เชื่อมต่อฐานข้อมูลคลาวด์ที่ส่งจากระบบแอดมิน
       </div>
     `;
 
