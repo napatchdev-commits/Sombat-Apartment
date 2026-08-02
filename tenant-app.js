@@ -115,21 +115,29 @@ class TenantDBService {
     const fromParam = new URLSearchParams(window.location.search).get('sheetUrl');
     if (fromParam) {
       const cleaned = this.cleanUrl(fromParam);
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
-      return cleaned;
+      if (!cleaned.includes('script.google.com') && !cleaned.includes('macros') && !cleaned.includes('google.com')) {
+        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
+        return cleaned;
+      }
     }
     const saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (saved) return this.cleanUrl(saved);
+    if (saved && (saved.includes('script.google.com') || saved.includes('macros') || saved.includes('google.com'))) {
+      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    } else if (saved) {
+      return this.cleanUrl(saved);
+    }
     return 'https://bdeowpdjgiombqatdilh.supabase.co';
   }
 
   static getSavedTenantApiKey() {
     const fromParam = new URLSearchParams(window.location.search).get('apiKey');
-    if (fromParam) {
+    if (fromParam && fromParam.startsWith('eyJ')) {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY', fromParam);
       return fromParam;
     }
-    return localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
+    const saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY');
+    if (saved && saved.startsWith('eyJ')) return saved;
+    return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
   }
 
   static cleanUrl(url) {

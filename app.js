@@ -505,7 +505,7 @@ class DBService {
         const parsed = JSON.parse(rawState);
         if (parsed.settings && parsed.settings.googleSheetUrl) {
           const url = parsed.settings.googleSheetUrl;
-          if (url.includes('AKfycbww') || url.includes('AKfycbz_') || url.includes('AKfycbxj')) {
+          if (url.includes('script.google.com') || url.includes('macros') || url.includes('google.com')) {
             delete parsed.settings.googleSheetUrl;
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(parsed));
           } else {
@@ -514,16 +514,25 @@ class DBService {
         }
       } catch (e) {}
     }
-    if (fromState) return fromState;
+    
     const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
-    if (fromStorage) return this.cleanUrl(fromStorage);
+    if (fromStorage && (fromStorage.includes('script.google.com') || fromStorage.includes('macros') || fromStorage.includes('google.com'))) {
+      localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    } else if (fromStorage && !fromState) {
+      fromState = this.cleanUrl(fromStorage);
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const fromParam = urlParams.get('sheetUrl');
     if (fromParam) {
       const cleaned = this.cleanUrl(fromParam);
-      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
-      return cleaned;
+      if (!cleaned.includes('script.google.com') && !cleaned.includes('macros') && !cleaned.includes('google.com')) {
+        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SHEET_URL', cleaned);
+        return cleaned;
+      }
     }
+    
+    if (fromState) return fromState;
     return 'https://bdeowpdjgiombqatdilh.supabase.co';
   }
 
@@ -532,14 +541,16 @@ class DBService {
     if (rawState) {
       try {
         const parsed = JSON.parse(rawState);
-        if (parsed.settings && parsed.settings.apiKey) return parsed.settings.apiKey;
+        if (parsed.settings && parsed.settings.apiKey && parsed.settings.apiKey.startsWith('eyJ')) {
+          return parsed.settings.apiKey;
+        }
       } catch (e) {}
     }
     const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_API_KEY');
-    if (fromStorage) return fromStorage;
+    if (fromStorage && fromStorage.startsWith('eyJ')) return fromStorage;
     const urlParams = new URLSearchParams(window.location.search);
     const fromParam = urlParams.get('apiKey');
-    if (fromParam) {
+    if (fromParam && fromParam.startsWith('eyJ')) {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_API_KEY', fromParam);
       return fromParam;
     }
@@ -552,10 +563,14 @@ class DBService {
     if (rawState) {
       try {
         const parsed = JSON.parse(rawState);
-        if (parsed.settings && parsed.settings.tenantApiKey) return parsed.settings.tenantApiKey;
+        if (parsed.settings && parsed.settings.tenantApiKey && parsed.settings.tenantApiKey.startsWith('eyJ')) {
+          return parsed.settings.tenantApiKey;
+        }
       } catch (e) {}
     }
-    return localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
+    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY');
+    if (fromStorage && fromStorage.startsWith('eyJ')) return fromStorage;
+    return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
   }
 
   static getState() {
@@ -1853,6 +1868,12 @@ class SettingsComponent {
             <button class="btn btn-primary" id="btn-save-sheets-url"><i class="fa-solid fa-save"></i> บันทึกการตั้งค่า</button>
             <button class="btn btn-success" id="btn-sync-to-sheets"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ข้อมูลลง Supabase ตอนนี้</button>
             <button class="btn btn-secondary" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> คัดลอกลิงก์แชร์เชื่อมต่อทุกเครื่อง</button>
+          </div>
+          
+          <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid rgba(220,38,38,0.15);">
+            <h4 style="color:#dc2626; font-size:0.95rem; font-weight:600; display:flex; align-items:center; gap:0.4rem; margin-bottom:0.25rem;"><i class="fa-solid fa-triangle-exclamation"></i> เขตอันตราย (Danger Zone)</h4>
+            <p class="text-muted" style="font-size:0.8rem; margin:0;">หากคุณต้องการลบข้อมูลประวัติ สัญญาเช่า ผู้เช่า และยอดค้างชำระทั้งหมด เพื่อเริ่มต้นกรอกข้อมูลของจริงใหม่</p>
+            <button class="btn btn-danger" id="btn-danger-reset-all" style="margin-top:0.75rem; background:#dc2626; border-color:#dc2626; font-size:0.85rem; padding:0.5rem 1rem; color:#fff; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-trash-can"></i> ล้างข้อมูลและรีเซ็ตระบบทั้งหมด</button>
           </div>
         </div>
 
@@ -5141,6 +5162,97 @@ class App {
         }).catch(() => {
           prompt('คัดลอกลิงก์เชื่อมต่อฐานข้อมูลชีตด้านล่างนี้:', sharedUrl);
         });
+      });
+    }
+
+    const resetBtn = document.getElementById('btn-danger-reset-all');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', async () => {
+        if (!confirm('⚠️ คำเตือน: คุณต้องการล้างข้อมูลผู้เช่า บิล สัญญาเช่า และประวัติทั้งหมดในระบบใช่หรือไม่? (การกระทำนี้ไม่สามารถย้อนกลับได้)')) {
+          return;
+        }
+        if (!confirm('กดยืนยันอีกครั้งเพื่อเริ่มลบข้อมูลจริงออกจากฐานข้อมูล Supabase คลาวด์')) {
+          return;
+        }
+        
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังรีเซ็ตระบบ...';
+        
+        try {
+          const cleanState = {
+            rooms: [
+              {"id": "room_1_1", "name": "S101", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_1_2", "name": "S102", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_1_3", "name": "S103", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_1_4", "name": "S104", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_1_5", "name": "S105", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_1_6", "name": "S106", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_1_7", "name": "S107", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_1_8", "name": "S108", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_1", "name": "S201", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_2", "name": "S202", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_3", "name": "S203", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_4", "name": "S204", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_5", "name": "S205", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_6", "name": "S206", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_7", "name": "S207", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_2_8", "name": "S208", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_1", "name": "S301", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_2", "name": "S302", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_3", "name": "S303", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_4", "name": "S304", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_5", "name": "S305", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_6", "name": "S306", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_7", "name": "S307", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
+              {"id": "room_3_8", "name": "S308", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""}
+            ],
+            tenants: [],
+            invoices: [],
+            repairs: [],
+            ledger: [],
+            events: [],
+            users: this.state.users || [
+              { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+              { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+              { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' }
+            ],
+            roomTypes: [
+              { id: 'rt_fan', name: 'ห้องพัดลมธรรมดา', baseRent: 2000 },
+              { id: 'rt_air', name: 'ห้องแอร์ประหยัดไฟ', baseRent: 2500 }
+            ],
+            rates: {
+              waterRate: 20,
+              electricityRate: 8,
+              commonFee: 100,
+              trashFee: 20,
+              internetFee: 200
+            },
+            settings: this.state.settings || {
+              theme: 'light',
+              lineToken: '',
+              lineUserId: '',
+              apartmentName: 'หอพักสมบัติ นนทบุรี',
+              promptPayBank: 'ธนาคารไทยพาณิชย์',
+              promptPayId: '062-6252564',
+              promptPayName: 'สมบัติ น้ำวน',
+              lineNotifyToken: ''
+            }
+          };
+
+          const url = DBService.getSavedSheetUrl();
+          if (url) {
+            await DBService.syncToGoogleSheets(url, cleanState);
+          }
+          
+          localStorage.setItem(DBService.STORAGE_KEY, JSON.stringify(cleanState));
+          alert('✅ ล้างข้อมูลและรีเซ็ตระบบสำเร็จเรียบร้อยแล้ว!');
+          window.location.reload();
+        } catch (err) {
+          alert('❌ เกิดข้อผิดพลาดในการรีเซ็ตฐานข้อมูล: ' + err.message);
+        } finally {
+          resetBtn.disabled = false;
+          resetBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> ล้างข้อมูลและรีเซ็ตระบบทั้งหมด';
+        }
       });
     }
 
