@@ -880,18 +880,18 @@ class NavbarComponent {
 class SidebarComponent {
   static getMenuItems() {
     return [
-      { id: 'dashboard', label: 'หน้าหลัก (Dashboard)', icon: 'fa-chart-pie', roles: ['super_admin', 'admin', 'staff'] },
-      { id: 'contracts', label: 'จัดการสัญญาเช่า', icon: 'fa-file-contract', roles: ['super_admin', 'admin'] },
-      { id: 'tenants', label: 'ข้อมูลผู้เช่า', icon: 'fa-users', roles: ['super_admin', 'admin'] },
-      { id: 'rooms', label: 'ข้อมูลห้องเช่า', icon: 'fa-building-user', roles: ['super_admin', 'admin', 'staff'] },
-      { id: 'roomtypes', label: 'ประเภทห้องเช่า', icon: 'fa-layer-group', roles: ['super_admin', 'admin'] },
-      { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', roles: ['super_admin', 'admin', 'staff'] },
-      { id: 'repairs', label: 'ระบบแจ้งซ่อม', icon: 'fa-screwdriver-wrench', roles: ['super_admin', 'admin', 'staff'] },
-      { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', roles: ['super_admin', 'admin'] },
-      { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', roles: ['super_admin', 'admin', 'staff'] },
-      { id: 'reports', label: 'ระบบรายงาน', icon: 'fa-chart-line', roles: ['super_admin', 'admin'] },
-      { id: 'rates', label: 'ตั้งค่าเรท & ค่าบริการ', icon: 'fa-sliders', roles: ['super_admin', 'admin'] },
-      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & Supabase', icon: 'fa-gears', roles: ['super_admin', 'admin'] },
+      { id: 'dashboard', label: 'หน้าหลัก (Dashboard)', icon: 'fa-chart-pie', colorClass: 'nav-icon-blue', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'contracts', label: 'จัดการสัญญาเช่า', icon: 'fa-file-signature', colorClass: 'nav-icon-purple', roles: ['super_admin', 'admin'] },
+      { id: 'tenants', label: 'ข้อมูลผู้เช่า', icon: 'fa-user', colorClass: 'nav-icon-blue', roles: ['super_admin', 'admin'] },
+      { id: 'rooms', label: 'ข้อมูลห้องเช่า', icon: 'fa-hotel', colorClass: 'nav-icon-cyan', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'roomtypes', label: 'ประเภทห้องเช่า', icon: 'fa-layer-group', colorClass: 'nav-icon-pink', roles: ['super_admin', 'admin'] },
+      { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'repairs', label: 'ระบบแจ้งซ่อม', icon: 'fa-screwdriver-wrench', colorClass: 'nav-icon-purple', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', colorClass: 'nav-icon-slate', roles: ['super_admin', 'admin'] },
+      { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', colorClass: 'nav-icon-rose', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'reports', label: 'ระบบรายงาน', icon: 'fa-chart-line', colorClass: 'nav-icon-cyan', roles: ['super_admin', 'admin'] },
+      { id: 'rates', label: 'ตั้งค่าเรท & ค่าบริการ', icon: 'fa-sliders', colorClass: 'nav-icon-slate', roles: ['super_admin', 'admin'] },
+      { id: 'settings', label: 'ตั้งค่าเซิร์ฟเวอร์ & Supabase', icon: 'fa-gears', colorClass: 'nav-icon-red', roles: ['super_admin', 'admin'] },
     ];
   }
 
@@ -915,7 +915,10 @@ class SidebarComponent {
             ${items.map(item => `
               <li class="${activeTabId === item.id ? 'active' : ''}">
                 <a href="#${item.id}" data-tab="${item.id}">
-                  <i class="fa-solid ${item.icon} nav-icon"></i> <span>${item.label}</span>
+                  <span class="nav-icon-wrapper ${item.colorClass || 'nav-icon-slate'}">
+                    <i class="fa-solid ${item.icon}"></i>
+                  </span>
+                  <span>${item.label}</span>
                 </a>
               </li>
             `).join('')}
