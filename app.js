@@ -2788,28 +2788,29 @@ class SettingsComponent {
 
             <!-- 3. LINE Bot & Notify Settings -->
             <div class="glass-card">
-              <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot & LINE Notify</h3>
+              <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot (Messaging API)</h3>
               <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-                ระบุ Token เพื่อส่งบิล และแจ้งเตือนชำระเงินอัตโนมัติไปยัง LINE กลุ่มผู้บริหาร/ผู้เช่า
+                ระบุข้อมูลเพื่อส่งบิลและรับการแจ้งเตือนยอดชำระเงินอัตโนมัติเข้ากลุ่ม LINE หรือบัญชีส่วนตัวของแอดมิน
               </p>
               
               <form id="line-bot-settings-form" style="margin-top:0.85rem;">
                 <div class="form-group" style="margin-bottom:0.75rem;">
                   <label style="font-size:0.85rem; font-weight:600;"><i class="fa-brands fa-line text-success"></i> LINE Channel Access Token:</label>
-                  <input type="text" id="setting-line-token" class="form-control" value="${settings.lineToken || ''}" placeholder="ระบุ Token..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+                  <input type="text" id="setting-line-token" class="form-control" value="${settings.lineToken || ''}" placeholder="ระบุ Channel Access Token..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
                 </div>
                 <div class="form-group" style="margin-bottom:0.75rem;">
-                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-solid fa-user-tag text-primary"></i> LINE User ID / Group ID:</label>
-                  <input type="text" id="setting-line-userid" class="form-control" value="${settings.lineUserId || ''}" placeholder="U123456... หรือ Group ID..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-solid fa-user-tag text-primary"></i> LINE User ID หรือ Group ID แอดมิน *:</label>
+                  <input type="text" id="setting-line-userid" class="form-control" value="${settings.lineUserId || ''}" placeholder="ระบุ User ID (U...) หรือ Group ID (C...) เพื่อรับแจ้งเตือนสลิป" style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+                  <span class="text-muted" style="font-size:0.78rem; display:block; margin-top:0.15rem;">👉 ทิป: พิมพ์ <strong>"ไอดี"</strong> คุยกับบอทในไลน์เพื่อเช็ค ID ของคุณหรือของกลุ่มได้ทันที</span>
                 </div>
                 <div class="form-group" style="margin-bottom:0.85rem;">
-                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-solid fa-bell text-warning"></i> LINE Notify Token:</label>
-                  <input type="text" id="setting-line-notify-token" class="form-control" value="${settings.lineNotifyToken || ''}" placeholder="ระบุ Notify Token..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+                  <label style="font-size:0.85rem; font-weight:600; text-decoration: line-through; opacity:0.6;"><i class="fa-solid fa-bell text-warning"></i> LINE Notify Token (ปิดบริการแล้ว):</label>
+                  <input type="text" id="setting-line-notify-token" class="form-control" value="${settings.lineNotifyToken || ''}" placeholder="LINE Notify ปิดบริการแล้วในปัจจุบัน" style="padding:0.5rem 0.75rem; font-size:0.88rem; opacity:0.5;" disabled>
                 </div>
 
                 <div style="display:flex; gap:0.5rem;">
                   <button type="submit" class="btn btn-success btn-sm" style="flex:1;"><i class="fa-solid fa-floppy-disk"></i> บันทึก LINE Settings</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ทดสอบส่ง</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ส่งแจ้งเตือนทดสอบ</button>
                 </div>
               </form>
             </div>
@@ -8090,9 +8091,53 @@ class App {
 
     const testLineBtn = document.getElementById('btn-test-line-send');
     if (testLineBtn) {
-      testLineBtn.addEventListener('click', () => {
-        const token = (this.state.settings && (this.state.settings.lineToken || this.state.settings.lineNotifyToken)) || '';
-        alert(`📱 ทดสอบส่งข้อความ LINE Bot & Notify:\n\n📢 [หอพักสมบัติ นนทบุรี] ทดสอบการเชื่อมต่อระบบ LINE Bot อัตโนมัติเรียบร้อยแล้ว!\n\n(Token: ${token ? 'ระบุไว้แล้ว' : 'ยังไม่ได้ระบุ'})`);
+      testLineBtn.addEventListener('click', async () => {
+        const token = (this.state.settings && this.state.settings.lineToken) || '';
+        const userId = (this.state.settings && this.state.settings.lineUserId) || '';
+        const supabaseUrl = (this.state.settings && this.state.settings.supabaseUrl) || DBService.getSavedSupabaseUrl();
+
+        if (!token || !userId) {
+          return alert('⚠️ กรุณากรอก LINE Channel Access Token และ LINE User ID / Group ID ก่อนกดทดสอบครับ');
+        }
+
+        if (!supabaseUrl) {
+          return alert('⚠️ กรุณากรอกและบันทึก Supabase Project URL ก่อน เพื่อเรียกใช้งาน Edge Function ครับ');
+        }
+
+        testLineBtn.disabled = true;
+        const originalHTML = testLineBtn.innerHTML;
+        testLineBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่ง...`;
+
+        try {
+          const baseUrl = DBService.getBaseSupabaseUrl(supabaseUrl);
+          const apiKey = (this.state.settings && this.state.settings.apiKey) || DBService.getSavedApiKey();
+          const response = await fetch(`${baseUrl}/functions/v1/line-notify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              action: 'notifyAdminNewSlip',
+              roomName: 'ห้องทดสอบ (Test Room)',
+              tenantName: 'ผู้เช่าทดสอบ (Test Tenant)',
+              amount: 9999
+            })
+          });
+
+          const res = await response.json();
+          if (res.status === 'success') {
+            alert('✅ ทดสอบส่งข้อความสำเร็จ! ข้อความแจ้งเตือนถูกส่งเข้า LINE ของคุณแล้ว');
+          } else {
+            alert(`⚠️ ส่งข้อความล้มเหลว:\n\n${res.message || 'กรุณาตรวจสอบการตั้งค่า'}`);
+          }
+        } catch (err) {
+          alert(`⚠️ ไม่สามารถส่งข้อความทดสอบได้:\n${err.toString()}`);
+        } finally {
+          testLineBtn.disabled = false;
+          testLineBtn.innerHTML = originalHTML;
+        }
       });
     }
 
