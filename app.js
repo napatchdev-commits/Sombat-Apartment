@@ -899,7 +899,8 @@ class DBService {
         table: 'tenants', onConflict: 'id',
         fields: [['id','id'],['name','name'],['idCard','id_card'],['tel','tel'],['lineId','line_id'],['email','email'],
                  ['address','address'],['startDate','start_date'],['endDate','end_date'],['assignedRoomId','assigned_room_id'],
-                 ['depositAmount','deposit_amount'],['depositStatus','deposit_status']]
+                 ['depositAmount','deposit_amount'],['depositStatus','deposit_status'],
+                 ['witness1','witness1'],['witness2','witness2']]
       },
       invoices: {
         table: 'invoices', onConflict: 'room_id,month_key',
@@ -1968,6 +1969,9 @@ class ContractsComponent {
                       <div class="action-buttons">
                         <button class="btn btn-secondary btn-xs btn-print-contract-pdf" data-tenant-id="${c.tenantId}" title="พิมพ์สัญญา PDF">
                           <i class="fa-solid fa-print text-warning"></i> พิมพ์สัญญา (หน้า-หลัง)
+                        </button>
+                        <button class="btn btn-secondary btn-xs btn-edit-contract" data-tenant-id="${c.tenantId}" title="แก้ไขรายละเอียดสัญญา & พยาน">
+                          <i class="fa-solid fa-pen-to-square text-info"></i> แก้ไขสัญญา
                         </button>
                       </div>
                     </td>
@@ -8423,7 +8427,17 @@ class App {
       btn.addEventListener('click', (e) => {
         const tenantId = e.currentTarget.getAttribute('data-tenant-id') || e.currentTarget.getAttribute('data-id');
         const tenant = this.state.tenants.find(t => t.id === tenantId);
-        if (tenant) this.openOfficialContractModal(tenant);
+        if (tenant) {
+          this.openOfficialContractModal(tenant, tenant.witness1 || '', tenant.witness2 || '');
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-edit-contract').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tenantId = e.currentTarget.getAttribute('data-tenant-id');
+        const tenant = this.state.tenants.find(t => t.id === tenantId);
+        if (tenant) this.openCreateNewContractModal(tenant);
       });
     });
 
@@ -8437,17 +8451,22 @@ class App {
     }
   }
 
-  static openCreateNewContractModal() {
+  static openCreateNewContractModal(tenantToEdit = null) {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
 
+    const isEdit = !!tenantToEdit;
+    const defaultRent = tenantToEdit ? (this.state.rooms.find(r => r.id === tenantToEdit.assignedRoomId)?.baseRent || 3500) : 3500;
+    const defaultDeposit = tenantToEdit ? (tenantToEdit.depositAmount || tenantToEdit.deposit?.initialBail || 7000) : 7000;
+
     dialog.innerHTML = `
       <div class="modal-header">
-        <h3><i class="fa-solid fa-file-circle-plus text-primary"></i> ออกหนังสือสัญญาเช่าห้องพักใหม่</h3>
+        <h3><i class="fa-solid ${isEdit ? 'fa-file-signature text-info' : 'fa-file-circle-plus text-primary'}"></i> ${isEdit ? 'แก้ไขข้อมูลหนังสือสัญญาเช่าห้องพัก' : 'ออกหนังสือสัญญาเช่าห้องพักใหม่'}</h3>
         <button class="close-modal-btn">&times;</button>
       </div>
       <div class="modal-body">
         <form id="create-contract-form">
+          ${!isEdit ? `
           <div class="form-group">
             <label>เลือกผู้เช่าหลัก *</label>
             <select id="ctr-tenant-select" class="form-control" required>
@@ -8455,71 +8474,79 @@ class App {
               ${this.state.tenants.map(t => `<option value="${t.id}">${t.name} (บัตร: ${t.idCard})</option>`).join('')}
             </select>
           </div>
+          ` : `
+          <div style="background:#eff6ff; padding:0.75rem; border-radius:8px; margin-bottom:1rem; border:1px solid #bfdbfe; font-weight:700; color:#1e40af;">
+            <i class="fa-solid fa-user-pen"></i> กำลังแก้ไขสัญญาเช่าสำหรับผู้เช่าหลัก: ${tenantToEdit.name}
+            <input type="hidden" id="ctr-tenant-select" value="${tenantToEdit.id}">
+          </div>
+          `}
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
               <label>ชื่อ-นามสกุล ผู้เช่า *</label>
-              <input type="text" id="ctr-tenant-name" class="form-control" placeholder="น.ส.กันญา บัวแดง" required>
+              <input type="text" id="ctr-tenant-name" class="form-control" placeholder="น.ส.กันญา บัวแดง" value="${isEdit ? tenantToEdit.name : ''}" required>
             </div>
             <div class="form-group">
               <label>เลขบัตรประชาชน (13 หลัก) *</label>
-              <input type="text" id="ctr-idcard" class="form-control" placeholder="3451200115491" required>
+              <input type="text" id="ctr-idcard" class="form-control" placeholder="3451200115491" value="${isEdit ? tenantToEdit.idCard : ''}" required>
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
               <label>เบอร์โทรศัพท์ *</label>
-              <input type="text" id="ctr-tel" class="form-control" placeholder="081-2345678" required>
+              <input type="text" id="ctr-tel" class="form-control" placeholder="081-2345678" value="${isEdit ? tenantToEdit.tel : ''}" required>
             </div>
             <div class="form-group">
               <label>เลือกห้องเช่า / บ้าน *</label>
               <select id="ctr-room-select" class="form-control" required>
-                ${this.state.rooms.map(r => `<option value="${r.id}">ห้อง ${r.name}</option>`).join('')}
+                ${this.state.rooms.map(r => `
+                  <option value="${r.id}" ${(isEdit && tenantToEdit.assignedRoomId === r.id) ? 'selected' : ''}>ห้อง ${r.name}</option>
+                `).join('')}
               </select>
             </div>
           </div>
 
           <div class="form-group">
             <label>ที่อยู่ตามภูมิลำเนาของผู้เช่า:</label>
-            <input type="text" id="ctr-address" class="form-control" placeholder="12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี">
+            <input type="text" id="ctr-address" class="form-control" placeholder="12/4 หมู่ 3 ต.บางบัวทอง อ.บางบัวทอง จ.นนทบุรี" value="${isEdit ? (tenantToEdit.address || '') : ''}">
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
               <label>วันเริ่มสัญญา (วัน/เดือน/ปี พ.ศ.) *</label>
-              <input type="text" id="ctr-start-date" class="form-control" value="${Formatters.thaiDate(new Date().toISOString().slice(0,10))}" placeholder="21/07/2569" required>
+              <input type="text" id="ctr-start-date" class="form-control" value="${isEdit ? tenantToEdit.startDate : Formatters.thaiDate(new Date().toISOString().slice(0,10))}" placeholder="21/07/2569" required>
             </div>
             <div class="form-group">
               <label>วันสิ้นสุดสัญญา (วัน/เดือน/ปี พ.ศ.) *</label>
-              <input type="text" id="ctr-end-date" class="form-control" value="31/07/2570" placeholder="31/07/2570" required>
+              <input type="text" id="ctr-end-date" class="form-control" value="${isEdit ? tenantToEdit.endDate : '31/07/2570'}" placeholder="31/07/2570" required>
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
               <label>ค่าเช่ารายเดือน (บาท) *</label>
-              <input type="number" id="ctr-rent-amt" class="form-control" value="3500" required>
+              <input type="number" id="ctr-rent-amt" class="form-control" value="${defaultRent}" required>
             </div>
             <div class="form-group">
               <label>เงินประกันมัดจำ (บาท) *</label>
-              <input type="number" id="ctr-deposit-amt" class="form-control" value="7000" required>
+              <input type="number" id="ctr-deposit-amt" class="form-control" value="${defaultDeposit}" required>
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
               <label>ชื่อพยาน 1 (ถ้ามี):</label>
-              <input type="text" id="ctr-witness1" class="form-control" placeholder="เว้นว่างไว้เพื่อเว้นจุดไข่ปลา">
+              <input type="text" id="ctr-witness1" class="form-control" placeholder="เว้นว่างไว้เพื่อเว้นจุดไข่ปลา" value="${isEdit ? (tenantToEdit.witness1 || '') : ''}">
             </div>
             <div class="form-group">
               <label>ชื่อพยาน 2 (ถ้ามี):</label>
-              <input type="text" id="ctr-witness2" class="form-control" placeholder="เว้นว่างไว้เพื่อเว้นจุดไข่ปลา">
+              <input type="text" id="ctr-witness2" class="form-control" placeholder="เว้นว่างไว้เพื่อเว้นจุดไข่ปลา" value="${isEdit ? (tenantToEdit.witness2 || '') : ''}">
             </div>
           </div>
 
           <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;">
-            <i class="fa-solid fa-file-contract"></i> ออกสัญญาและดูพรีวิวสัญญา (PDF)
+            <i class="fa-solid fa-save"></i> ${isEdit ? 'บันทึกการแก้ไขสัญญาเช่า & ดูพรีวิว (PDF)' : 'ออกสัญญาและดูพรีวิวสัญญา (PDF)'}
           </button>
         </form>
       </div>
@@ -8534,21 +8561,23 @@ class App {
     const telInput = document.getElementById('ctr-tel');
     const addressInput = document.getElementById('ctr-address');
 
-    tenantSelect.addEventListener('change', () => {
-      const selected = this.state.tenants.find(t => t.id === tenantSelect.value);
-      if (selected) {
-        nameInput.value = selected.name;
-        idCardInput.value = selected.idCard;
-        telInput.value = selected.tel;
-        addressInput.value = selected.address || '';
-      }
-    });
+    if (!isEdit && tenantSelect) {
+      tenantSelect.addEventListener('change', () => {
+        const selected = this.state.tenants.find(t => t.id === tenantSelect.value);
+        if (selected) {
+          nameInput.value = selected.name;
+          idCardInput.value = selected.idCard;
+          telInput.value = selected.tel;
+          addressInput.value = selected.address || '';
+        }
+      });
+    }
 
     // Automatically pull room rent and calculate deposit when a room is selected
     const roomSelect = document.getElementById('ctr-room-select');
     const rentInput = document.getElementById('ctr-rent-amt');
     const depositInput = document.getElementById('ctr-deposit-amt');
-    if (roomSelect && rentInput && depositInput) {
+    if (roomSelect && rentInput && depositInput && !isEdit) {
       const updateRentAndDeposit = () => {
         const room = this.state.rooms.find(r => r.id === roomSelect.value);
         if (room) {
@@ -8564,7 +8593,7 @@ class App {
 
     document.getElementById('create-contract-form').addEventListener('submit', (e) => {
       e.preventDefault();
-      const tenantId = tenantSelect.value;
+      const tenantId = tenantSelect ? tenantSelect.value : (tenantToEdit ? tenantToEdit.id : '');
       let tenant = this.state.tenants.find(t => t.id === tenantId);
       const name = nameInput.value;
       const idCard = idCardInput.value;
@@ -8590,6 +8619,8 @@ class App {
         tenant.depositStatus = tenant.depositStatus || 'active';
         if (!tenant.deposit) tenant.deposit = { deductions: [], status: 'active' };
         tenant.deposit.initialBail = bail;
+        tenant.witness1 = witness1;
+        tenant.witness2 = witness2;
       } else {
         tenant = {
           id: 't_' + Date.now(),
@@ -8597,7 +8628,8 @@ class App {
           depositAmount: bail,
           depositStatus: 'active',
           deposit: { initialBail: bail, deductions: [], status: 'active' },
-          documents: []
+          documents: [],
+          witness1, witness2
         };
         this.state.tenants.push(tenant);
       }
@@ -8612,6 +8644,7 @@ class App {
 
       DBService.saveState(this.state);
       modal.classList.remove('active');
+      this.switchTab('contracts');
       this.openOfficialContractModal(tenant, witness1, witness2);
     });
   }
