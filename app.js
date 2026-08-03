@@ -6188,6 +6188,11 @@ class App {
             </div>
           </div>
 
+          <!-- Visual Calculation Summary Box -->
+          <div style="margin-top:1.25rem; padding:1.25rem; background:linear-gradient(135deg, #eff6ff, #f8fafc); border:1px solid #bfdbfe; border-radius:12px;" id="edit-inv-calc-summary">
+            <!-- Populated dynamically via JS -->
+          </div>
+
           <button type="submit" class="btn btn-primary btn-full" style="margin-top:1.25rem;">
             <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไขใบแจ้งหนี้ลง Supabase
           </button>
@@ -6197,6 +6202,87 @@ class App {
 
     modal.classList.add('active');
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    const updateCalcSummary = () => {
+      const elecPrev = parseFloat(document.getElementById('edit-elec-prev').value) || 0;
+      const elecCurr = parseFloat(document.getElementById('edit-elec-curr').value) || 0;
+      const waterPrev = parseFloat(document.getElementById('edit-water-prev').value) || 0;
+      const waterCurr = parseFloat(document.getElementById('edit-water-curr').value) || 0;
+      const rentAmount = parseFloat(document.getElementById('edit-inv-rent').value) || 0;
+      const trashVal = document.getElementById('edit-inv-trash').value;
+      const trashFee = trashVal !== "" ? parseFloat(trashVal) : 20;
+      const fineAmount = parseFloat(document.getElementById('edit-inv-fine').value) || 0;
+
+      const elecRate = this.state.rates ? (this.state.rates.electricityRate || 8) : 8;
+      const waterRate = this.state.rates ? (this.state.rates.waterRate || 20) : 20;
+
+      const elecUnits = Math.max(0, elecCurr - elecPrev);
+      const waterUnits = Math.max(0, waterCurr - waterPrev);
+      const elecAmount = elecUnits * elecRate;
+      const waterAmount = waterUnits * waterRate;
+      const internetFee = Number(inv.internetFee || 0);
+      const commonFee = Number(inv.commonFee || 0);
+      const totalAmount = rentAmount + elecAmount + waterAmount + trashFee + fineAmount + internetFee + commonFee;
+
+      const summaryDiv = document.getElementById('edit-inv-calc-summary');
+      if (summaryDiv) {
+        summaryDiv.innerHTML = `
+          <h4 style="margin:0 0 0.75rem 0; font-size:0.95rem; color:#1e40af; border-bottom:1px solid #dbeafe; padding-bottom:0.5rem;"><i class="fa-solid fa-calculator"></i> สรุปรายละเอียดผลการคำนวณ</h4>
+          <div style="display:flex; flex-direction:column; gap:0.45rem; font-size:0.9rem; color:#334155;">
+            <div style="display:flex; justify-content:space-between;">
+              <span>ค่าเช่าห้องพัก:</span>
+              <strong>฿${rentAmount.toLocaleString()}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span>ค่าไฟฟ้า (${elecCurr} - ${elecPrev} = ${elecUnits} หน่วย × ฿${elecRate}):</span>
+              <strong>฿${elecAmount.toLocaleString()}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span>ค่าน้ำประปา (${waterCurr} - ${waterPrev} = ${waterUnits} หน่วย × ฿${waterRate}):</span>
+              <strong>฿${waterAmount.toLocaleString()}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span>ค่าขยะ:</span>
+              <strong>฿${trashFee.toLocaleString()}</strong>
+            </div>
+            ${internetFee > 0 ? `
+            <div style="display:flex; justify-content:space-between;">
+              <span>ค่าอินเทอร์เน็ต:</span>
+              <strong>฿${internetFee.toLocaleString()}</strong>
+            </div>` : ''}
+            ${commonFee > 0 ? `
+            <div style="display:flex; justify-content:space-between;">
+              <span>ค่าส่วนกลาง:</span>
+              <strong>฿${commonFee.toLocaleString()}</strong>
+            </div>` : ''}
+            ${fineAmount > 0 ? `
+            <div style="display:flex; justify-content:space-between; color:#ef4444;">
+              <span>ค่าปรับ:</span>
+              <strong>฿${fineAmount.toLocaleString()}</strong>
+            </div>` : ''}
+            <div style="display:flex; justify-content:space-between; font-size:1.1rem; font-weight:800; color:#1e3a8a; border-top:2px dashed #bfdbfe; padding-top:0.6rem; margin-top:0.3rem;">
+              <span>ยอดชำระสุทธิ:</span>
+              <span>฿${totalAmount.toLocaleString()}</span>
+            </div>
+          </div>
+        `;
+      }
+    };
+
+    // Update live calculation when inputs change
+    const inputsToWatch = [
+      'edit-elec-prev', 'edit-elec-curr', 
+      'edit-water-prev', 'edit-water-curr', 
+      'edit-inv-rent', 'edit-inv-trash', 'edit-inv-fine'
+    ];
+    inputsToWatch.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', updateCalcSummary);
+        el.addEventListener('change', updateCalcSummary);
+      }
+    });
+    updateCalcSummary();
 
     // Automatically pull room rent and tenant name from database when editing/typing the Room Name
     const roomInput = document.getElementById('edit-inv-room');
