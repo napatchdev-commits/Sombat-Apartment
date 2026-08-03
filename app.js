@@ -919,6 +919,14 @@ class DBService {
       users: {
         table: 'users', onConflict: 'id',
         fields: [['id','id'],['username','username'],['displayName','display_name'],['role','role'],['passwordHash','password_hash']]
+      },
+      meterAuditLogs: {
+        table: 'meter_audit_logs', onConflict: 'id',
+        fields: [['id','id'],['roomId','room_id'],['roomName','room_name'],['monthKey','month_key'],
+                 ['recordedBy','recorded_by'],['actionType','action_type'],['oldWaterCurr','old_water_curr'],
+                 ['newWaterCurr','new_water_curr'],['oldElecCurr','old_elec_curr'],['newElecCurr','new_elec_curr'],
+                 ['waterUnits','water_units'],['elecUnits','elec_units'],['waterAmount','water_amount'],
+                 ['elecAmount','elec_amount'],['notes','notes'],['createdAt','created_at']]
       }
     };
   }
@@ -1373,7 +1381,7 @@ class DBService {
     //   เฟส 2: rooms (อ้าง room_types)
     //   เฟส 3: tenants, invoices, repairs (อ้าง rooms)
     const syncPhases = [
-      ['roomTypes', 'users', 'ledger', 'events'],
+      ['roomTypes', 'users', 'ledger', 'events', 'meterAuditLogs'],
       ['rooms'],
       ['tenants', 'invoices', 'repairs']
     ];
@@ -1640,6 +1648,7 @@ class SidebarComponent {
       { id: 'tenants', label: 'ข้อมูลผู้เช่า', icon: 'fa-user', colorClass: 'nav-icon-blue', roles: ['super_admin', 'admin'] },
       { id: 'rooms', label: 'ข้อมูลห้องเช่า', icon: 'fa-hotel', colorClass: 'nav-icon-cyan', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'roomtypes', label: 'ประเภทห้องเช่า', icon: 'fa-layer-group', colorClass: 'nav-icon-pink', roles: ['super_admin', 'admin'] },
+      { id: 'meter-reading', label: 'จดมิเตอร์', icon: 'fa-gauge-high', colorClass: 'nav-icon-amber', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'meter-entry', label: 'ตารางกรอกมิเตอร์', icon: 'fa-table-cells', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'repairs', label: 'ระบบแจ้งซ่อม', icon: 'fa-screwdriver-wrench', colorClass: 'nav-icon-purple', roles: ['super_admin', 'admin', 'staff'] },
@@ -2949,6 +2958,457 @@ class MeterEntryComponent {
   }
 }
 
+class MeterReadingComponent {
+  static render(state) {
+    const rooms = state.rooms || [];
+    const invoices = state.invoices || [];
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+
+    let totalRooms = rooms.length;
+    let recordedCount = 0;
+    rooms.forEach(r => {
+      const inv = invoices.find(i => i.roomId === r.id && i.monthKey === currentMonthStr);
+      if (inv && inv.waterCurr > 0 && inv.elecCurr > 0) {
+        recordedCount++;
+      }
+    });
+    let unrecordedCount = totalRooms - recordedCount;
+
+    return `
+      <div class="view-container animate-fade-in">
+        <!-- Header -->
+        <div class="view-header" style="flex-wrap:wrap; gap:1rem;">
+          <div>
+            <h2><i class="fa-solid fa-gauge-high text-warning"></i> ระบบจดมิเตอร์น้ำ-ไฟ (Meter Reading Module)</h2>
+            <p>บันทึกเลขจดมิเตอร์ประจำเดือนสำหรับผู้เช่า อัปเดตค่าน้ำค่าน้ำไฟเข้าบิลเดือนปัจจุบันอัตโนมัติ</p>
+          </div>
+          <div class="header-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button id="btn-view-meter-history" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-clock-rotate-left text-primary"></i> ประวัติการจดมิเตอร์ & Audit Log
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Cards Summary -->
+        <div class="kpi-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:1.5rem;">
+          <div class="kpi-card card-blue">
+            <div class="kpi-content">
+              <span class="label">ห้องพักทั้งหมด</span>
+              <h3 class="value text-primary">${totalRooms} ห้อง</h3>
+            </div>
+          </div>
+          <div class="kpi-card card-green">
+            <div class="kpi-content">
+              <span class="label">จดมิเตอร์แล้ว (เดือนนี้)</span>
+              <h3 class="value text-success">${recordedCount} ห้อง</h3>
+            </div>
+          </div>
+          <div class="kpi-card card-yellow">
+            <div class="kpi-content">
+              <span class="label">ยังไม่ได้จด (ค้างจด)</span>
+              <h3 class="value text-warning">${unrecordedCount} ห้อง</h3>
+            </div>
+          </div>
+          <div class="kpi-card card-purple">
+            <div class="kpi-content">
+              <span class="label">รอบบิลปัจจุบัน</span>
+              <h3 class="value text-purple" style="font-size:1.1rem;">${currentMonthStr}</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Controls -->
+        <div class="glass-card" style="margin-bottom:1.5rem; padding:1.25rem;">
+          <div style="display:grid; grid-template-columns: 1fr auto; gap:1rem; align-items:center;">
+            <div class="global-search-container" style="max-width:100%;">
+              <i class="fa-solid fa-magnifying-glass search-icon"></i>
+              <input type="text" id="meter-search-input" class="global-search-input" placeholder="ค้นหาเลขห้องพัก หรือชื่อผู้เช่า (Real-time)..." autocomplete="off">
+            </div>
+
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <label style="font-weight:700; font-size:0.85rem; color:#475569; white-space:nowrap;">เรียงตาม:</label>
+              <select id="meter-sort-select" class="form-control" style="padding:0.6rem 1rem; border-radius:8px; font-weight:600;">
+                <option value="room">เลขห้องพัก</option>
+                <option value="floor">ชั้นห้องพัก</option>
+                <option value="unread">ยังไม่จดมิเตอร์</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Room Cards Grid -->
+        <div id="meter-rooms-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap:1.25rem;">
+          ${this.renderRoomCards(state, rooms, 'room', '')}
+        </div>
+      </div>
+    `;
+  }
+
+  static renderRoomCards(state, rooms, sortBy, searchQuery) {
+    const invoices = state.invoices || [];
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+
+    let list = [...rooms];
+
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(r => (r.name && r.name.toLowerCase().includes(q)) || (r.currentTenantName && r.currentTenantName.toLowerCase().includes(q)));
+    }
+
+    list.sort((a, b) => {
+      if (sortBy === 'floor') {
+        if (a.floor !== b.floor) return a.floor - b.floor;
+        return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true });
+      }
+      if (sortBy === 'unread') {
+        const invA = invoices.find(i => i.roomId === a.id && i.monthKey === currentMonthStr);
+        const invB = invoices.find(i => i.roomId === b.id && i.monthKey === currentMonthStr);
+        const recA = (invA && invA.waterCurr > 0 && invA.elecCurr > 0) ? 1 : 0;
+        const recB = (invB && invB.waterCurr > 0 && invB.elecCurr > 0) ? 1 : 0;
+        if (recA !== recB) return recA - recB;
+        return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true });
+      }
+      return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true });
+    });
+
+    if (list.length === 0) {
+      return `
+        <div style="grid-column: 1 / -1; text-align:center; padding:3rem; background:#fff; border-radius:16px; border:1px solid #e2e8f0; color:#64748b;">
+          <i class="fa-solid fa-folder-open" style="font-size:2.5rem; margin-bottom:1rem; opacity:0.5;"></i>
+          <p style="font-weight:600; margin:0;">ไม่พบข้อมูลห้องพักตามเงื่อนไขที่ค้นหา</p>
+        </div>
+      `;
+    }
+
+    return list.map(r => {
+      const inv = invoices.find(i => i.roomId === r.id && i.monthKey === currentMonthStr);
+      const isRecorded = Boolean(inv && inv.waterCurr > 0 && inv.elecCurr > 0);
+      const tenantName = r.currentTenantName || 'ไม่มีผู้เช่า';
+      const lastWater = inv ? inv.waterCurr : (r.lastWaterMeter || 0);
+      const lastElec = inv ? inv.elecCurr : (r.lastElecMeter || 0);
+
+      return `
+        <div class="glass-card room-card-item" style="padding:1.25rem; display:flex; flex-direction:column; justify-content:space-between; border-radius:16px; border:1px solid ${isRecorded ? '#bbf7d0' : '#e2e8f0'}; background:${isRecorded ? 'rgba(240, 253, 244, 0.6)' : '#fff'}; transition:transform 0.2s, box-shadow 0.2s;">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+              <h3 style="font-size:1.25rem; font-weight:800; color:#0f172a; margin:0;">ห้อง ${r.name}</h3>
+              <span class="badge-pill ${isRecorded ? 'badge-success' : 'badge-warning'}" style="font-size:0.78rem; font-weight:700; padding:0.3rem 0.65rem;">
+                ${isRecorded ? '✓ จดแล้ว' : '○ ยังไม่จด'}
+              </span>
+            </div>
+
+            <div style="font-size:0.83rem; color:#475569; line-height:1.6; margin-bottom:1rem;">
+              <div>👤 ผู้เช่า: <strong>${tenantName}</strong></div>
+              <div>🏢 ชั้น: <strong>${r.floor}</strong> | สถานะ: <span class="badge-pill ${r.status === 'vacant' ? 'badge-secondary' : 'badge-primary'}">${r.status === 'vacant' ? 'ห้องว่าง' : 'มีผู้เช่า'}</span></div>
+              <div style="margin-top:0.35rem; padding-top:0.35rem; border-top:1px dashed #e2e8f0; color:#64748b;">
+                <span>💧 น้ำล่าสุด: <strong class="text-primary">${lastWater}</strong></span> | 
+                <span>⚡ ไฟล่าสุด: <strong class="text-warning">${lastElec}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="btn ${isRecorded ? 'btn-secondary' : 'btn-primary'} btn-full btn-open-meter-modal" data-room-id="${r.id}" style="padding:0.65rem; font-weight:700; font-size:0.88rem; border-radius:10px;">
+            <i class="fa-solid ${isRecorded ? 'fa-pen-to-square text-warning' : 'fa-bolt-lightning'}"></i> ${isRecorded ? 'ดูรายละเอียด / แก้ไขมิเตอร์' : '⚡ จดมิเตอร์ห้องนี้'}
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  static bindMeterReadingEvents() {
+    const searchInput = document.getElementById('meter-search-input');
+    const sortSelect = document.getElementById('meter-sort-select');
+    const gridContainer = document.getElementById('meter-rooms-grid');
+
+    const updateGrid = () => {
+      if (gridContainer) {
+        const q = searchInput ? searchInput.value : '';
+        const s = sortSelect ? sortSelect.value : 'room';
+        gridContainer.innerHTML = MeterReadingComponent.renderRoomCards(App.state, App.state.rooms || [], s, q);
+      }
+    };
+
+    if (searchInput) searchInput.addEventListener('input', updateGrid);
+    if (sortSelect) sortSelect.addEventListener('change', updateGrid);
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-open-meter-modal');
+      if (btn) {
+        const roomId = btn.getAttribute('data-room-id');
+        if (roomId) this.openMeterModal(roomId);
+        return;
+      }
+
+      const btnHistory = e.target.closest('#btn-view-meter-history');
+      if (btnHistory) {
+        this.openHistoryModal();
+        return;
+      }
+    });
+  }
+
+  static openMeterModal(roomId) {
+    const room = (App.state.rooms || []).find(r => r.id === roomId);
+    if (!room) return;
+
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+    const invoice = (App.state.invoices || []).find(i => i.roomId === roomId && i.monthKey === currentMonthStr);
+
+    const rates = App.state.rates || { electricityRate: 8.0, waterRate: 20.0 };
+    const waterRate = rates.waterRate || 20.0;
+    const elecRate = rates.electricityRate || 8.0;
+
+    const waterPrev = invoice ? invoice.waterPrev : (room.lastWaterMeter || 0);
+    const elecPrev = invoice ? invoice.elecPrev : (room.lastElecMeter || 0);
+
+    const isRecorded = Boolean(invoice && invoice.waterCurr > 0 && invoice.elecCurr > 0);
+    const waterCurrVal = invoice && invoice.waterCurr > 0 ? invoice.waterCurr : '';
+    const elecCurrVal = invoice && invoice.elecCurr > 0 ? invoice.elecCurr : '';
+
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div style="background:#fff; border-radius:20px; padding:1.75rem; max-width:520px; width:100%; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; border-bottom:1px solid #f1f5f9; padding-bottom:0.85rem;">
+          <div>
+            <h3 style="margin:0; font-size:1.3rem; color:#0f172a;"><i class="fa-solid fa-gauge-high text-warning"></i> บันทึกมิเตอร์น้ำ-ไฟ ห้อง ${room.name}</h3>
+            <p style="margin:0.25rem 0 0 0; font-size:0.85rem; color:#64748b;">ผู้เช่า: <strong>${room.currentTenantName || 'ไม่มีผู้เช่า'}</strong> | รอบบิล: <code>${currentMonthStr}</code></p>
+          </div>
+          <button type="button" class="btn-modal-close" style="background:none; border:none; font-size:1.25rem; color:#94a3b8; cursor:pointer;">&times;</button>
+        </div>
+
+        ${!invoice ? `
+          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:1.25rem; text-align:center; color:#92400e; margin-bottom:1.25rem;">
+            <i class="fa-solid fa-circle-exclamation" style="font-size:2rem; margin-bottom:0.5rem; color:#f59e0b;"></i>
+            <h4 style="margin:0 0 0.35rem 0; font-size:1.05rem;">ยังไม่ได้สร้างบิลของเดือนนี้ (${currentMonthStr})</h4>
+            <p style="margin:0; font-size:0.85rem; color:#b45309;">ระบบห้ามสร้างบิลอัตโนมัติ กรุณาไปที่หน้าระบบออกบิลค่าเช่าเพื่อสร้างบิลของเดือนนี้ก่อนทำการบันทึกมิเตอร์</p>
+          </div>
+        ` : `
+          <form id="form-meter-reading-submit">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem; background:#f8fafc; border:1px solid #e2e8f0; padding:0.85rem 1rem; border-radius:12px; font-size:0.85rem;">
+              <div>
+                <span class="text-muted" style="display:block; margin-bottom:0.15rem;">มิเตอร์น้ำครั้งก่อน</span>
+                <strong class="text-primary" style="font-size:1.1rem;">${waterPrev}</strong> ยูนิต
+              </div>
+              <div>
+                <span class="text-muted" style="display:block; margin-bottom:0.15rem;">มิเตอร์ไฟครั้งก่อน</span>
+                <strong class="text-warning" style="font-size:1.1rem;">${elecPrev}</strong> ยูนิต
+              </div>
+            </div>
+
+            <div id="meter-lock-notice" style="display:${isRecorded ? 'block' : 'none'}; margin-bottom:1rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:0.65rem 0.85rem; font-size:0.82rem; color:#1e40af;">
+              🔒 <strong>บันทึกแล้ว:</strong> 1 ห้อง 1 รอบบิลบันทึกได้ครั้งเดียว หากต้องการแก้ไข กรุณากดปุ่ม <strong>"แก้ไขมิเตอร์"</strong> เพื่อปลดล็อกและบันทึก Audit Log
+            </div>
+
+            <div class="form-group" style="margin-bottom:1rem;">
+              <label style="font-weight:700; color:#1e293b;">เลขมิเตอร์น้ำล่าสุด (ประปา) *</label>
+              <input type="number" step="any" id="input-water-curr" class="form-control" value="${waterCurrVal}" placeholder="ใส่เลขมิเตอร์น้ำล่าสุด..." ${isRecorded ? 'disabled' : ''} required style="padding:0.75rem; border-radius:10px; font-size:1.05rem; font-weight:700;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:1rem;">
+              <label style="font-weight:700; color:#1e293b;">เลขมิเตอร์ไฟล่าสุด (ไฟฟ้า) *</label>
+              <input type="number" step="any" id="input-elec-curr" class="form-control" value="${elecCurrVal}" placeholder="ใส่เลขมิเตอร์ไฟล่าสุด..." ${isRecorded ? 'disabled' : ''} required style="padding:0.75rem; border-radius:10px; font-size:1.05rem; font-weight:700;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-weight:600; color:#475569;">หมายเหตุ (ถ้ามี)</label>
+              <input type="text" id="input-meter-notes" class="form-control" placeholder="เช่น แจ้งเปลี่ยนมิเตอร์ใหม่..." ${isRecorded ? 'disabled' : ''} style="padding:0.65rem; border-radius:8px;">
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem; border-top:1px solid #f1f5f9; padding-top:1rem;">
+              <button type="button" class="btn btn-secondary btn-modal-close" style="padding:0.65rem 1.25rem;">ยกเลิก</button>
+              ${isRecorded ? `
+                <button type="button" id="btn-unlock-meter-edit" class="btn btn-warning" style="padding:0.65rem 1.25rem; font-weight:700;">
+                  <i class="fa-solid fa-pen-to-square"></i> แก้ไขมิเตอร์
+                </button>
+                <button type="submit" id="btn-save-meter-submit" class="btn btn-primary" style="display:none; padding:0.65rem 1.25rem; font-weight:700;">
+                  <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไข (Audit Log)
+                </button>
+              ` : `
+                <button type="submit" id="btn-save-meter-submit" class="btn btn-primary" style="padding:0.65rem 1.25rem; font-weight:700;">
+                  <i class="fa-solid fa-floppy-disk"></i> บันทึกมิเตอร์น้ำ-ไฟ
+                </button>
+              `}
+            </div>
+          </form>
+        `}
+      </div>
+    `;
+
+    modal.classList.add('active');
+
+    const closeBtns = dialog.querySelectorAll('.btn-modal-close');
+    closeBtns.forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    const unlockBtn = dialog.querySelector('#btn-unlock-meter-edit');
+    const saveBtn = dialog.querySelector('#btn-save-meter-submit');
+    const waterInput = dialog.querySelector('#input-water-curr');
+    const elecInput = dialog.querySelector('#input-elec-curr');
+    const notesInput = dialog.querySelector('#input-meter-notes');
+    let isEditMode = false;
+
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', () => {
+        isEditMode = true;
+        waterInput.disabled = false;
+        elecInput.disabled = false;
+        notesInput.disabled = false;
+        unlockBtn.style.display = 'none';
+        saveBtn.style.display = 'inline-flex';
+        waterInput.focus();
+      });
+    }
+
+    const form = dialog.querySelector('#form-meter-reading-submit');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const waterCurr = parseFloat(waterInput.value);
+        const elecCurr = parseFloat(elecInput.value);
+        const notes = notesInput ? notesInput.value.trim() : '';
+
+        // Validation Rule: New meter reading MUST NOT be less than previous meter reading
+        if (isNaN(waterCurr) || isNaN(elecCurr)) {
+          alert('❌ กรุณากรอกเลขมิเตอร์น้ำและไฟให้ถูกต้อง');
+          return;
+        }
+
+        if (waterCurr < waterPrev || elecCurr < elecPrev) {
+          alert('❌ เลขมิเตอร์ต้องไม่น้อยกว่าค่าครั้งก่อน');
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+        try {
+          const waterUnits = Math.max(0, waterCurr - waterPrev);
+          const elecUnits = Math.max(0, elecCurr - elecPrev);
+          const waterAmount = waterUnits * waterRate;
+          const elecAmount = elecUnits * elecRate;
+
+          invoice.waterPrev = waterPrev;
+          invoice.waterCurr = waterCurr;
+          invoice.waterUnits = waterUnits;
+          invoice.waterAmount = waterAmount;
+
+          invoice.elecPrev = elecPrev;
+          invoice.elecCurr = elecCurr;
+          invoice.elecUnits = elecUnits;
+          invoice.elecAmount = elecAmount;
+
+          const newTotal = (invoice.rentAmount || 0) +
+                           waterAmount +
+                           elecAmount +
+                           (invoice.trashFee || 0) +
+                           (invoice.fineAmount || 0) +
+                           (invoice.internetFee || 0) +
+                           (invoice.commonFee || 0);
+
+          invoice.totalAmount = newTotal;
+
+          room.lastWaterMeter = waterCurr;
+          room.lastElecMeter = elecCurr;
+
+          const currentUser = AuthService.getCurrentUser() || { displayName: 'แอดมิน' };
+          if (!App.state.meterAuditLogs) App.state.meterAuditLogs = [];
+          App.state.meterAuditLogs.unshift({
+            id: 'mal_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            roomId: room.id,
+            roomName: room.name,
+            monthKey: currentMonthStr,
+            recordedBy: currentUser.displayName,
+            actionType: isEditMode || isRecorded ? 'EDIT' : 'RECORD',
+            oldWaterCurr: waterPrev,
+            newWaterCurr: waterCurr,
+            oldElecCurr: elecPrev,
+            newElecCurr: elecCurr,
+            waterUnits: waterUnits,
+            elecUnits: elecUnits,
+            waterAmount: waterAmount,
+            elecAmount: elecAmount,
+            notes: notes,
+            createdAt: new Date().toISOString()
+          });
+
+          await DBService.saveState(App.state);
+
+          modal.classList.remove('active');
+          alert('🟢 บันทึกเลขมิเตอร์น้ำ-ไฟเรียบร้อยแล้ว!');
+          App.switchTab('meter-reading');
+        } catch (err) {
+          alert('❌ เกิดข้อผิดพลาดในการบันทึกมิเตอร์: ' + err.message);
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกมิเตอร์น้ำ-ไฟ';
+        }
+      });
+    }
+  }
+
+  static openHistoryModal() {
+    const logs = App.state.meterAuditLogs || [];
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    dialog.innerHTML = `
+      <div style="background:#fff; border-radius:20px; padding:1.75rem; max-width:850px; width:100%; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; border-bottom:1px solid #f1f5f9; padding-bottom:0.85rem;">
+          <h3 style="margin:0; font-size:1.3rem; color:#0f172a;"><i class="fa-solid fa-clock-rotate-left text-primary"></i> ประวัติการจดมิเตอร์ & Audit Log</h3>
+          <button type="button" class="btn-modal-close" style="background:none; border:none; font-size:1.25rem; color:#94a3b8; cursor:pointer;">&times;</button>
+        </div>
+
+        <div class="table-responsive" style="max-height:60vh; overflow-y:auto;">
+          <table class="custom-table" style="width:100%; font-size:0.85rem;">
+            <thead>
+              <tr>
+                <th>วัน-เวลาบันทึก</th>
+                <th>ห้อง</th>
+                <th>รอบบิล</th>
+                <th>กิจกรรม</th>
+                <th>มิเตอร์น้ำ (เดิม ➔ ใหม่)</th>
+                <th>มิเตอร์ไฟ (เดิม ➔ ใหม่)</th>
+                <th>หน่วยใช้ไป (น้ำ/ไฟ)</th>
+                <th>ผู้บันทึก</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${logs.length === 0 ? `
+                <tr><td colspan="8" class="text-center text-muted" style="padding:2rem;">ยังไม่มีประวัติการจดหรือแก้ไขมิเตอร์</td></tr>
+              ` : logs.map(l => `
+                <tr>
+                  <td>${Formatters.thaiDate(l.createdAt)}</td>
+                  <td><strong>ห้อง ${l.roomName}</strong></td>
+                  <td><code>${l.monthKey}</code></td>
+                  <td>
+                    <span class="badge-pill ${l.actionType === 'EDIT' ? 'badge-warning' : 'badge-success'}" style="font-size:0.75rem;">
+                      ${l.actionType === 'EDIT' ? '✏️ แก้ไข' : '⚡ บันทึกแรก'}
+                    </span>
+                  </td>
+                  <td>${l.oldWaterCurr} ➔ <strong>${l.newWaterCurr}</strong></td>
+                  <td>${l.oldElecCurr} ➔ <strong>${l.newElecCurr}</strong></td>
+                  <td>น้ำ: ${l.waterUnits || 0} / ไฟ: ${l.elecUnits || 0}</td>
+                  <td><span class="badge-pill badge-primary" style="font-size:0.75rem;">${l.recordedBy}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; margin-top:1.25rem; pt-3; border-top:1px solid #f1f5f9;">
+          <button type="button" class="btn btn-secondary btn-modal-close" style="padding:0.65rem 1.5rem;">ปิด</button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+
+    const closeBtns = dialog.querySelectorAll('.btn-modal-close');
+    closeBtns.forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+  }
+}
+
 /* ==========================================================================
    5. MAIN APPLICATION CONTROLLER
    ========================================================================== */
@@ -3167,6 +3627,7 @@ class App {
       case 'tenants': workspace.innerHTML = TenantsComponent.render(this.state); this.bindTenantsEvents(); break;
       case 'rooms': workspace.innerHTML = RoomsComponent.render(this.state); this.bindRoomsEvents(); break;
       case 'roomtypes': workspace.innerHTML = RoomTypesComponent.render(this.state); this.bindRoomTypesEvents(); break;
+      case 'meter-reading': workspace.innerHTML = MeterReadingComponent.render(this.state); MeterReadingComponent.bindMeterReadingEvents(); break;
       case 'meter-entry': workspace.innerHTML = MeterEntryComponent.render(this.state); this.bindMeterEntryEvents(); break;
       case 'billing': workspace.innerHTML = BillingComponent.render(this.state); this.bindBillingEvents(); break;
       case 'repairs': workspace.innerHTML = RepairsComponent.render(this.state); this.bindRepairsEvents(); break;
