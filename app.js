@@ -775,33 +775,40 @@ class DBService {
     return state;
   }
 
-  static async saveState(state) {
+  static async saveState(state, silent = false) {
     if (state.settings && state.settings.supabaseUrl) {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', state.settings.supabaseUrl);
     }
     const url = this.getSavedSupabaseUrl();
     if (url) {
-      // Show blocking loader during sync
-      const syncLoader = document.createElement('div');
-      syncLoader.id = 'app-sync-loader';
-      syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
-      syncLoader.innerHTML = `
-        <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
-        <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังบันทึกข้อมูลไปยัง Supabase...</div>
-        <div style="font-size:0.88rem; color:#cbd5e1;">กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูล</div>
-        <style>
-          @keyframes spin { to { transform: rotate(360deg); } }
-        </style>
-      `;
-      document.body.appendChild(syncLoader);
+      let syncLoader = null;
+      if (!silent) {
+        // Show blocking loader during sync
+        syncLoader = document.createElement('div');
+        syncLoader.id = 'app-sync-loader';
+        syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
+        syncLoader.innerHTML = `
+          <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+          <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังบันทึกข้อมูลไปยัง Supabase...</div>
+          <div style="font-size:0.88rem; color:#cbd5e1;">กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูล</div>
+          <style>
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        `;
+        document.body.appendChild(syncLoader);
+      }
 
       try {
         await this.syncToSupabase(url, state);
       } catch (e) {
         console.error("Failed to sync to Supabase, state will be saved to local cache:", e);
-        alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Supabase: ' + e.message + '\n\n(ข้อมูลถูกบันทึกในอุปกรณ์เครื่องนี้แล้ว แต่ไม่สามารถอัปโหลดไปยังเซิร์ฟเวอร์ Supabase ได้ กรุณาตรวจสอบ URL หรือ Anon Key ในหน้าตั้งค่า)');
+        if (!silent) {
+          alert('⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Supabase: ' + e.message + '\n\n(ข้อมูลถูกบันทึกในอุปกรณ์เครื่องนี้แล้ว แต่ไม่สามารถอัปโหลดไปยังเซิร์ฟเวอร์ Supabase ได้ กรุณาตรวจสอบ URL หรือ Anon Key ในหน้าตั้งค่า)');
+        }
       } finally {
-        syncLoader.remove();
+        if (syncLoader && syncLoader.parentNode) {
+          syncLoader.remove();
+        }
       }
     }
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
@@ -5621,7 +5628,7 @@ class App {
 
       if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
       autoSaveTimeout = setTimeout(() => {
-        DBService.saveState(this.state).then(() => {
+        DBService.saveState(this.state, true).then(() => {
           if (indicator) {
             indicator.style.display = 'inline-block';
             setTimeout(() => {
@@ -6809,8 +6816,10 @@ class App {
     const currentMonthStr = new Date().toISOString().slice(0, 7);
     const defaultDueDate = getNextMonth05(currentMonthStr);
     
-    // Sort rooms by floor then name
-    const rooms = [...this.state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+    // Sort and filter rooms: show only preselectedRoom if provided, otherwise all rooms
+    const rooms = preselectedRoom 
+      ? [preselectedRoom] 
+      : [...this.state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
 
     // Build map of previous readings for each room
     const prevReadings = {};
@@ -7093,7 +7102,7 @@ class App {
 
       if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
       autoSaveTimeout = setTimeout(() => {
-        DBService.saveState(this.state).then(() => {
+        DBService.saveState(this.state, true).then(() => {
           indicator.style.display = 'inline-block';
           setTimeout(() => {
             indicator.style.display = 'none';
