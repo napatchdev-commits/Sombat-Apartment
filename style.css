@@ -855,10 +855,20 @@ body {
 
 /* Perfect 100% Clean Printable Layout for 2-Page A4 Contracts */
 @media print {
+    @page {
+        size: A4 portrait;
+        margin: 10mm 15mm;
+    }
+
     body * {
         visibility: hidden !important;
     }
     
+    #app-modal {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
     #print-receipt-area, #print-receipt-area * {
         visibility: visible !important;
     }
@@ -869,24 +879,29 @@ body {
         left: 0 !important;
         top: 0 !important;
         width: 100% !important;
+        max-width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
+        color: #000000 !important;
     }
 
     .contract-print-page {
-        padding: 1.5rem 2rem !important;
+        padding: 0.2cm 0 !important;
         box-shadow: none !important;
         border: none !important;
-        font-family: 'Sarabun', sans-serif !important;
+        font-family: 'Sarabun', 'Noto Sans Thai', THSarabunNew, sans-serif !important;
         color: #000000 !important;
-        line-height: 2.1 !important;
+        line-height: 2.0 !important;
         font-size: 0.95rem !important;
         width: 100% !important;
         max-width: 100% !important;
+        box-sizing: border-box !important;
     }
 
     .contract-print-page.front-page {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
         page-break-after: always !important;
         break-after: page !important;
     }
@@ -894,6 +909,9 @@ body {
     .contract-print-page.back-page {
         page-break-before: always !important;
         break-before: page !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        padding-top: 0.5cm !important;
     }
 
     .dotted-fill {
@@ -1039,18 +1057,6 @@ body {
 
 /* Perfect 100% Fit Print Engine */
 @media print {
-    body * {
-        visibility: hidden !important;
-    }
-
-    #app-modal, #app-modal * {
-        visibility: visible !important;
-    }
-
-    #print-receipt-area, #print-receipt-area * {
-        visibility: visible !important;
-    }
-
     #modal-printable-bill-area, #modal-printable-bill-area * {
         visibility: visible !important;
     }
@@ -1067,11 +1073,11 @@ body {
 
     #app-modal .modal-header,
     #app-modal .modal-body > button,
-    #app-modal .close-modal-btn {
+    #app-modal .close-modal-btn,
+    #app-modal .contract-tab-switcher {
         display: none !important;
     }
 
-    #print-receipt-area,
     #modal-printable-bill-area,
     .invoice-paper {
         display: block !important;

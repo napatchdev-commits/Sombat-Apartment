@@ -8455,7 +8455,11 @@ class App {
         </div>
       `;
 
+      modal.style.display = 'none';
       window.print();
+      setTimeout(() => {
+        modal.style.display = '';
+      }, 600);
     });
   }
 }
