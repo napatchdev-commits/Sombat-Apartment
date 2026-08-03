@@ -936,6 +936,18 @@ class DBService {
                  ['newWaterCurr','new_water_curr'],['oldElecCurr','old_elec_curr'],['newElecCurr','new_elec_curr'],
                  ['waterUnits','water_units'],['elecUnits','elec_units'],['waterAmount','water_amount'],
                  ['elecAmount','elec_amount'],['notes','notes'],['createdAt','created_at']]
+      },
+      paymentSlips: {
+        table: 'payment_slips', onConflict: 'id',
+        fields: [['id','id'],['invoiceId','invoice_id'],['tenantId','tenant_id'],['roomId','room_id'],
+                 ['roomName','room_name'],['tenantName','tenant_name'],['monthKey','month_key'],
+                 ['storagePath','storage_path'],['publicUrl','public_url'],['amount','amount'],
+                 ['requiredAmount','required_amount'],['fineAmount','fine_amount'],
+                 ['referenceNo','reference_no'],['qrTransactionId','qr_transaction_id'],
+                 ['senderBank','sender_bank'],['receiverBank','receiver_bank'],
+                 ['transactionDate','transaction_date'],['transactionTime','transaction_time'],
+                 ['verificationStatus','verification_status'],['verifiedBy','verified_by'],
+                 ['verifiedAt','verified_at'],['rejectReason','reject_reason'],['createdAt','created_at']]
       }
     };
   }
@@ -1372,7 +1384,7 @@ class DBService {
     const syncPhases = [
       ['roomTypes', 'users', 'ledger', 'events', 'meterAuditLogs'],
       ['rooms'],
-      ['tenants', 'invoices', 'repairs']
+      ['tenants', 'invoices', 'repairs', 'paymentSlips']
     ];
     const handledCategories = new Set(syncPhases.flat());
 
@@ -1640,6 +1652,7 @@ class SidebarComponent {
       { id: 'meter-reading', label: 'จดมิเตอร์', icon: 'fa-gauge-high', colorClass: 'nav-icon-amber', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'meter-entry', label: 'ตารางกรอกมิเตอร์', icon: 'fa-table-cells', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'slip-verification', label: 'ตรวจสอบสลิป', icon: 'fa-receipt', colorClass: 'nav-icon-cyan', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'repairs', label: 'ระบบแจ้งซ่อม', icon: 'fa-screwdriver-wrench', colorClass: 'nav-icon-purple', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', colorClass: 'nav-icon-slate', roles: ['super_admin', 'admin'] },
       { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', colorClass: 'nav-icon-rose', roles: ['super_admin', 'admin', 'staff'] },
@@ -2967,6 +2980,512 @@ class MeterEntryComponent {
   }
 }
 
+class SlipVerificationComponent {
+  static activeFilter = 'all';
+  static searchQuery = '';
+  static activeSlipId = null;
+
+  static render(state) {
+    const slips = state.paymentSlips || [];
+    
+    const counts = {
+      all: slips.length,
+      pending: slips.filter(s => s.verificationStatus === 'pending').length,
+      amount_mismatch: slips.filter(s => s.verificationStatus === 'amount_mismatch').length,
+      duplicate: slips.filter(s => s.verificationStatus === 'duplicate').length,
+      approved: slips.filter(s => s.verificationStatus === 'approved').length,
+      rejected: slips.filter(s => s.verificationStatus === 'rejected').length
+    };
+
+    const filtered = slips.filter(s => {
+      if (this.activeFilter !== 'all' && s.verificationStatus !== this.activeFilter) return false;
+      if (this.searchQuery.trim()) {
+        const q = this.searchQuery.toLowerCase().trim();
+        return (s.roomName || '').toLowerCase().includes(q) ||
+               (s.tenantName || '').toLowerCase().includes(q) ||
+               (s.referenceNo || '').toLowerCase().includes(q) ||
+               (s.monthKey || '').toLowerCase().includes(q);
+      }
+      return true;
+    });
+
+    return `
+      <div class="view-container animate-fade-in">
+        <div class="view-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <h2><i class="fa-solid fa-receipt text-primary"></i> ตรวจสอบสลิปการชำระเงิน (Slip Verification)</h2>
+            <p>ตรวจสอบรูปสลิปจากผู้เช่า เปรียบเทียบยอดเงิน ตรวจสลิปซ้ำ และอนุมัติการชำระเงินเข้าสู่ระบบ</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-slips"><i class="fa-solid fa-rotate"></i> รีเฟรชข้อมูล</button>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="glass-card" style="margin-bottom:1.25rem; padding:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <button class="btn btn-xs ${this.activeFilter === 'all' ? 'btn-primary' : 'btn-secondary'} btn-slip-filter" data-status="all">
+                ทั้งหมด (${counts.all})
+              </button>
+              <button class="btn btn-xs ${this.activeFilter === 'pending' ? 'btn-primary' : 'btn-secondary'} btn-slip-filter" data-status="pending" style="${this.activeFilter === 'pending' ? '' : 'color:#d97706; background:#fffbeb;'}">
+                ⏳ รอตรวจสอบ (${counts.pending})
+              </button>
+              <button class="btn btn-xs ${this.activeFilter === 'amount_mismatch' ? 'btn-primary' : 'btn-secondary'} btn-slip-filter" data-status="amount_mismatch" style="${this.activeFilter === 'amount_mismatch' ? '' : 'color:#ea580c; background:#fff7ed;'}">
+                ⚠️ ยอดไม่ตรง (${counts.amount_mismatch})
+              </button>
+              <button class="btn btn-xs ${this.activeFilter === 'duplicate' ? 'btn-primary' : 'btn-secondary'} btn-slip-filter" data-status="duplicate" style="${this.activeFilter === 'duplicate' ? '' : 'color:#9333ea; background:#faf5ff;'}">
+                🚫 สลิปซ้ำ (${counts.duplicate})
+              </button>
+              <button class="btn btn-xs ${this.activeFilter === 'approved' ? 'btn-primary' : 'btn-secondary'} btn-slip-filter" data-status="approved" style="${this.activeFilter === 'approved' ? '' : 'color:#059669; background:#ecfdf5;'}">
+                ✅ อนุมัติแล้ว (${counts.approved})
+              </button>
+              <button class="btn btn-xs ${this.activeFilter === 'rejected' ? 'btn-primary' : 'btn-secondary'} btn-slip-filter" data-status="rejected" style="${this.activeFilter === 'rejected' ? '' : 'color:#dc2626; background:#fef2f2;'}">
+                ❌ ปฏิเสธ (${counts.rejected})
+              </button>
+            </div>
+
+            <div style="width:220px; position:relative;">
+              <input type="text" id="slip-search-input" class="form-control" placeholder="ค้นหาห้อง, ผู้เช่า, Ref..." value="${this.searchQuery}" style="padding:0.4rem 0.75rem; font-size:0.85rem;">
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Slips List Table -->
+        <div class="glass-card">
+          <div class="table-responsive">
+            <table class="custom-table" style="font-size:0.88rem;">
+              <thead>
+                <tr>
+                  <th style="width:70px;">สลิป</th>
+                  <th>ห้องพัก / ผู้เช่า</th>
+                  <th>รอบบิล</th>
+                  <th style="text-align:right;">ยอดที่ต้องชำระ</th>
+                  <th style="text-align:right;">ยอดในสลิป</th>
+                  <th style="text-align:right;">ส่วนต่าง</th>
+                  <th>วันที่ส่งสลิป</th>
+                  <th>สถานะ</th>
+                  <th style="text-align:center;">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length === 0 ? `
+                  <tr>
+                    <td colspan="9" class="text-center text-muted" style="padding:3rem;">
+                      <i class="fa-solid fa-receipt" style="font-size:2.5rem; opacity:0.3; margin-bottom:0.5rem;"></i><br>
+                      ไม่พบรายการสลิปชำระเงินตามเงื่อนไขที่เลือก
+                    </td>
+                  </tr>
+                ` : filtered.map(slip => {
+                  const reqAmt = slip.requiredAmount || 0;
+                  const slipAmt = slip.amount || 0;
+                  const diff = slipAmt - reqAmt;
+                  const isDiff = Math.abs(diff) > 0.01;
+
+                  let statusBadge = '';
+                  switch (slip.verificationStatus) {
+                    case 'pending': statusBadge = '<span class="badge-pill badge-warning">⏳ รอตรวจสอบ</span>'; break;
+                    case 'approved': statusBadge = '<span class="badge-pill badge-success">✅ อนุมัติแล้ว</span>'; break;
+                    case 'amount_mismatch': statusBadge = '<span class="badge-pill" style="background:#ffedd5; color:#c2410c;">⚠️ ยอดเงินไม่ตรง</span>'; break;
+                    case 'duplicate': statusBadge = '<span class="badge-pill" style="background:#f3e8ff; color:#7e22ce;">🚫 สลิปซ้ำ</span>'; break;
+                    case 'rejected': default: statusBadge = '<span class="badge-pill badge-danger">❌ ปฏิเสธ</span>'; break;
+                  }
+
+                  return `
+                    <tr>
+                      <td style="padding:0.4rem;">
+                        <div class="btn-view-slip-image" data-id="${slip.id}" style="width:48px; height:60px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; position:relative;">
+                          <img src="${slip.publicUrl}" style="width:100%; height:100%; object-fit:cover;" alt="สลิป" />
+                        </div>
+                      </td>
+                      <td>
+                        <strong>ห้อง ${slip.roomName}</strong>
+                        <div class="text-muted" style="font-size:0.8rem;">${slip.tenantName}</div>
+                        ${slip.referenceNo ? `<div style="font-size:0.75rem; font-family:monospace; color:#64748b;">Ref: ${slip.referenceNo}</div>` : ''}
+                      </td>
+                      <td><strong>${Formatters.thaiMonthBE(slip.monthKey)}</strong></td>
+                      <td style="text-align:right; font-weight:600;">${Formatters.currency(reqAmt)}</td>
+                      <td style="text-align:right; font-weight:700; color:#2563eb;">${Formatters.currency(slipAmt)}</td>
+                      <td style="text-align:right; font-weight:700; color:${isDiff ? (diff < 0 ? '#dc2626' : '#16a34a') : '#64748b'};">
+                        ${isDiff ? (diff > 0 ? '+' : '') + Formatters.currency(diff) : '฿0.00'}
+                      </td>
+                      <td style="font-size:0.8rem; color:#64748b;">
+                        ${Formatters.thaiDate(slip.createdAt ? slip.createdAt.slice(0,10) : '')}
+                      </td>
+                      <td>
+                        ${statusBadge}
+                        ${slip.rejectReason ? `<div style="font-size:0.75rem; color:#dc2626; margin-top:2px;">⚠️ ${slip.rejectReason}</div>` : ''}
+                      </td>
+                      <td style="text-align:center;">
+                        <div style="display:flex; justify-content:center; gap:0.35rem;">
+                          <button class="btn btn-secondary btn-xs btn-view-slip-image" data-id="${slip.id}" title="ดูสลิปแบบขยาย"><i class="fa-solid fa-eye"></i></button>
+                          ${slip.verificationStatus !== 'approved' ? `
+                            <button class="btn btn-success btn-xs btn-approve-slip" data-id="${slip.id}" title="อนุมัติการชำระเงิน"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                          ` : ''}
+                          ${slip.verificationStatus !== 'rejected' ? `
+                            <button class="btn btn-danger btn-xs btn-reject-slip" data-id="${slip.id}" title="ปฏิเสธสลิป"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                          ` : ''}
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  static bindEvents(state) {
+    const slips = state.paymentSlips || [];
+
+    // Filter Buttons
+    document.querySelectorAll('.btn-slip-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.activeFilter = btn.getAttribute('data-status');
+        App.switchTab('slip-verification');
+      });
+    });
+
+    // Search Input
+    const searchInput = document.getElementById('slip-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.searchQuery = e.target.value;
+        const workspace = document.getElementById('main-workspace');
+        if (workspace) {
+          workspace.innerHTML = this.render(state);
+          this.bindEvents(state);
+        }
+      });
+    }
+
+    // Refresh Button
+    const refreshBtn = document.getElementById('btn-refresh-slips');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        const url = DBService.getSavedSupabaseUrl();
+        if (url) {
+          refreshBtn.disabled = true;
+          refreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังรีเฟรช...';
+          const newState = await DBService.pullFromSupabase(url);
+          if (newState) App.state = newState;
+          App.switchTab('slip-verification');
+        }
+      });
+    }
+
+    // View Image Zoom Modal
+    document.querySelectorAll('.btn-view-slip-image').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const slip = slips.find(s => s.id === id);
+        if (slip) this.openZoomModal(slip, state);
+      });
+    });
+
+    // Approve Button
+    document.querySelectorAll('.btn-approve-slip').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const slip = slips.find(s => s.id === id);
+        if (!slip) return;
+
+        if (confirm(`กดยืนยันเพื่ออนุมัติการชำระเงินของห้อง ${slip.roomName} (${Formatters.currency(slip.amount)})?`)) {
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+          await this.doApproveSlip(slip, state);
+        }
+      });
+    });
+
+    // Reject Button
+    document.querySelectorAll('.btn-reject-slip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const slip = slips.find(s => s.id === id);
+        if (slip) this.openRejectModal(slip, state);
+      });
+    });
+  }
+
+  static openZoomModal(slip, state) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    let scale = 1;
+    const reqAmt = slip.requiredAmount || 0;
+    const slipAmt = slip.amount || 0;
+    const diff = slipAmt - reqAmt;
+
+    dialog.innerHTML = `
+      <div class="modal-header" style="background:#0f172a; color:#fff;">
+        <h3><i class="fa-solid fa-receipt text-primary"></i> ตรวจสอบสลิป — ห้อง ${slip.roomName}</h3>
+        <button type="button" class="close-modal-btn" style="color:#fff;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem; background:#0f172a; color:#f8fafc;">
+        <div style="display:grid; grid-template-columns: 1fr 280px; gap:1.25rem;">
+          
+          <!-- Image Zoom Viewport -->
+          <div style="background:#020617; border:1px solid #1e293b; border-radius:12px; height:420px; overflow:hidden; display:flex; align-items:center; justify-content:center; position:relative;">
+            <img id="zoom-slip-img" src="${slip.publicUrl}" style="max-height:100%; object-fit:contain; transition:transform 0.15s; transform:scale(1);" alt="สลิป" />
+            <div style="position:absolute; bottom:12px; left:12px; display:flex; gap:0.35rem; background:rgba(15,23,42,0.85); padding:0.35rem 0.65rem; border-radius:8px; border:1px solid #334155;">
+              <button type="button" class="btn btn-secondary btn-xs" id="btn-zoom-out"><i class="fa-solid fa-minus"></i></button>
+              <span id="zoom-val-text" style="font-size:0.8rem; font-weight:700; color:#fff; display:flex; align-items:center; padding:0 4px;">100%</span>
+              <button type="button" class="btn btn-secondary btn-xs" id="btn-zoom-in"><i class="fa-solid fa-plus"></i></button>
+              <button type="button" class="btn btn-secondary btn-xs" id="btn-zoom-reset" style="margin-left:4px;">รีเซ็ต</button>
+            </div>
+          </div>
+
+          <!-- Info & Actions -->
+          <div style="display:flex; flex-direction:column; justify-space-between; gap:1rem;">
+            <div style="display:flex; flex-direction:column; gap:0.75rem; font-size:0.85rem;">
+              <div style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:0.85rem;">
+                <div style="font-weight:700; color:#94a3b8; margin-bottom:0.35rem;">ข้อมูลผู้เช่า & ห้องพัก</div>
+                <div style="font-size:1.1rem; font-weight:800; color:#fff;">ห้อง ${slip.roomName}</div>
+                <div style="color:#cbd5e1;">${slip.tenantName}</div>
+                <div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">รอบบิล ${Formatters.thaiMonthBE(slip.monthKey)}</div>
+              </div>
+
+              <div style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:0.85rem; display:flex; flex-direction:column; gap:0.4rem;">
+                <div style="display:flex; justify-content:space-between;"><span style="color:#94a3b8;">ยอดที่ต้องชำระ:</span><strong>${Formatters.currency(reqAmt)}</strong></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:#94a3b8;">ยอดเงินในสลิป:</span><strong style="color:#38bdf8; font-size:1.05rem;">${Formatters.currency(slipAmt)}</strong></div>
+                <div style="display:flex; justify-content:space-between; border-top:1px solid #334155; padding-top:0.35rem;">
+                  <span style="color:#94a3b8;">ส่วนต่าง:</span>
+                  <strong style="color:${Math.abs(diff) > 0.01 ? (diff < 0 ? '#f87171' : '#34d399') : '#94a3b8'};">
+                    ${Math.abs(diff) > 0.01 ? (diff > 0 ? '+' : '') + Formatters.currency(diff) : '฿0.00'}
+                  </strong>
+                </div>
+              </div>
+
+              ${slip.referenceNo ? `
+                <div style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:0.75rem; font-size:0.8rem;">
+                  <span style="color:#94a3b8; display:block;">เลขที่อ้างอิง (Ref No.):</span>
+                  <code style="color:#38bdf8; font-weight:700; word-break:break-all;">${slip.referenceNo}</code>
+                </div>
+              ` : ''}
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:auto;">
+              ${slip.verificationStatus !== 'approved' ? `
+                <button type="button" class="btn btn-success btn-full" id="modal-btn-approve-slip" style="padding:0.75rem; font-weight:700;">
+                  <i class="fa-solid fa-check"></i> อนุมัติการชำระเงิน
+                </button>
+              ` : ''}
+              ${slip.verificationStatus !== 'rejected' ? `
+                <button type="button" class="btn btn-danger btn-full" id="modal-btn-reject-slip" style="padding:0.75rem; font-weight:700;">
+                  <i class="fa-solid fa-xmark"></i> ปฏิเสธสลิปนี้
+                </button>
+              ` : ''}
+              <button type="button" class="btn btn-secondary btn-full close-modal-btn">ปิดหน้าต่าง</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+
+    // Zoom Controls
+    const img = dialog.querySelector('#zoom-slip-img');
+    const txt = dialog.querySelector('#zoom-val-text');
+
+    dialog.querySelector('#btn-zoom-in').addEventListener('click', () => {
+      scale = Math.min(3, scale + 0.3);
+      img.style.transform = `scale(${scale})`;
+      txt.textContent = `${Math.round(scale * 100)}%`;
+    });
+    dialog.querySelector('#btn-zoom-out').addEventListener('click', () => {
+      scale = Math.max(0.5, scale - 0.3);
+      img.style.transform = `scale(${scale})`;
+      txt.textContent = `${Math.round(scale * 100)}%`;
+    });
+    dialog.querySelector('#btn-zoom-reset').addEventListener('click', () => {
+      scale = 1;
+      img.style.transform = 'scale(1)';
+      txt.textContent = '100%';
+    });
+
+    const closeBtns = dialog.querySelectorAll('.close-modal-btn');
+    closeBtns.forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    const approveBtn = dialog.querySelector('#modal-btn-approve-slip');
+    if (approveBtn) {
+      approveBtn.addEventListener('click', async () => {
+        modal.classList.remove('active');
+        await this.doApproveSlip(slip, state);
+      });
+    }
+
+    const rejectBtn = dialog.querySelector('#modal-btn-reject-slip');
+    if (rejectBtn) {
+      rejectBtn.addEventListener('click', () => {
+        modal.classList.remove('active');
+        this.openRejectModal(slip, state);
+      });
+    }
+  }
+
+  static openRejectModal(slip, state) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    const presets = [
+      'ยอดเงินไม่ตรงกับยอดบิลสุทธิ',
+      'สลิปไม่ชัดเจน / ตัวหนังสือเบลอ อ่านไม่ได้',
+      'พบการใช้งานสลิปซ้ำในระบบ',
+      'ไม่ใช่บัญชีปลายทางของหอพัก',
+      'สลิปถูกยกเลิกทำรายการจากต้นทาง',
+      'วันที่/เวลาในสลิปไม่ตรงกับรอบบิล'
+    ];
+
+    dialog.innerHTML = `
+      <div class="modal-header" style="background:#dc2626; color:#fff;">
+        <h3><i class="fa-solid fa-triangle-exclamation"></i> ปฏิเสธสลิป — ห้อง ${slip.roomName}</h3>
+        <button type="button" class="close-modal-btn" style="color:#fff;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        <p style="font-size:0.88rem; color:#475569; margin-bottom:1rem;">
+          กรุณาระบุเหตุผลในการปฏิเสธสลิปของห้อง <strong>${slip.roomName}</strong> (${slip.tenantName}):
+        </p>
+
+        <form id="form-reject-slip-reason">
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label style="font-weight:600; font-size:0.85rem; color:#334155; margin-bottom:0.5rem; display:block;">เลือกเหตุผลสำเร็จรูป:</label>
+            <select id="select-reject-preset" class="form-control" style="padding:0.6rem;">
+              ${presets.map(p => `<option value="${p}">${p}</option>`).join('')}
+              <option value="custom">-- กรอกเหตุผลอื่น ๆ --</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="group-custom-reason" style="display:none; margin-bottom:1rem;">
+            <label style="font-weight:600; font-size:0.85rem; color:#334155; margin-bottom:0.35rem; display:block;">ระบุเหตุผลเพิ่มเติม:</label>
+            <textarea id="text-custom-reason" class="form-control" rows="3" placeholder="ระบุเหตุผล..." style="padding:0.6rem; font-size:0.88rem;"></textarea>
+          </div>
+
+          <div style="display:flex; gap:0.5rem; margin-top:1.25rem;">
+            <button type="button" class="btn btn-secondary close-modal-btn" style="flex:1;">ยกเลิก</button>
+            <button type="submit" class="btn btn-danger" style="flex:1; font-weight:700;"><i class="fa-solid fa-xmark"></i> ยืนยันการปฏิเสธ</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    modal.classList.add('active');
+
+    const select = dialog.querySelector('#select-reject-preset');
+    const customGroup = dialog.querySelector('#group-custom-reason');
+    select.addEventListener('change', () => {
+      customGroup.style.display = select.value === 'custom' ? 'block' : 'none';
+    });
+
+    const closeBtns = dialog.querySelectorAll('.close-modal-btn');
+    closeBtns.forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    dialog.querySelector('#form-reject-slip-reason').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const preset = select.value;
+      const customText = dialog.querySelector('#text-custom-reason').value.trim();
+      const finalReason = preset === 'custom' ? customText : preset;
+      if (!finalReason) {
+        alert('กรุณาระบุเหตุผลในการปฏิเสธ');
+        return;
+      }
+
+      modal.classList.remove('active');
+      await this.doRejectSlip(slip, finalReason, state);
+    });
+  }
+
+  static async doApproveSlip(slip, state) {
+    const user = AuthService.getCurrentUser();
+    const adminName = user ? user.displayName : 'แอดมิน';
+    const supaUrl = DBService.getSavedSupabaseUrl();
+    const apiKey = DBService.getSavedApiKey();
+
+    if (supaUrl && apiKey) {
+      try {
+        const base = DBService.getBaseSupabaseUrl(supaUrl);
+        const res = await fetch(`${base}/rest/v1/rpc/approve_payment_slip`, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey,
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ p_slip_id: slip.id, p_admin_name: adminName })
+        });
+        const result = await res.json();
+        if (result.status === 'error') throw new Error(result.message);
+      } catch (err) {
+        console.warn('Approve slip RPC warning, updating locally:', err);
+      }
+    }
+
+    // Local state updates
+    slip.verificationStatus = 'approved';
+    slip.verifiedBy = adminName;
+    slip.verifiedAt = new Date().toISOString();
+
+    const inv = (state.invoices || []).find(i => i.id === slip.invoiceId || i.invoiceNumber === slip.invoiceId);
+    if (inv) {
+      inv.status = 'paid';
+      inv.paidAmount = inv.totalAmount;
+      inv.outstandingAmount = 0;
+    }
+
+    await DBService.saveState(state);
+    alert(`✅ อนุมัติการชำระเงินของห้อง ${slip.roomName} เรียบร้อยแล้ว`);
+    App.switchTab('slip-verification');
+  }
+
+  static async doRejectSlip(slip, reason, state) {
+    const user = AuthService.getCurrentUser();
+    const adminName = user ? user.displayName : 'แอดมิน';
+    const supaUrl = DBService.getSavedSupabaseUrl();
+    const apiKey = DBService.getSavedApiKey();
+
+    if (supaUrl && apiKey) {
+      try {
+        const base = DBService.getBaseSupabaseUrl(supaUrl);
+        const res = await fetch(`${base}/rest/v1/rpc/reject_payment_slip`, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey,
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ p_slip_id: slip.id, p_admin_name: adminName, p_reason: reason })
+        });
+        const result = await res.json();
+        if (result.status === 'error') throw new Error(result.message);
+      } catch (err) {
+        console.warn('Reject slip RPC warning, updating locally:', err);
+      }
+    }
+
+    // Local state updates
+    slip.verificationStatus = 'rejected';
+    slip.verifiedBy = adminName;
+    slip.verifiedAt = new Date().toISOString();
+    slip.rejectReason = reason;
+
+    const inv = (state.invoices || []).find(i => i.id === slip.invoiceId || i.invoiceNumber === slip.invoiceId);
+    if (inv && inv.status !== 'paid') {
+      inv.status = 'pending';
+    }
+
+    await DBService.saveState(state);
+    alert(`❌ ปฏิเสธสลิปของห้อง ${slip.roomName} เรียบร้อยแล้ว`);
+    App.switchTab('slip-verification');
+  }
+}
+
 class MeterReadingComponent {
   static render(state) {
     const rooms = state.rooms || [];
@@ -3639,6 +4158,7 @@ class App {
       case 'meter-reading': workspace.innerHTML = MeterReadingComponent.render(this.state); MeterReadingComponent.bindMeterReadingEvents(); break;
       case 'meter-entry': workspace.innerHTML = MeterEntryComponent.render(this.state); this.bindMeterEntryEvents(); break;
       case 'billing': workspace.innerHTML = BillingComponent.render(this.state); this.bindBillingEvents(); break;
+      case 'slip-verification': workspace.innerHTML = SlipVerificationComponent.render(this.state); SlipVerificationComponent.bindEvents(this.state); break;
       case 'repairs': workspace.innerHTML = RepairsComponent.render(this.state); this.bindRepairsEvents(); break;
       case 'accounting': workspace.innerHTML = AccountingComponent.render(this.state); this.bindAccountingEvents(); break;
       case 'calendar': workspace.innerHTML = CalendarComponent.render(this.state); this.bindCalendarEvents(); break;

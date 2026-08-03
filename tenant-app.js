@@ -274,6 +274,38 @@ class TenantDBService {
       let slipUrl = '';
       if (paymentData.paymentMethod === 'transfer' && paymentData.slipDataUrl) {
         slipUrl = await this.uploadBase64ToStorage(url, apiKey, paymentData.slipDataUrl, paymentData.roomId);
+
+        // บันทึกตาราง payment_slips เพื่อใช้ระบบตรวจสอบสลิป (Slip Verification Module)
+        try {
+          const slipRecord = {
+            id: `slip_${paymentData.roomId}_${Date.now()}`,
+            invoice_id: paymentData.invoiceId || paymentData.invoiceNumber,
+            tenant_id: paymentData.tenantId || '',
+            room_id: paymentData.roomId,
+            room_name: paymentData.roomName || 'ห้องพัก',
+            tenant_name: paymentData.tenantName || 'ผู้เช่า',
+            month_key: paymentData.monthKey || new Date().toISOString().slice(0,7),
+            public_url: slipUrl,
+            amount: parseFloat(paymentData.amount) || parseFloat(paymentData.requiredAmount) || 0,
+            required_amount: parseFloat(paymentData.requiredAmount) || 0,
+            fine_amount: parseFloat(paymentData.fineAmount) || 0,
+            reference_no: paymentData.referenceNo || null,
+            verification_status: paymentData.isMismatch ? 'amount_mismatch' : 'pending',
+            created_at: new Date().toISOString()
+          };
+
+          await fetch(`${baseUrl}/rest/v1/payment_slips`, {
+            method: 'POST',
+            headers: {
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(slipRecord)
+          });
+        } catch (slipErr) {
+          console.warn('Post to payment_slips table warning:', slipErr);
+        }
       }
       
       const res = await fetch(`${baseUrl}/rest/v1/rpc/submit_tenant_payment`, {
@@ -1646,6 +1678,20 @@ class MyBillsApp {
           fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
+              // 1. Security Check: File Type
+              const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+              if (!allowedMimes.includes(file.type.toLowerCase())) {
+                alert('⚠️ รองรับเฉพาะไฟล์รูปภาพสลิปประเภท JPG, PNG หรือ WEBP เท่านั้น');
+                fileInput.value = '';
+                return;
+              }
+              // 2. Security Check: File Size <= 10MB
+              if (file.size > 10 * 1024 * 1024) {
+                alert(`⚠️ ขนาดไฟล์สลิปเกินกำหนด (สูงสุด 10 MB) ไฟล์ของคุณขนาด ${(file.size / (1024 * 1024)).toFixed(1)} MB`);
+                fileInput.value = '';
+                return;
+              }
+
               const reader = new FileReader();
               reader.onload = (evt) => {
                 MyBillsApp.currentSlipDataUrl = evt.target.result;
@@ -1687,9 +1733,16 @@ class MyBillsApp {
                 action: 'submitTenantPayment',
                 idCard: String(tenant.idCard).replace(/\D/g, ''),
                 roomId: tenant.assignedRoomId,
+                roomName: inv ? (inv.roomName || tenant.assignedRoomId) : tenant.assignedRoomId,
+                tenantName: tenant.name,
+                invoiceId: inv ? inv.id : MyBillsApp.activeInvoiceNumber,
                 invoiceNumber: MyBillsApp.activeInvoiceNumber,
+                monthKey: inv ? inv.monthKey : new Date().toISOString().slice(0,7),
                 paymentMethod: 'transfer',
-                slipDataUrl: MyBillsApp.currentSlipDataUrl
+                slipDataUrl: MyBillsApp.currentSlipDataUrl,
+                requiredAmount: inv ? (inv.totalAmount || amountToPay) : amountToPay,
+                amount: amountToPay,
+                fineAmount: inv ? (inv.fineAmount || 0) : 0
               });
 
               analysisLoader.remove();
