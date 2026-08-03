@@ -524,7 +524,6 @@ class DBService {
     if (!invoices || !Array.isArray(invoices)) return [];
     const seen = new Set();
     const unique = [];
-    // Prioritize paid invoices over unpaid duplicates
     const sorted = [...invoices].sort((a, b) => (b.status === 'paid' ? 1 : 0) - (a.status === 'paid' ? 1 : 0));
     for (const inv of sorted) {
       const key = `${inv.monthKey || ''}_${inv.roomId || inv.roomName || ''}`.toLowerCase();
@@ -536,9 +535,30 @@ class DBService {
     return unique;
   }
 
-  static getInitialRooms() {
+  static getStateFromStorage() {
+    try {
+      const raw = localStorage.getItem(this.STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static getInitialRooms(stateOrIsDemo) {
+    let isDemo = true;
+    if (typeof stateOrIsDemo === 'boolean') {
+      isDemo = stateOrIsDemo;
+    } else if (stateOrIsDemo && stateOrIsDemo.settings && stateOrIsDemo.settings.isDemoMode !== undefined) {
+      isDemo = Boolean(stateOrIsDemo.settings.isDemoMode);
+    } else {
+      const savedState = this.getStateFromStorage();
+      if (savedState && savedState.settings && savedState.settings.isDemoMode !== undefined) {
+        isDemo = Boolean(savedState.settings.isDemoMode);
+      }
+    }
+    if (!isDemo) return [];
+
     const rooms = [];
-    // S101 - S119
     for (let i = 101; i <= 119; i++) {
       rooms.push({
         id: `s${i}`,
@@ -554,7 +574,6 @@ class DBService {
         lastWaterMeter: 0
       });
     }
-    // Rooms 101 - 110 (Floor 1), 201 - 210 (Floor 2)
     for (let f = 1; f <= 2; f++) {
       for (let r = 1; r <= 10; r++) {
         const num = `${f}0${r}`.slice(-3);
@@ -574,7 +593,6 @@ class DBService {
         });
       }
     }
-    // Named houses / commercial rooms
     rooms.push(
       { id: 'rm_house1', name: 'บ้านหลัง 1', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'vacant', occupied: false, currentTenantId: '', currentTenantName: '' },
       { id: 'rm_house2', name: 'บ้านหลัง 2', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'vacant', occupied: false, currentTenantId: '', currentTenantName: '' }
@@ -583,6 +601,11 @@ class DBService {
   }
 
   static getInitialState() {
+    const savedState = this.getStateFromStorage();
+    const isDemo = savedState && savedState.settings && savedState.settings.isDemoMode !== undefined
+      ? Boolean(savedState.settings.isDemoMode)
+      : true;
+
     return {
       settings: {
         apartmentName: 'หอพักสมบัติ นนทบุรี',
@@ -593,20 +616,21 @@ class DBService {
         bankAccountNo: '2401346663',
         bankAccountName: 'นางสมผิว น้ำวน',
         promptPayId: '0805991691',
-        supabaseUrl: ''
+        supabaseUrl: '',
+        isDemoMode: isDemo
       },
       rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 0, commonFee: 0 },
       users: [
-        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
-        { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
-        { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' /* sha256('staff') */ }
+        { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+        { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+        { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' }
       ],
       roomTypes: [
         { id: 'rt_fan', name: 'ห้องพัดลมมาตรฐาน', description: 'ห้องพัดลมกว้างขวาง ระเบียงส่วนตัว', defaultRent: 2500 },
         { id: 'rt_air', name: 'ห้องแอร์ปรับอากาศ', description: 'เครื่องปรับอากาศประหยัดไฟเบอร์ 5 พร้อมเฟอร์นิเจอร์', defaultRent: 3500 },
         { id: 'rt_shop', name: 'ห้องพาณิชย์ร้านค้า', description: 'ติดถนนหลัก เหมาะค้าขายหรือทำออฟฟิศ', defaultRent: 5500 }
       ],
-      rooms: this.getInitialRooms(),
+      rooms: this.getInitialRooms(isDemo),
       tenants: [],
       invoices: [],
       repairs: [],
@@ -625,7 +649,6 @@ class DBService {
     if (rawState) {
       try {
         const parsed = JSON.parse(rawState);
-        // Migrate old googleSheetUrl to supabaseUrl
         if (parsed.settings && parsed.settings.googleSheetUrl && !parsed.settings.supabaseUrl) {
           const u = parsed.settings.googleSheetUrl;
           if (u.includes('supabase.co')) {
@@ -645,16 +668,14 @@ class DBService {
     }
     const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL');
     if (fromStorage && fromStorage.includes('supabase.co')) return this.cleanUrl(fromStorage);
-    // Migrate old localStorage key
     const oldStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (oldStorage && oldStorage.includes('supabase.co')) {
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', oldStorage);
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       return this.cleanUrl(oldStorage);
     }
-    return 'https://bdeowpdjgiombqatdilh.supabase.co';
+    return 'https://bdeowpdjgiambqatdilh.supabase.co';
   }
-
 
   static getSavedApiKey() {
     const rawState = localStorage.getItem(this.STORAGE_KEY);
@@ -677,7 +698,6 @@ class DBService {
     return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
   }
 
-  // apiKey สิทธิ์จำกัด สำหรับแนบไปกับลิงก์พอร์ทัลผู้เช่า (tenant.html) เท่านั้น ต้องตั้งค่าคนละตัวกับ apiKey ของแอดมิน
   static getSavedTenantApiKey() {
     const rawState = localStorage.getItem(this.STORAGE_KEY);
     if (rawState) {
@@ -1038,6 +1058,11 @@ class DBService {
         ];
       }
 
+      const isDemo = data.settings && data.settings.isDemoMode !== undefined ? Boolean(data.settings.isDemoMode) : true;
+      if ((!data.rooms || !Array.isArray(data.rooms) || data.rooms.length === 0) && isDemo) {
+        data.rooms = this.getInitialRooms(true);
+      }
+
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(url));
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
       this.saveSnapshot(snapshot);
@@ -1048,7 +1073,147 @@ class DBService {
     return null;
   }
 
-  static async purgeSupabaseData(url) {
+  static async purgeSupabaseData(url, state) {
+    const cleanUrl = this.cleanUrl(url);
+    if (!cleanUrl) return;
+    const baseUrl = this.getBaseSupabaseUrl(cleanUrl);
+    const apiKey = this.getSavedApiKey();
+    const headers = {
+      'apikey': apiKey,
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    };
+
+    const isDemo = state && state.settings && state.settings.isDemoMode !== undefined
+      ? Boolean(state.settings.isDemoMode)
+      : true;
+
+    const tablesToDelete = [
+      'invoices',
+      'tenant_documents',
+      'tenant_deposit_deductions',
+      'repairs',
+      'ledger',
+      'events',
+      'tenants',
+      'rooms'
+    ];
+
+    for (const table of tablesToDelete) {
+      try {
+        await fetch(`${baseUrl}/rest/v1/${table}?id=not.is.null`, { method: 'DELETE', headers });
+        await fetch(`${baseUrl}/rest/v1/${table}?room_id=not.is.null`, { method: 'DELETE', headers });
+
+        const getRes = await fetch(`${baseUrl}/rest/v1/${table}?select=*`, { headers });
+        if (getRes.ok) {
+          const rows = await getRes.json();
+          if (Array.isArray(rows) && rows.length > 0) {
+            for (const r of rows) {
+              let query = '';
+              if (r.id !== undefined && r.id !== null) {
+                query = `id=eq.${encodeURIComponent(r.id)}`;
+              } else if (r.room_id && r.month_key) {
+                query = `room_id=eq.${encodeURIComponent(r.room_id)}&month_key=eq.${encodeURIComponent(r.month_key)}`;
+              }
+              if (query) {
+                await fetch(`${baseUrl}/rest/v1/${table}?${query}`, { method: 'DELETE', headers });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Purge table ${table} failed:`, err);
+      }
+    }
+
+    // Re-insert rooms ONLY IF isDemoMode is TRUE
+    if (isDemo) {
+      try {
+        const initialRooms = this.getInitialRooms(true);
+        const cfg = this.getTableConfigs().rooms;
+        const dbRooms = initialRooms.map(r => this.toRow(cfg.fields, r));
+        await fetch(`${baseUrl}/rest/v1/rooms?on_conflict=id`, {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify(dbRooms)
+        });
+      } catch (err) {
+        console.warn('Reset rooms in Supabase failed:', err);
+      }
+    }
+
+    localStorage.removeItem(this.SNAPSHOT_KEY);
+    localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
+    localStorage.removeItem('SOMBAT_APARTMENT_TABLE_SNAPSHOT_V1');
+  }
+
+  // 1. ปุ่ม "เริ่มใช้งานจริง" (Start Production Mode / Remove Demo Data - ใช้ครั้งเดียว)
+  static async startProductionMode(state) {
+    if (!state.settings) state.settings = {};
+    state.settings.isDemoMode = false;
+
+    state.tenants = [];
+    state.invoices = [];
+    state.repairs = [];
+    state.ledger = [];
+    state.events = [];
+    state.rooms = []; // ลบห้อง Demo ทั้งหมด 41 ห้องถาวร
+
+    localStorage.removeItem(this.SNAPSHOT_KEY);
+    localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
+    localStorage.removeItem('SOMBAT_APARTMENT_TABLE_SNAPSHOT_V1');
+
+    await this.saveState(state);
+
+    const url = this.getSavedSupabaseUrl();
+    if (url) {
+      await this.purgeSupabaseData(url, state);
+    }
+
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    return state;
+  }
+
+  // 2. ปุ่ม "ล้างข้อมูลการใช้งาน" (Clear Usage Data - ใช้ประจำ โดยไม่ลบ/ไม่แตะห้องพัก)
+  static async clearUsageData(state) {
+    state.tenants = [];
+    state.invoices = [];
+    state.repairs = [];
+    state.ledger = [];
+    state.events = [];
+
+    // รีเซ็ตสถานะห้องพักเดิมให้เป็นห้องว่าง โดยไม่ลบ หรือสร้างโครงสร้างห้องพักใหม่
+    if (state.rooms && Array.isArray(state.rooms)) {
+      state.rooms.forEach(r => {
+        r.status = 'vacant';
+        r.occupied = false;
+        r.currentTenantId = '';
+        r.currentTenantName = '';
+        r.entryDate = null;
+        r.lastElecMeter = 0;
+        r.lastWaterMeter = 0;
+      });
+    }
+
+    localStorage.removeItem(this.SNAPSHOT_KEY);
+    localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
+    localStorage.removeItem('SOMBAT_APARTMENT_TABLE_SNAPSHOT_V1');
+
+    await this.saveState(state);
+
+    const url = this.getSavedSupabaseUrl();
+    if (url) {
+      await this.purgeUsageTablesSupabase(url, state);
+    }
+
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    return state;
+  }
+
+  static async purgeUsageTablesSupabase(url, state) {
     const cleanUrl = this.cleanUrl(url);
     if (!cleanUrl) return;
     const baseUrl = this.getBaseSupabaseUrl(cleanUrl);
@@ -1066,68 +1231,68 @@ class DBService {
       'repairs',
       'ledger',
       'events',
-      'tenants',
-      'rooms'
+      'tenants'
     ];
 
     for (const table of tablesToDelete) {
       try {
-        // 1. PostgREST delete all rows using id=not.is.null filter
         await fetch(`${baseUrl}/rest/v1/${table}?id=not.is.null`, { method: 'DELETE', headers });
+        await fetch(`${baseUrl}/rest/v1/${table}?room_id=not.is.null`, { method: 'DELETE', headers });
 
-        // 2. Query remaining IDs and delete explicitly to ensure 100% deletion
-        const getRes = await fetch(`${baseUrl}/rest/v1/${table}?select=id`, { headers });
+        const getRes = await fetch(`${baseUrl}/rest/v1/${table}?select=*`, { headers });
         if (getRes.ok) {
           const rows = await getRes.json();
           if (Array.isArray(rows) && rows.length > 0) {
-            const ids = rows.map(r => `"${String(r.id).replace(/"/g, '')}"`).join(',');
-            await fetch(`${baseUrl}/rest/v1/${table}?id=in.(${ids})`, { method: 'DELETE', headers });
+            for (const r of rows) {
+              let query = '';
+              if (r.id !== undefined && r.id !== null) {
+                query = `id=eq.${encodeURIComponent(r.id)}`;
+              } else if (r.room_id && r.month_key) {
+                query = `room_id=eq.${encodeURIComponent(r.room_id)}&month_key=eq.${encodeURIComponent(r.month_key)}`;
+              }
+              if (query) {
+                await fetch(`${baseUrl}/rest/v1/${table}?${query}`, { method: 'DELETE', headers });
+              }
+            }
           }
         }
       } catch (err) {
-        console.warn(`Purge table ${table} failed:`, err);
+        console.warn(`Purge usage table ${table} failed:`, err);
       }
     }
 
-    // Reset all rooms in Supabase to clean vacant status
-    try {
-      const initialRooms = this.getInitialRooms();
-      const cfg = this.getTableConfigs().rooms;
-      const dbRooms = initialRooms.map(r => this.toRow(cfg.fields, r));
-      await fetch(`${baseUrl}/rest/v1/rooms?on_conflict=id`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Prefer': 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(dbRooms)
-      });
-    } catch (err) {
-      console.warn('Reset rooms in Supabase failed:', err);
+    // อัปเดตสถานะห้องพักใน Supabase โดยไม่ลบหรือเพิ่มโครงสร้างห้องพัก
+    if (state.rooms && Array.isArray(state.rooms) && state.rooms.length > 0) {
+      try {
+        const cfg = this.getTableConfigs().rooms;
+        const dbRooms = state.rooms.map(r => this.toRow(cfg.fields, r));
+        await fetch(`${baseUrl}/rest/v1/rooms?on_conflict=id`, {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify(dbRooms)
+        });
+      } catch (err) {
+        console.warn('Sync rooms status in Supabase failed:', err);
+      }
     }
 
     localStorage.removeItem(this.SNAPSHOT_KEY);
     localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
+    localStorage.removeItem('SOMBAT_APARTMENT_TABLE_SNAPSHOT_V1');
   }
 
   static async clearDemoData(state) {
-    const cleanRooms = this.getInitialRooms();
-    state.tenants = [];
-    state.invoices = [];
-    state.repairs = [];
-    state.ledger = [];
-    state.events = [];
-    state.rooms = cleanRooms;
-
-    localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
-    await this.saveState(state);
-
-    const url = this.getSavedSupabaseUrl();
-    if (url) {
-      await this.purgeSupabaseData(url);
+    const isDemo = state && state.settings && state.settings.isDemoMode !== undefined
+      ? Boolean(state.settings.isDemoMode)
+      : true;
+    if (isDemo) {
+      return this.startProductionMode(state);
+    } else {
+      return this.clearUsageData(state);
     }
-
-    return state;
   }
 
   static async syncToSupabase(url, state) {
@@ -2268,8 +2433,21 @@ class ReportsComponent {
 
         <!-- 2. Full System Backup & Restore Center -->
         <div class="glass-card style-table-card" style="padding:1.75rem;">
-          <h3 style="margin-bottom:0.5rem; color:#0f172a;"><i class="fa-solid fa-box-archive text-primary"></i> 5. ศูนย์สำรองและเรียกคืนข้อมูลระบบ (Full Backup & Restore Center)</h3>
-          <p class="text-muted" style="margin-bottom:1.5rem;">สำรองข้อมูลหอพักทั้งหมดเป็นไฟล์ Excel Multi-Sheet หรือ JSON และสามารถอัปโหลดเพื่อ Restore เรียกคืนข้อมูลย้อนหลังได้ตลอดเวลา</p>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:0.75rem;">
+            <h3 style="color:#0f172a; margin:0;"><i class="fa-solid fa-box-archive text-primary"></i> 5. ศูนย์สำรองและเรียกคืนข้อมูลระบบ (Full Backup & Restore Center)</h3>
+            <div>
+              ${(state.settings && state.settings.isDemoMode === false) ? `
+                <span class="badge-pill badge-success" style="font-size:0.85rem; padding:0.4rem 0.85rem; font-weight:700;">
+                  🟢 PRODUCTION MODE (โหมดใช้งานจริง - ปิดการ Seed ถาวร)
+                </span>
+              ` : `
+                <span class="badge-pill badge-warning" style="font-size:0.85rem; padding:0.4rem 0.85rem; font-weight:700; background:#f59e0b; color:#fff;">
+                  🟡 DEMO MODE (กำลังใช้ข้อมูลทดลองเดโม่)
+                </span>
+              `}
+            </div>
+          </div>
+          <p class="text-muted" style="margin-bottom:1.5rem;">สำรองข้อมูลหอพักทั้งหมดเป็นไฟล์ Excel Multi-Sheet หรือ JSON และจัดการล้างข้อมูลระบบเพื่อเริ่มต้นใช้งาน</p>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
             <!-- Export Section -->
@@ -2300,15 +2478,33 @@ class ReportsComponent {
             </div>
           </div>
 
-          <!-- Clear Demo Data / Clean System Section -->
-          <div style="margin-top:1.25rem; background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-            <div>
-              <h4 style="color:#991b1b; margin-bottom:0.25rem;"><i class="fa-solid fa-broom text-danger"></i> ล้างข้อมูลตัวอย่างเดโม่ (Clear Mock Data) เพื่อเริ่มต้นลงข้อมูลจริง</h4>
-              <p class="text-muted" style="font-size:0.85rem; margin:0;">ลบข้อมูลผู้เช่าทดลอง บิลทดลอง และเปลี่ยนสถานะห้องพักทุกห้องให้ว่าง พร้อมสำหรับลงทะเบียนผู้เช่าและบันทึกข้อมูลจริง</p>
+          <!-- Production & Clean System Control Section -->
+          <div style="margin-top:1.5rem; display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+            <!-- 1. Start Production Mode Button (Used Once) -->
+            <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; justify-space-between;">
+              <div>
+                <h4 style="color:#991b1b; margin-bottom:0.35rem;"><i class="fa-solid fa-rocket text-danger"></i> เริ่มใช้งานจริง (Start Production Mode)</h4>
+                <p class="text-muted" style="font-size:0.82rem; margin-bottom:1rem; line-height:1.5;">
+                  ลบ 41 ห้องเดโม่, ลบผู้เช่า/บิล/แจ้งซ่อมเดโม่ ทั้งหมด และเปลี่ยนระบบเป็น <code>is_demo_mode = false</code> เพื่อปิดการสร้างห้องเดโม่อัตโนมัติถาวร (ใช้ครั้งแรกหลังติดตั้ง)
+                </p>
+              </div>
+              <button type="button" class="btn btn-danger btn-full" id="btn-start-production" style="padding:0.75rem; font-weight:700; background:#dc2626; border-color:#dc2626; color:#fff;">
+                <i class="fa-solid fa-rocket"></i> เริ่มใช้งานจริง (ลบ 41 ห้องเดโม่ & ปิด Seed ถาวร)
+              </button>
             </div>
-            <button type="button" class="btn btn-danger" id="btn-clear-demo-data" style="white-space:nowrap; padding:0.65rem 1.25rem; font-weight:700; background:#dc2626; border-color:#dc2626; color:#fff;">
-              <i class="fa-solid fa-trash-can"></i> ล้างข้อมูลเดโม่เริ่มต้นใช้งานจริง
-            </button>
+
+            <!-- 2. Clear Usage Data Button (Used Regularly) -->
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; justify-space-between;">
+              <div>
+                <h4 style="color:#1e40af; margin-bottom:0.35rem;"><i class="fa-solid fa-broom text-primary"></i> ล้างข้อมูลการใช้งาน (Clear Usage Data)</h4>
+                <p class="text-muted" style="font-size:0.82rem; margin-bottom:1rem; line-height:1.5;">
+                  ลบผู้เช่า, ลบบิล, ลบแจ้งซ่อม, ลบรายรับ-รายจ่าย และรีเซ็ตสถานะห้องพักทุกห้องเป็นห้องว่าง (โดย<strong>ห้ามลบและห้ามแตะต้องตารางโครงสร้างห้องพักที่มีอยู่</strong>)
+                </p>
+              </div>
+              <button type="button" class="btn btn-primary btn-full" id="btn-clear-usage-data" style="padding:0.75rem; font-weight:700; background:#2563eb; border-color:#2563eb; color:#fff;">
+                <i class="fa-solid fa-broom"></i> ล้างข้อมูลการใช้งาน (ลบผู้เช่า/บิล โดยไม่แตะห้องพัก)
+              </button>
+            </div>
           </div>
         </div>
 
@@ -6206,25 +6402,48 @@ class App {
       });
     }
 
-    const btnClearDemo = document.getElementById('btn-clear-demo-data');
-    if (btnClearDemo) {
-      btnClearDemo.addEventListener('click', async () => {
-        if (!confirm('⚠️ คำเตือน: คุณต้องการล้างข้อมูลผู้เช่าทดลอง บิลทดลอง และปรับสถานะห้องพักทุกห้องให้ว่าง เพื่อเริ่มต้นลงข้อมูลของจริงใหม่ใช่หรือไม่?\n\n(แนะนำให้กดปุ่ม "สำรองข้อมูลทั้งระบบ" ไว้ก่อนทำการล้างข้อมูล)')) {
+    // 1. ปุ่ม "เริ่มใช้งานจริง" (Start Production Mode / Remove Demo Data - ใช้ครั้งเดียว)
+    const btnStartProd = document.getElementById('btn-start-production');
+    if (btnStartProd) {
+      btnStartProd.addEventListener('click', async () => {
+        if (!confirm('🚀 ยืนยันการเปลี่ยนเป็นโหมดใช้งานจริง (Start Production Mode)?\n\nระบบจะลบข้อมูลเดโม่ทั้งหมด 41 ห้อง, ผู้เช่า, บิล, แจ้งซ่อม และตั้งค่า is_demo_mode = false เพื่อปิดการสร้างห้องเดโม่อัตโนมัติถาวร ให้คุณสามารถเพิ่มห้องพักของตนเองได้ทันที')) {
           return;
         }
-        
-        btnClearDemo.disabled = true;
-        btnClearDemo.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังล้างข้อมูลเดโม่...';
-        
+
+        btnStartProd.disabled = true;
+        btnStartProd.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลบข้อมูลเดโม่และเปลี่ยนเป็นโหมดใช้งานจริง...';
+
         try {
-          await DBService.clearDemoData(this.state);
-          
-          alert('🟢 ล้างข้อมูลตัวอย่างเดโม่และล้างข้อมูลบน Supabase เรียบร้อยแล้ว! สถานะห้องพักทุกห้องเปลี่ยนเป็นห้องว่าง พร้อมสำหรับกรอกข้อมูลจริง');
+          await DBService.startProductionMode(this.state);
+          alert('🟢 เปลี่ยนเป็นโหมดใช้งานจริงเรียบร้อยแล้ว! ข้อมูลเดโม่ 41 ห้องถูกลบทิ้งถาวร และระบบปิดการสร้างห้องเดโม่อัตโนมัติแล้ว คุณสามารถเพิ่มห้องพักของตนเองได้เลย');
           App.switchTab('rooms');
         } catch (err) {
-          alert('❌ เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
-          btnClearDemo.disabled = false;
-          btnClearDemo.innerHTML = '<i class="fa-solid fa-trash-can"></i> ล้างข้อมูลเดโม่เริ่มต้นใช้งานจริง';
+          alert('❌ เกิดข้อผิดพลาดในการเปลี่ยนเป็นโหมดใช้งานจริง: ' + err.message);
+          btnStartProd.disabled = false;
+          btnStartProd.innerHTML = '<i class="fa-solid fa-rocket"></i> เริ่มใช้งานจริง (ลบ 41 ห้องเดโม่ & ปิด Seed ถาวร)';
+        }
+      });
+    }
+
+    // 2. ปุ่ม "ล้างข้อมูลการใช้งาน" (Clear Usage Data - ใช้ประจำ โดยไม่แตะห้องพัก)
+    const btnClearUsage = document.getElementById('btn-clear-usage-data');
+    if (btnClearUsage) {
+      btnClearUsage.addEventListener('click', async () => {
+        if (!confirm('🧹 ยืนยันการล้างข้อมูลการใช้งาน?\n\nระบบจะลบผู้เช่า, บิล, แจ้งซ่อม และประวัติรายรับ-รายจ่าย ทั้งหมด พร้อมรีเซ็ตสถานะห้องพักเป็นห้องว่าง (โดยห้ามลบและห้ามแตะต้องโครงสร้างห้องพักที่มีอยู่)')) {
+          return;
+        }
+
+        btnClearUsage.disabled = true;
+        btnClearUsage.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังล้างข้อมูลการใช้งาน...';
+
+        try {
+          await DBService.clearUsageData(this.state);
+          alert('🟢 ล้างข้อมูลการใช้งานเรียบร้อยแล้ว! ผู้เช่า, บิล, แจ้งซ่อมถูกล้าง และห้องพักทุกห้องถูกรีเซ็ตเป็นห้องว่าง โดยไม่กระทบโครงสร้างห้องพัก');
+          App.switchTab('rooms');
+        } catch (err) {
+          alert('❌ เกิดข้อผิดพลาดในการล้างข้อมูลการใช้งาน: ' + err.message);
+          btnClearUsage.disabled = false;
+          btnClearUsage.innerHTML = '<i class="fa-solid fa-broom"></i> ล้างข้อมูลการใช้งาน (ลบผู้เช่า/บิล โดยไม่แตะห้องพัก)';
         }
       });
     }

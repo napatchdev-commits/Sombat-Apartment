@@ -16,6 +16,7 @@ create table if not exists public.settings (
   bank_account_no     text,
   bank_account_name   text,
   prompt_pay_id       text,
+  is_demo_mode        boolean default true,
   updated_at          timestamptz default now(),
   constraint settings_single_row check (id = 1)
 );
