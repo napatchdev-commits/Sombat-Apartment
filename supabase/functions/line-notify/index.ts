@@ -141,6 +141,18 @@ async function handleWebhookEvents(events: any[]) {
         continue;
       }
 
+      if (["id", "myid", "groupid", "ไอดี", "เช็คไอดี"].some((k) => cleanMsg.includes(k))) {
+        const uId = event.source.userId || "ไม่พบ User ID";
+        const gId = event.source.groupId || "ไม่ได้อยู่ในกลุ่ม (แชทเดี่ยว)";
+        const reply = `🔑 ข้อมูล LINE ID ของคุณ:\n` +
+          `----------------------------------------\n` +
+          `👤 User ID: ${uId}\n` +
+          `👥 Group ID: ${gId}\n\n` +
+          `*(คัดลอก ID ด้านบนไปกรอกในหน้าตั้งค่าของระบบแอดมิน เพื่อเปิดใช้งานการแจ้งเตือนสลิปเงินโอนใหม่ได้ทันที)`;
+        await lineReply(replyToken, reply, channelToken);
+        continue;
+      }
+
       if (["บิล", "น้ำ", "ไฟ", "ยอด", "เช็ค"].some((k) => cleanMsg.includes(k))) {
         await lineReply(
           replyToken,
