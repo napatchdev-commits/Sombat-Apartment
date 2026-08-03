@@ -365,10 +365,54 @@ class MyBillsApp {
   static activeTab = 'home';
   static activeRepairId = null;
   static currentSlipDataUrl = '';
+  static currentSlipQrData = '';
   static currentPayMethod = 'transfer';
   static activeInvoiceNumber = '';
 
+  static decodeQR(dataUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, img.width, img.height);
+          if (typeof jsQR !== 'undefined') {
+            const code = jsQR(imgData.data, imgData.width, imgData.height);
+            if (code) {
+              resolve(code.data);
+            } else {
+              resolve(null);
+            }
+          } else {
+            console.error('jsQR is not loaded');
+            resolve(null);
+          }
+        } catch (e) {
+          console.error('jsQR error:', e);
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
 
+  static getRefNo(qrString) {
+    if (!qrString) return null;
+    if (qrString.startsWith('http')) {
+      try {
+        const url = new URL(qrString);
+        return url.pathname.split('/').pop() || qrString;
+      } catch (e) {
+        return qrString.substring(qrString.length - 20);
+      }
+    }
+    return qrString.length > 20 ? qrString.substring(qrString.length - 20) : qrString;
+  }
 
   static async init() {
     TenantDBService.getSavedSupabaseUrl();
@@ -1693,9 +1737,34 @@ class MyBillsApp {
               }
 
               const reader = new FileReader();
-              reader.onload = (evt) => {
-                MyBillsApp.currentSlipDataUrl = evt.target.result;
-                previewImg.src = evt.target.result;
+              reader.onload = async (evt) => {
+                const dataUrl = evt.target.result;
+                
+                // Show analyzing indicator in drop area
+                const dropAreaText = dropArea.querySelector('p');
+                const originalText = dropAreaText ? dropAreaText.innerHTML : '';
+                if (dropAreaText) {
+                  dropAreaText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-success" style="font-size:1.5rem;"></i><br><strong style="color:var(--success);">กำลังตรวจสอบคิวอาร์โค้ดสลิป...</strong>';
+                }
+
+                const qrData = await MyBillsApp.decodeQR(dataUrl);
+                if (dropAreaText) {
+                  dropAreaText.innerHTML = originalText;
+                }
+
+                if (!qrData) {
+                  alert('⚠️ ตรวจสอบไม่พบ "QR Code สลิปธนาคาร" บนรูปภาพนี้!\n\nกรุณาอัปโหลดรูปภาพสลิปโอนเงินของจริงจากแอปธนาคาร (ที่มี QR Code แสดงชัดเจน) เพื่อใช้สำหรับส่งหลักฐานชำระเงินตามระบบรักษาความปลอดภัยครับ');
+                  MyBillsApp.currentSlipDataUrl = '';
+                  MyBillsApp.currentSlipQrData = '';
+                  previewImg.src = '';
+                  previewContainer.style.display = 'none';
+                  fileInput.value = '';
+                  return;
+                }
+
+                MyBillsApp.currentSlipDataUrl = dataUrl;
+                MyBillsApp.currentSlipQrData = qrData;
+                previewImg.src = dataUrl;
                 previewContainer.style.display = 'block';
               };
               reader.readAsDataURL(file);
@@ -1742,7 +1811,8 @@ class MyBillsApp {
                 slipDataUrl: MyBillsApp.currentSlipDataUrl,
                 requiredAmount: inv ? (inv.totalAmount || amountToPay) : amountToPay,
                 amount: amountToPay,
-                fineAmount: inv ? (inv.fineAmount || 0) : 0
+                fineAmount: inv ? (inv.fineAmount || 0) : 0,
+                referenceNo: MyBillsApp.currentSlipQrData ? MyBillsApp.getRefNo(MyBillsApp.currentSlipQrData) : null
               });
 
               analysisLoader.remove();
