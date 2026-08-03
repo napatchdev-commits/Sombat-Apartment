@@ -586,12 +586,25 @@ class MyBillsApp {
 
   static renderHeaderBar() {
     if (this.activeTab === 'home') {
+      const rooms = (this.state && this.state.rooms) || [];
+      const room = rooms.find(r => r.id === (this.currentTenant && this.currentTenant.assignedRoomId)) || { name: 'S101' };
+      const roomName = room.name || (this.currentTenant && this.currentTenant.assignedRoomId) || 'S101';
+      const contractExpiry = (this.currentTenant && this.currentTenant.contractExpiry) || '31 พ.ค. 2570';
+
       return `
-        <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem; justify-content: flex-start;">
-          <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=student" style="width: 46px; height: 46px; border-radius: 50%; background: #ffffff; border: 2px solid rgba(255,255,255,0.4);" />
-          <div>
-            <div style="font-size: 0.85rem; opacity: 0.85;">สวัสดี</div>
-            <div style="font-size: 1.15rem; font-weight: 800; letter-spacing: 0.2px;">คุณ ${this.currentTenant.name}</div>
+        <div class="header-tenant-card animate-fade-in">
+          <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(this.currentTenant.name || 'tenant')}" class="header-avatar" alt="Tenant Profile" loading="lazy" />
+          <div class="header-tenant-info">
+            <div class="header-tenant-name">${this.currentTenant.name || 'ผู้เช่า'}</div>
+            <div class="header-meta-row">
+              <span class="header-room-badge"><i class="fa-solid fa-door-closed"></i> ห้อง ${roomName}</span>
+              <span class="header-status-badge"><i class="fa-solid fa-circle-check"></i> ผู้เช่าปัจจุบัน</span>
+            </div>
+            ${contractExpiry ? `
+              <div class="header-expiry-tag">
+                <i class="fa-regular fa-calendar-check"></i> วันหมดสัญญา: ${Formatters.thaiDate(contractExpiry)}
+              </div>
+            ` : ''}
           </div>
         </div>
       `;
@@ -750,111 +763,204 @@ class MyBillsApp {
       cardBgClass = 'paid';
     } else if (isPending) {
       cardBgClass = 'pending';
-      cardStyle = 'border-color: rgba(234, 179, 8, 0.35); box-shadow: 0 10px 25px rgba(234, 179, 8, 0.08);';
+      cardStyle = 'border-color: rgba(245, 158, 11, 0.35); box-shadow: 0 10px 25px rgba(245, 158, 11, 0.08);';
     }
 
     let statusText = `ครบกำหนดวันที่ ${Formatters.thaiDate(latestInvoice.dueDate)}`;
     let statusColor = '#b45309';
-    let amountColor = '#dc2626';
+    let amountColor = 'var(--danger)';
     let iconClass = 'fa-regular fa-file-lines text-danger';
-    let iconBgColor = '#fef2f2';
+    let iconBgColor = '#fee2e2';
     
     if (isPaid) {
       statusText = 'ชำระค่าห้องเรียบร้อยแล้ว ขอบคุณครับ!';
       statusColor = '#059669';
       amountColor = '#059669';
       iconClass = 'fa-solid fa-circle-check text-success';
-      iconBgColor = '#ecfdf5';
+      iconBgColor = '#d1fae5';
     } else if (isPending) {
       statusText = 'ส่งหลักฐานแล้ว รอแอดมินตรวจสอบ';
-      statusColor = '#ca8a04';
-      amountColor = '#ca8a04';
+      statusColor = '#d97706';
+      amountColor = '#d97706';
       iconClass = 'fa-regular fa-clock text-warning';
-      iconBgColor = '#fef9c3';
+      iconBgColor = '#fef3c7';
     }
 
+    // Top 3 recent invoices for payment history widget
+    const recentInvoicesTop3 = sortedInvoices.slice(0, 3);
+    
+    // Top 3 recent announcements for notice widget
+    const events = (this.state.events && this.state.events.length > 0) ? this.state.events : [
+      { id: 'ev_1', title: 'แจ้งจดมิเตอร์ค่าน้ำ-ค่าไฟประจำเดือน', date: new Date().toISOString().slice(0, 10), category: 'บริการ' },
+      { id: 'ev_2', title: 'การทำความสะอาดพื้นที่ส่วนกลางและลานจอดรถ', date: new Date(Date.now() - 86400000 * 3).toISOString().slice(0, 10), category: 'ประกาศทั่วไป' },
+      { id: 'ev_3', title: 'ช่องทางชำระค่าเช่าผ่าน QR PromptPay', date: new Date(Date.now() - 86400000 * 7).toISOString().slice(0, 10), category: 'การชำระเงิน' }
+    ];
+    const recentNoticesTop3 = events.slice(0, 3);
+
     return `
-      <div class="animate-fade-in">
+      <div class="animate-fade-in" style="display:flex; flex-direction:column; gap:1rem;">
         
-        <!-- Outstanding Bill Card (Matches screen mockup) -->
+        <!-- Outstanding Bill Card -->
         <div class="outstanding-card ${cardBgClass}" style="${cardStyle}">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div class="outstanding-header">
             <div>
-              <div style="font-size:0.85rem; font-weight:700; color:#64748b; margin-bottom:0.4rem;">
-                ยอดค้างชำระ · ${Formatters.thaiMonthBE(latestInvoice.monthKey)}
+              <div class="outstanding-title">
+                <i class="fa-solid fa-file-invoice"></i> ยอดค้างชำระ · ${Formatters.thaiMonthBE(latestInvoice.monthKey)}
               </div>
-              <div style="display:flex; align-items:baseline; gap:0.25rem;">
-                <span style="font-size:2rem; font-weight:800; color:${amountColor}; line-height:1.2;">
+              <div class="outstanding-amount-wrapper">
+                <span class="outstanding-amount" style="color:${amountColor};">
                   ${isPaid ? '0.00' : amountToPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span style="font-size:0.9rem; font-weight:700; color:#475569;">บาท</span>
+                <span style="font-size:0.9rem; font-weight:700; color:var(--text-sub);">บาท</span>
               </div>
-              <div style="font-size:0.82rem; font-weight:600; color:${statusColor}; margin-top:0.4rem;">
+              <div class="outstanding-status-text" style="color:${statusColor};">
                 ${statusText}
               </div>
             </div>
             
-            <div style="background:${iconBgColor}; border-radius:12px; padding:0.65rem; display:flex; align-items:center; justify-content:center;">
-              <i class="${iconClass}" style="font-size:1.6rem;"></i>
+            <div class="outstanding-icon-box" style="background:${iconBgColor};">
+              <i class="${iconClass}"></i>
             </div>
           </div>
 
-          <!-- Action payment button (Screen Red Design) -->
-          <button type="button" class="btn ${isPaid ? 'btn-success' : (isPending ? 'btn-secondary' : 'btn-danger')} btn-full" id="btn-home-action-pay" style="margin-top:1.25rem; padding:0.85rem; border-radius:12px; gap:0.5rem; justify-content:center; box-shadow: ${isPaid ? '0 6px 15px rgba(16,185,129,0.2)' : (isPending ? '0 6px 15px rgba(100,116,139,0.1)' : '0 6px 15px rgba(220,38,38,0.2)')};">
-            <i class="${isPaid ? 'fa-solid fa-receipt' : (isPending ? 'fa-regular fa-file-lines' : 'fa-solid fa-qrcode')}"></i>
-            <span>${isPaid ? 'ดูใบเสร็จรับเงินล่าสุด' : (isPending ? 'ดูรายละเอียดบิล / รอตรวจสอบ' : 'ดูบิล / ชำระเงิน')}</span>
-          </button>
+          <!-- Dual Action Buttons -->
+          <div class="outstanding-actions">
+            <button type="button" class="btn btn-outline-indigo" id="btn-home-view-bill">
+              <i class="fa-regular fa-file-lines"></i> ดูบิล
+            </button>
+            <button type="button" class="btn ${isPaid ? 'btn-success' : (isPending ? 'btn-secondary' : 'btn-indigo')}" id="btn-home-pay-bill">
+              <i class="${isPaid ? 'fa-solid fa-receipt' : (isPending ? 'fa-regular fa-clock' : 'fa-solid fa-qrcode')}"></i>
+              <span>${isPaid ? 'ดูใบเสร็จ' : (isPending ? 'รอตรวจสอบ' : 'ชำระเงิน')}</span>
+            </button>
+          </div>
         </div>
 
-        <!-- 4 Grid Menu + 1 Banner Layout -->
-        <div class="menu-grid">
+        <!-- 2-Column Grid Menu (8 items) -->
+        <div class="menu-grid-2col">
+          <!-- 1. บิลทั้งหมด -->
           <div class="menu-card" data-action="go-bills">
-            <div style="background:#eff6ff; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:0.25rem;">
-              <i class="fa-solid fa-file-invoice-dollar" style="color:#2563eb; font-size:1.4rem; margin:0;"></i>
+            <div class="menu-card-icon-wrapper" style="background:#e0e7ff;">
+              <i class="fa-solid fa-file-invoice-dollar" style="color:#4f46e5;"></i>
             </div>
-            <div style="font-weight:700; font-size:0.85rem; color:#0f172a;">บิลทั้งหมด</div>
-            ${unpaidCount > 0 ? `
-              <span class="badge-pill badge-danger" style="font-size:0.7rem; padding:0.15rem 0.45rem; line-height:1; font-weight:800; margin-top:0.15rem;">
-                ${unpaidCount} ค้าง
-              </span>
-            ` : ''}
+            <div class="menu-card-label">บิลทั้งหมด</div>
+            ${unpaidCount > 0 ? `<span class="badge-pill badge-danger menu-card-badge">${unpaidCount} ค้าง</span>` : ''}
           </div>
 
+          <!-- 2. แจ้งซ่อม -->
           <div class="menu-card" data-action="new-repair">
-            <div style="background:#fef9c3; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:0.25rem;">
-              <i class="fa-solid fa-wrench" style="color:#ca8a04; font-size:1.4rem; margin:0;"></i>
+            <div class="menu-card-icon-wrapper" style="background:#fef3c7;">
+              <i class="fa-solid fa-wrench" style="color:#d97706;"></i>
             </div>
-            <div style="font-weight:700; font-size:0.85rem; color:#0f172a;">แจ้งซ่อม</div>
+            <div class="menu-card-label">แจ้งซ่อม</div>
           </div>
 
+          <!-- 3. งานซ่อมของฉัน -->
           <div class="menu-card" data-action="go-repairs">
-            <div style="background:#faf5ff; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:0.25rem;">
-              <i class="fa-solid fa-list-check" style="color:#7c3aed; font-size:1.4rem; margin:0;"></i>
+            <div class="menu-card-icon-wrapper" style="background:#faf5ff;">
+              <i class="fa-solid fa-list-check" style="color:#7c3aed;"></i>
             </div>
-            <div style="font-weight:700; font-size:0.85rem; color:#0f172a;">งานซ่อมของฉัน</div>
-            ${activeRepairsCount > 0 ? `
-              <span class="badge-pill badge-warning" style="font-size:0.75rem; width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:800; margin-top:0.15rem;">
-                ${activeRepairsCount}
-              </span>
-            ` : ''}
+            <div class="menu-card-label">งานซ่อมของฉัน</div>
+            ${activeRepairsCount > 0 ? `<span class="badge-pill badge-warning menu-card-badge">${activeRepairsCount}</span>` : ''}
           </div>
 
+          <!-- 4. ประกาศ -->
           <div class="menu-card" data-action="go-notices">
-            <div style="background:#ecfeff; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:0.25rem;">
-              <i class="fa-solid fa-bullhorn" style="color:#0891b2; font-size:1.4rem; margin:0;"></i>
+            <div class="menu-card-icon-wrapper" style="background:#cffafe;">
+              <i class="fa-solid fa-bullhorn" style="color:#0891b2;"></i>
             </div>
-            <div style="font-weight:700; font-size:0.85rem; color:#0f172a;">ประกาศ</div>
+            <div class="menu-card-label">ประกาศ</div>
           </div>
 
-          <!-- ข้อมูล/สัญญา Full-width block -->
-          <div class="menu-card" data-action="go-profile" style="grid-column: span 2; flex-direction: row; justify-content: flex-start; gap: 1rem; padding: 0.85rem 1.25rem;">
-            <div style="background:#ecfdf5; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;">
-              <i class="fa-solid fa-address-card" style="color:#059669; font-size:1.25rem; margin:0;"></i>
+          <!-- 5. สัญญาเช่า -->
+          <div class="menu-card" data-action="go-contract">
+            <div class="menu-card-icon-wrapper" style="background:#d1fae5;">
+              <i class="fa-solid fa-file-contract" style="color:#16a34a;"></i>
             </div>
-            <div style="font-weight:700; font-size:0.88rem; color:#0f172a; flex:1; text-align:left;">
-              ข้อมูลส่วนตัว และ สัญญาเช่าห้องพัก
+            <div class="menu-card-label">สัญญาเช่า</div>
+          </div>
+
+          <!-- 6. ประวัติการชำระ -->
+          <div class="menu-card" data-action="go-history">
+            <div class="menu-card-icon-wrapper" style="background:#fff7ed;">
+              <i class="fa-solid fa-receipt" style="color:#ea580c;"></i>
             </div>
-            <i class="fa-solid fa-chevron-right" style="font-size:0.9rem; color:#cbd5e1; margin:0;"></i>
+            <div class="menu-card-label">ประวัติการชำระ</div>
+          </div>
+
+          <!-- 7. ข้อมูลส่วนตัว -->
+          <div class="menu-card" data-action="go-profile">
+            <div class="menu-card-icon-wrapper" style="background:#fdf2f8;">
+              <i class="fa-solid fa-user-gear" style="color:#db2777;"></i>
+            </div>
+            <div class="menu-card-label">ข้อมูลส่วนตัว</div>
+          </div>
+
+          <!-- 8. ติดต่อผู้ดูแล -->
+          <div class="menu-card" data-action="contact-admin">
+            <div class="menu-card-icon-wrapper" style="background:#f1f5f9;">
+              <i class="fa-solid fa-headset" style="color:#2563eb;"></i>
+            </div>
+            <div class="menu-card-label">ติดต่อผู้ดูแล</div>
+          </div>
+        </div>
+
+        <!-- Widget: ประวัติการชำระล่าสุด (3 รายการล่าสุด) -->
+        <div class="widget-section">
+          <div class="widget-header">
+            <div class="widget-title">
+              <i class="fa-solid fa-clock-rotate-left"></i>
+              <span>ประวัติการชำระล่าสุด</span>
+            </div>
+            <span class="widget-action-link" id="link-view-all-history">ดูทั้งหมด <i class="fa-solid fa-chevron-right"></i></span>
+          </div>
+
+          <div class="widget-list">
+            ${recentInvoicesTop3.length === 0 ? `
+              <div style="font-size:0.82rem; color:var(--text-muted); text-align:center; padding:0.75rem;">ยังไม่มีประวัติการชำระเงิน</div>
+            ` : recentInvoicesTop3.map(inv => `
+              <div class="widget-item widget-history-item" data-inv-id="${inv.id}">
+                <div class="widget-item-info">
+                  <div class="widget-item-title">รอบบิล ${Formatters.thaiMonthBE(inv.monthKey)}</div>
+                  <div class="widget-item-sub">
+                    <i class="fa-regular fa-calendar"></i> ${Formatters.thaiDate(inv.paymentDate || inv.dueDate)}
+                  </div>
+                </div>
+                <div class="widget-item-right">
+                  <div class="widget-item-amount">${Formatters.currency(inv.paidAmount || inv.totalAmount)}</div>
+                  <span class="badge-pill ${inv.status === 'paid' ? 'badge-success' : (inv.status === 'pending' ? 'badge-warning' : 'badge-danger')}">
+                    ${inv.status === 'paid' ? 'ชำระแล้ว' : (inv.status === 'pending' ? 'รอตรวจสอบ' : 'ค้างชำระ')}
+                  </span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Widget: ประกาศล่าสุด (3 รายการล่าสุด) -->
+        <div class="widget-section">
+          <div class="widget-header">
+            <div class="widget-title">
+              <i class="fa-solid fa-bullhorn"></i>
+              <span>ประกาศล่าสุด</span>
+            </div>
+            <span class="widget-action-link" id="link-view-all-notices">ดูทั้งหมด <i class="fa-solid fa-chevron-right"></i></span>
+          </div>
+
+          <div class="widget-list">
+            ${recentNoticesTop3.map(evt => `
+              <div class="widget-item widget-notice-item">
+                <div class="widget-item-info">
+                  <div class="widget-item-title">${evt.title}</div>
+                  <div class="widget-item-sub">
+                    <span class="badge-pill badge-indigo" style="font-size:0.65rem;">${evt.category || 'ทั่วไป'}</span>
+                    <span><i class="fa-regular fa-clock"></i> ${Formatters.thaiDate(evt.date)}</span>
+                  </div>
+                </div>
+                <div class="widget-item-right">
+                  <i class="fa-solid fa-chevron-right" style="color:var(--text-muted); font-size:0.8rem;"></i>
+                </div>
+              </div>
+            `).join('')}
           </div>
         </div>
 
@@ -863,11 +969,22 @@ class MyBillsApp {
   }
 
   static bindHomeTabEvents() {
-    const payBtn = document.getElementById('btn-home-action-pay');
-    if (payBtn) {
-      payBtn.addEventListener('click', () => {
-        const sorted = this.getMatchedInvoices();
-        const latest = sorted.length > 0 ? sorted[0] : null;
+    const sorted = this.getMatchedInvoices();
+    const latest = sorted.length > 0 ? sorted[0] : null;
+
+    // Dual action buttons in Outstanding Card
+    const viewBillBtn = document.getElementById('btn-home-view-bill');
+    if (viewBillBtn) {
+      viewBillBtn.addEventListener('click', () => {
+        if (latest) {
+          this.openOfficialBillModal(latest);
+        }
+      });
+    }
+
+    const payBillBtn = document.getElementById('btn-home-pay-bill');
+    if (payBillBtn) {
+      payBillBtn.addEventListener('click', () => {
         if (latest) {
           if (latest.status === 'paid') {
             this.openReceiptModal(latest);
@@ -885,22 +1002,117 @@ class MyBillsApp {
     menuCards.forEach(card => {
       card.addEventListener('click', () => {
         const action = card.getAttribute('data-action');
-        if (action === 'go-bills') {
+        if (action === 'go-bills' || action === 'go-history') {
           this.switchTab('bills');
         } else if (action === 'go-repairs') {
           this.switchTab('repairs');
         } else if (action === 'go-notices') {
           this.switchTab('notices');
-        } else if (action === 'go-profile') {
+        } else if (action === 'go-profile' || action === 'go-contract') {
           this.switchTab('profile');
+        } else if (action === 'contact-admin') {
+          this.openContactAdminModal();
         } else if (action === 'new-repair') {
-          this.switchTab('repairs');
-          setTimeout(() => {
-            const addBtn = document.getElementById('btn-add-repair-trigger');
-            if (addBtn) addBtn.click();
-          }, 100);
+          this.openNewRepairFormModal();
         }
       });
+    });
+
+    // Widget Action Links
+    const viewAllHistoryLink = document.getElementById('link-view-all-history');
+    if (viewAllHistoryLink) {
+      viewAllHistoryLink.addEventListener('click', () => this.switchTab('bills'));
+    }
+
+    const viewAllNoticesLink = document.getElementById('link-view-all-notices');
+    if (viewAllNoticesLink) {
+      viewAllNoticesLink.addEventListener('click', () => this.switchTab('notices'));
+    }
+
+    // History Widget Item Click -> Open detail modal
+    const historyItems = document.querySelectorAll('.widget-history-item');
+    historyItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const invId = item.getAttribute('data-inv-id');
+        const inv = sorted.find(i => i.id === invId);
+        if (inv) {
+          if (inv.status === 'paid') {
+            this.openReceiptModal(inv);
+          } else {
+            this.openPaymentModal(inv);
+          }
+        }
+      });
+    });
+
+    // Notice Widget Item Click -> Switch to notices tab
+    const noticeItems = document.querySelectorAll('.widget-notice-item');
+    noticeItems.forEach(item => {
+      item.addEventListener('click', () => this.switchTab('notices'));
+    });
+  }
+
+  static openContactAdminModal() {
+    const modal = document.getElementById('app-modal');
+    if (!modal) return;
+    const dialog = modal.querySelector('.modal-dialog');
+    const settings = (this.state && this.state.settings) || {};
+    const adminPhone = settings.contactPhone || '080-5991691';
+
+    dialog.innerHTML = `
+      <div class="modal-header" style="background:var(--primary); color:#ffffff;">
+        <h3><i class="fa-solid fa-headset"></i> ติดต่อผู้ดูแลหอพัก</h3>
+        <button type="button" class="close-modal-btn" style="color:#ffffff;">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <div style="width:64px; height:64px; background:var(--primary-light); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:1rem;">
+          <i class="fa-solid fa-building-user" style="font-size:1.8rem; color:var(--primary);"></i>
+        </div>
+        <h4 style="font-size:1.1rem; font-weight:800; color:var(--text-main); margin-bottom:0.25rem;">
+          ${settings.apartmentName || 'หอพักสมบัติ นนทบุรี'}
+        </h4>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.25rem;">
+          สำนักงานนิติบุคคลและฝ่ายบริการผู้เช่า
+        </p>
+
+        <div style="background:#f8fafc; border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:1rem; margin-bottom:1.25rem; text-align:left; display:flex; flex-direction:column; gap:0.75rem;">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <i class="fa-solid fa-phone text-primary" style="font-size:1.2rem;"></i>
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">เบอร์โทรศัพท์สำนักงาน</div>
+              <a href="tel:${adminPhone}" style="font-weight:800; font-size:1rem; color:var(--primary); text-decoration:none;">${adminPhone}</a>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <i class="fa-solid fa-clock text-primary" style="font-size:1.2rem;"></i>
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">เวลาทำการ</div>
+              <div style="font-weight:700; font-size:0.88rem; color:var(--text-main);">08:30 - 19:00 น. (ทุกวัน)</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <i class="fa-solid fa-location-dot text-primary" style="font-size:1.2rem;"></i>
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">ที่อยู่สำนักงาน</div>
+              <div style="font-weight:600; font-size:0.82rem; color:var(--text-sub);">45/10 ม.8 ต.ราษฎร์นิยม อ.ไทรน้อย จ.นนทบุรี 11150</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <a href="tel:${adminPhone}" class="btn btn-indigo btn-full" style="text-decoration:none;">
+            <i class="fa-solid fa-phone"></i> โทรออก
+          </a>
+          <button type="button" class="btn btn-secondary close-modal-trigger">
+            ปิดหน้าต่าง
+          </button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelectorAll('.close-modal-btn, .close-modal-trigger').forEach(btn => {
+      btn.addEventListener('click', () => modal.classList.remove('active'));
     });
   }
 
@@ -1312,11 +1524,15 @@ class MyBillsApp {
     const dialog = modal.querySelector('.modal-dialog');
 
     const amountToPay = inv.outstandingAmount || inv.totalAmount;
-    const promptPayId = (this.state.settings && this.state.settings.promptPayId) || '0805991691';
-    const qrPayload = PromptPayService.generatePayload(promptPayId, amountToPay);
+    const settings = this.state.settings || {};
+    // ห้ามใช้เลขพร้อมเพย์ตัวอย่าง/เดโมเป็น fallback เด็ดขาด — ถ้าแอดมินยังไม่ตั้งค่าจริง
+    // ให้ถือว่าไม่มีเลขพร้อมเพย์ แล้วซ่อน QR พร้อมแจ้งให้ติดต่อแอดมินแทน
+    const promptPayId = settings.promptPayId || '';
+    const qrPayload = promptPayId ? PromptPayService.generatePayload(promptPayId, amountToPay) : '';
     
-    // PromptPay QR image using public API
-    const qrImgUrl = `https://promptpay.io/${promptPayId}/${amountToPay}.png`;
+    // PromptPay QR image using public API (สร้างเฉพาะกรณีมีเลขพร้อมเพย์จริงจากการตั้งค่าเท่านั้น)
+    const qrImgUrl = promptPayId ? `https://promptpay.io/${promptPayId}/${amountToPay}.png` : '';
+    const hasBankInfo = !!(settings.bankName || settings.bankAccountNo);
 
     const renderPaymentContent = () => {
       dialog.innerHTML = `
@@ -1351,17 +1567,29 @@ class MyBillsApp {
 
           ${MyBillsApp.currentPayMethod === 'transfer' ? `
             <!-- Transfer View (Matches iOS Mockup) -->
-            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:0.75rem; text-align:center; font-size:0.8rem; color:#166534; margin-bottom:1rem; line-height:1.5;">
-              🏦 <strong>บัญชีรับเงิน:</strong> ธ.กรุงศรีอยุธยา (BAY)<br>
-              เลขบัญชี: <strong style="font-size:0.95rem; color:#2563eb;">240-1-34666-3</strong> | ชื่อบัญชี: <strong>นางสมผิว น้ำวน</strong>
-            </div>
+            <!-- Bank Transfer Info (จากค่าตั้งค่าจริงของแอดมินเท่านั้น ไม่ใช่ข้อมูลตัวอย่าง) -->
+            ${hasBankInfo ? `
+              <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:0.75rem; text-align:center; font-size:0.8rem; color:#166534; margin-bottom:1rem; line-height:1.5;">
+                🏦 <strong>บัญชีรับเงิน:</strong> ${settings.bankName || '-'}<br>
+                เลขบัญชี: <strong style="font-size:0.95rem; color:#2563eb;">${settings.bankAccountNo || '-'}</strong>
+                ${settings.bankAccountName ? ` | ชื่อบัญชี: <strong>${settings.bankAccountName}</strong>` : ''}
+              </div>
+            ` : ''}
 
             <!-- PromptPay QR Code container -->
-            <div class="qr-box" style="margin:0 0 1rem 0; padding:0.85rem;">
-              <div style="font-weight:800; font-size:0.88rem; color:#0f172a;">สแกนเพื่อโอนเงิน (Thai PromptPay QR)</div>
-              <img src="${qrImgUrl}" alt="PromptPay QR Code" style="width:160px; height:160px;" />
-              <div style="font-size:0.75rem; color:#64748b; margin-top:0.25rem;">บันทึกรูปคิวอาร์นี้เพื่อนำไปสแกนในแอปธนาคารของคุณ</div>
-            </div>
+            ${qrImgUrl ? `
+              <div class="qr-box" style="margin:0 0 1rem 0; padding:0.85rem;">
+                <div style="font-weight:800; font-size:0.88rem; color:#0f172a;">สแกนเพื่อโอนเงิน (Thai PromptPay QR)</div>
+                <img src="${qrImgUrl}" alt="PromptPay QR Code" style="width:160px; height:160px;" />
+                <div style="font-size:0.75rem; color:#64748b; margin-top:0.25rem;">บันทึกรูปคิวอาร์นี้เพื่อนำไปสแกนในแอปธนาคารของคุณ</div>
+              </div>
+            ` : `
+              <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:1rem; text-align:center; margin-bottom:1rem;">
+                <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626; font-size:1.5rem; margin-bottom:0.35rem;"></i>
+                <div style="font-weight:700; color:#991b1b; font-size:0.88rem;">ยังไม่ได้ตั้งค่าเลขพร้อมเพย์</div>
+                <div style="font-size:0.8rem; color:#7f1d1d; margin-top:0.25rem;">กรุณาติดต่อผู้ดูแลหอพัก${hasBankInfo ? ' หรือโอนตามเลขบัญชีด้านบน' : ''} เพื่อสอบถามช่องทางชำระเงิน</div>
+              </div>
+            `}
 
             <!-- Slip upload form -->
             <form id="pay-modal-slip-form">
