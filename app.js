@@ -2852,10 +2852,12 @@ class MeterEntryComponent {
       let elecPrev = room.lastElecMeter;
       let waterPrev = room.lastWaterMeter;
       if (elecPrev === undefined || waterPrev === undefined || elecPrev === null || waterPrev === null) {
-        const roomInvoices = rawInvoices.filter(i => i.roomId === room.id);
+        const roomInvoices = rawInvoices
+          .filter(i => i.roomId === room.id)
+          .sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
         if (roomInvoices.length > 0) {
-          elecPrev = roomInvoices[0].elecCurr || 0;
-          waterPrev = roomInvoices[0].waterCurr || 0;
+          elecPrev = roomInvoices[0].elecCurr ?? 0;
+          waterPrev = roomInvoices[0].waterCurr ?? 0;
         } else {
           elecPrev = 0;
           waterPrev = 0;
@@ -5416,10 +5418,12 @@ class App {
       let elecPrev = room.lastElecMeter;
       let waterPrev = room.lastWaterMeter;
       if (elecPrev === undefined || waterPrev === undefined || elecPrev === null || waterPrev === null) {
-        const roomInvoices = rawInvoices.filter(i => i.roomId === room.id);
+        const roomInvoices = rawInvoices
+          .filter(i => i.roomId === room.id)
+          .sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
         if (roomInvoices.length > 0) {
-          elecPrev = roomInvoices[0].elecCurr || 0;
-          waterPrev = roomInvoices[0].waterCurr || 0;
+          elecPrev = roomInvoices[0].elecCurr ?? 0;
+          waterPrev = roomInvoices[0].waterCurr ?? 0;
         } else {
           elecPrev = 0;
           waterPrev = 0;
@@ -6771,17 +6775,19 @@ class App {
     dialog.style.width = '1000px';
 
     const getRoomPrevMeters = (room) => {
-      if (!room) return { elecPrev: 1000, waterPrev: 100 };
+      if (!room) return { elecPrev: 0, waterPrev: 0 };
       let elecPrev = room.lastElecMeter;
       let waterPrev = room.lastWaterMeter;
       if (elecPrev === undefined || waterPrev === undefined || elecPrev === null || waterPrev === null) {
-        const roomInvoices = (this.state.invoices || []).filter(i => i.roomId === room.id);
+        const roomInvoices = (this.state.invoices || [])
+          .filter(i => i.roomId === room.id)
+          .sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
         if (roomInvoices.length > 0) {
-          elecPrev = roomInvoices[0].elecCurr || 1000;
-          waterPrev = roomInvoices[0].waterCurr || 100;
+          elecPrev = roomInvoices[0].elecCurr ?? 0;
+          waterPrev = roomInvoices[0].waterCurr ?? 0;
         } else {
-          elecPrev = 1000;
-          waterPrev = 100;
+          elecPrev = 0;
+          waterPrev = 0;
         }
       }
       return { elecPrev, waterPrev };
