@@ -2927,6 +2927,9 @@ class MeterEntryComponent {
             <p>กรอกเลขจดมิเตอร์น้ำไฟประจำเดือนสะดวกรวดเร็วแบบ Excel บันทึกข้อมูลคลาวด์อัตโนมัติ</p>
           </div>
           <div class="header-actions" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" id="btn-open-init-meters-modal" title="ตั้งค่าเลขมิเตอร์น้ำ-ไฟเริ่มต้นก่อนใช้งาน">
+              <i class="fa-solid fa-sliders text-warning"></i> ตั้งค่ามิเตอร์ยกมา
+            </button>
             <span id="excel-sync-indicator" style="font-size:0.85rem; color:#10b981; font-weight:600; display:none;">
               <i class="fa-solid fa-circle-check"></i> บันทึกอัตโนมัติเรียบร้อย
             </span>
@@ -4751,7 +4754,7 @@ class App {
             </div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group" style="margin-bottom:1rem;">
             <label>สถานะห้องพัก *</label>
             <select id="rm-status" class="form-control" required>
               <option value="vacant" ${roomToEdit && roomToEdit.status === 'vacant' ? 'selected' : ''}>⚪ ห้องว่าง</option>
@@ -4761,7 +4764,23 @@ class App {
             </select>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-full" style="margin-top:1rem;">
+          <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:0.85rem; margin-bottom:1rem;">
+            <div style="font-weight:700; font-size:0.85rem; color:#0369a1; margin-bottom:0.5rem;">
+              <i class="fa-solid fa-gauge"></i> เลขมิเตอร์ตั้งต้น / ครั้งก่อน (สำหรับเริ่มใช้ระบบ)
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:0.8rem; font-weight:600; color:#334155;">⚡ มิเตอร์ไฟตั้งต้น:</label>
+                <input type="number" id="rm-elec-meter" class="form-control" value="${roomToEdit ? (roomToEdit.lastElecMeter || 0) : 0}" placeholder="0" step="any" style="padding:0.45rem 0.65rem;">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:0.8rem; font-weight:600; color:#334155;">💧 มิเตอร์น้ำตั้งต้น:</label>
+                <input type="number" id="rm-water-meter" class="form-control" value="${roomToEdit ? (roomToEdit.lastWaterMeter || 0) : 0}" placeholder="0" step="any" style="padding:0.45rem 0.65rem;">
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full">
             <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลห้องพัก
           </button>
         </form>
@@ -4779,17 +4798,22 @@ class App {
       const baseRent = document.getElementById('rm-rent').value !== "" ? parseFloat(document.getElementById('rm-rent').value) : 3500;
       const status = document.getElementById('rm-status').value;
 
+      const lastElecMeter = parseFloat(document.getElementById('rm-elec-meter').value) || 0;
+      const lastWaterMeter = parseFloat(document.getElementById('rm-water-meter').value) || 0;
+
       if (isEdit) {
         roomToEdit.name = name;
         roomToEdit.floor = floor;
         roomToEdit.typeId = typeId;
         roomToEdit.baseRent = baseRent;
         roomToEdit.status = status;
+        roomToEdit.lastElecMeter = lastElecMeter;
+        roomToEdit.lastWaterMeter = lastWaterMeter;
       } else {
         const newRoom = {
           id: 'r_' + Date.now(),
           name, floor, typeId, baseRent, status,
-          lastWaterMeter: 0, lastElecMeter: 0
+          lastWaterMeter, lastElecMeter
         };
         this.state.rooms.push(newRoom);
       }
@@ -5247,6 +5271,66 @@ class App {
       });
       dueDateInput.addEventListener('change', () => {
         saveTempReadingsToState();
+      });
+    }
+
+    const initMetersBtn = document.getElementById('btn-open-init-meters-modal');
+    if (initMetersBtn) {
+      initMetersBtn.addEventListener('click', () => {
+        const modal = document.getElementById('app-modal');
+        const dialog = modal.querySelector('.modal-dialog');
+        dialog.innerHTML = `
+          <div class="modal-header">
+            <h3><i class="fa-solid fa-sliders text-warning"></i> ตั้งค่าเลขมิเตอร์น้ำ-ไฟครั้งก่อน / ยกมา (ก่อนเริ่มใช้ระบบ)</h3>
+            <button class="close-modal-btn">&times;</button>
+          </div>
+          <div class="modal-body" style="max-height:75vh; overflow-y:auto; padding:1.25rem;">
+            <p class="text-muted" style="font-size:0.85rem; margin-bottom:1rem;">
+              ระบุเลขมิเตอร์ไฟและน้ำยกมาล่าสุดสำหรับแต่ละห้องพัก เพื่อให้ระบบนำไปคำนวณค่าน้ำ-ไฟงวดแรกได้อย่างถูกต้อง
+            </p>
+            <form id="form-batch-init-meters">
+              <div style="display:flex; flex-direction:column; gap:0.65rem;">
+                ${rooms.map(r => `
+                  <div style="display:grid; grid-template-columns: 100px 1fr 1fr; gap:0.75rem; align-items:center; background:#f8fafc; padding:0.6rem 0.85rem; border-radius:8px; border:1px solid #e2e8f0;">
+                    <div style="font-weight:700; color:#1e293b;">ห้อง ${r.name}</div>
+                    <div>
+                      <label style="font-size:0.75rem; color:#64748b; font-weight:600; display:block;">⚡ ไฟยกมา:</label>
+                      <input type="number" class="form-control init-elec-input" data-room-id="${r.id}" value="${r.lastElecMeter || 0}" step="any" style="padding:0.35rem 0.6rem; font-size:0.85rem;">
+                    </div>
+                    <div>
+                      <label style="font-size:0.75rem; color:#64748b; font-weight:600; display:block;">💧 น้ำยกมา:</label>
+                      <input type="number" class="form-control init-water-input" data-room-id="${r.id}" value="${r.lastWaterMeter || 0}" step="any" style="padding:0.35rem 0.6rem; font-size:0.85rem;">
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              <div style="display:flex; gap:0.75rem; margin-top:1.25rem;">
+                <button type="submit" class="btn btn-primary btn-full" style="font-weight:700;"><i class="fa-solid fa-save"></i> บันทึกเลขมิเตอร์ยกมา</button>
+                <button type="button" class="btn btn-secondary close-modal-btn">ยกเลิก</button>
+              </div>
+            </form>
+          </div>
+        `;
+        modal.classList.add('active');
+        modal.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+        dialog.querySelector('#form-batch-init-meters').addEventListener('submit', (e) => {
+          e.preventDefault();
+          dialog.querySelectorAll('.init-elec-input').forEach(inp => {
+            const rid = inp.getAttribute('data-room-id');
+            const room = this.state.rooms.find(r => r.id === rid);
+            if (room) room.lastElecMeter = parseFloat(inp.value) || 0;
+          });
+          dialog.querySelectorAll('.init-water-input').forEach(inp => {
+            const rid = inp.getAttribute('data-room-id');
+            const room = this.state.rooms.find(r => r.id === rid);
+            if (room) room.lastWaterMeter = parseFloat(inp.value) || 0;
+          });
+
+          DBService.saveState(this.state);
+          modal.classList.remove('active');
+          this.switchTab('meter-entry');
+        });
       });
     }
 
