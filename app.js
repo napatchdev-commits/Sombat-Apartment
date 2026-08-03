@@ -1066,11 +1066,6 @@ class DBService {
         ];
       }
 
-      const isDemo = data.settings && data.settings.isDemoMode !== undefined ? Boolean(data.settings.isDemoMode) : true;
-      if ((!data.rooms || !Array.isArray(data.rooms) || data.rooms.length === 0) && isDemo) {
-        data.rooms = this.getInitialRooms(true);
-      }
-
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(url));
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
       this.saveSnapshot(snapshot);
