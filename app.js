@@ -6275,6 +6275,22 @@ class App {
 
   // --- 9. SETTINGS EVENTS ---
   static bindSettingsEvents() {
+    const bankForm = document.getElementById('form-bank-settings');
+    if (bankForm) {
+      bankForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!this.state.settings) this.state.settings = {};
+        this.state.settings.apartmentName = document.getElementById('setting-apt-name').value.trim();
+        this.state.settings.bankName = document.getElementById('setting-bank-name').value;
+        this.state.settings.bankAccountNo = document.getElementById('setting-bank-no').value.trim();
+        this.state.settings.bankAccountName = document.getElementById('setting-bank-acc-name').value.trim();
+        this.state.settings.promptPayId = document.getElementById('setting-promptpay-id').value.trim();
+
+        DBService.saveState(this.state);
+        alert('🟢 บันทึกข้อมูลหอพักและบัญชีธนาคารเรียบร้อยแล้ว!');
+      });
+    }
+
     const lineForm = document.getElementById('line-bot-settings-form');
     if (lineForm) {
       lineForm.addEventListener('submit', async (e) => {
