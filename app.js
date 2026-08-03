@@ -1048,6 +1048,76 @@ class DBService {
     return null;
   }
 
+  static async purgeSupabaseData(url) {
+    const cleanUrl = this.cleanUrl(url);
+    if (!cleanUrl) return;
+    const baseUrl = this.getBaseSupabaseUrl(cleanUrl);
+    const apiKey = this.getSavedApiKey();
+    const headers = {
+      'apikey': apiKey,
+      'Authorization': `Bearer ${apiKey}`
+    };
+
+    const tablesToDelete = [
+      'invoices',
+      'tenant_documents',
+      'tenant_deposit_deductions',
+      'tenants',
+      'repairs',
+      'ledger',
+      'events'
+    ];
+
+    for (const table of tablesToDelete) {
+      try {
+        await fetch(`${baseUrl}/rest/v1/${table}?id=neq.0`, { method: 'DELETE', headers });
+        await fetch(`${baseUrl}/rest/v1/${table}?id=neq._dummy_`, { method: 'DELETE', headers });
+      } catch (err) {
+        console.warn(`Purge table ${table} failed:`, err);
+      }
+    }
+
+    // Reset all rooms in Supabase to vacant status
+    try {
+      const initialRooms = this.getInitialRooms();
+      const cfg = this.getTableConfigs().rooms;
+      const dbRooms = initialRooms.map(r => this.toRow(cfg.fields, r));
+      await fetch(`${baseUrl}/rest/v1/rooms?on_conflict=id`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(dbRooms)
+      });
+    } catch (err) {
+      console.warn('Reset rooms in Supabase failed:', err);
+    }
+
+    localStorage.removeItem(this.SNAPSHOT_KEY);
+  }
+
+  static async clearDemoData(state) {
+    const cleanRooms = this.getInitialRooms();
+    state.tenants = [];
+    state.invoices = [];
+    state.repairs = [];
+    state.ledger = [];
+    state.events = [];
+    state.rooms = cleanRooms;
+
+    localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
+    await this.saveState(state);
+
+    const url = this.getSavedSupabaseUrl();
+    if (url) {
+      await this.purgeSupabaseData(url);
+    }
+
+    return state;
+  }
+
   static async syncToSupabase(url, state) {
     if (!url) throw new Error('กรุณาระบุ Supabase Project URL ก่อน');
     if (!state) {
@@ -6158,21 +6228,10 @@ class App {
         btnClearDemo.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังล้างข้อมูลเดโม่...';
         
         try {
-          this.state.tenants = [];
-          this.state.invoices = [];
-          this.state.repairs = [];
-          this.state.ledger = [];
-          this.state.events = [];
-          this.state.rooms = DBService.getInitialRooms();
+          await DBService.clearDemoData(this.state);
           
-          await DBService.saveState(this.state);
-          const url = DBService.getSavedSupabaseUrl();
-          if (url) {
-            await DBService.syncToSupabase(url, this.state);
-          }
-          
-          alert('🟢 ล้างข้อมูลตัวอย่างเดโม่เรียบร้อยแล้ว! สถานะห้องพักทุกห้องเปลี่ยนเป็นห้องว่าง พร้อมสำหรับกรอกข้อมูลจริง');
-          this.render();
+          alert('🟢 ล้างข้อมูลตัวอย่างเดโม่และล้างข้อมูลบน Supabase เรียบร้อยแล้ว! สถานะห้องพักทุกห้องเปลี่ยนเป็นห้องว่าง พร้อมสำหรับกรอกข้อมูลจริง');
+          App.switchTab('rooms');
         } catch (err) {
           alert('❌ เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
           btnClearDemo.disabled = false;
@@ -6538,73 +6597,8 @@ class App {
         resetBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังรีเซ็ตระบบ...';
         
         try {
-          const cleanState = {
-            rooms: [
-              {"id": "room_1_1", "name": "S101", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_1_2", "name": "S102", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_1_3", "name": "S103", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_1_4", "name": "S104", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_1_5", "name": "S105", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_1_6", "name": "S106", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_1_7", "name": "S107", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_1_8", "name": "S108", "floor": 1, "status": "vacant", "baseRent": 2000, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_1", "name": "S201", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_2", "name": "S202", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_3", "name": "S203", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_4", "name": "S204", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_5", "name": "S205", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_6", "name": "S206", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_7", "name": "S207", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_2_8", "name": "S208", "floor": 2, "status": "vacant", "baseRent": 2200, "type": "rt_fan", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_1", "name": "S301", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_2", "name": "S302", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_3", "name": "S303", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_4", "name": "S304", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_5", "name": "S305", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_6", "name": "S306", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_7", "name": "S307", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""},
-              {"id": "room_3_8", "name": "S308", "floor": 3, "status": "vacant", "baseRent": 2500, "type": "rt_air", "lastElecMeter": 0, "lastWaterMeter": 0, "currentTenantId": "", "currentTenantName": ""}
-            ],
-            tenants: [],
-            invoices: [],
-            repairs: [],
-            ledger: [],
-            events: [],
-            users: this.state.users || [
-              { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
-              { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
-              { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' }
-            ],
-            roomTypes: [
-              { id: 'rt_fan', name: 'ห้องพัดลมธรรมดา', baseRent: 2000 },
-              { id: 'rt_air', name: 'ห้องแอร์ประหยัดไฟ', baseRent: 2500 }
-            ],
-            rates: {
-              waterRate: 20,
-              electricityRate: 8,
-              commonFee: 0,
-              trashFee: 20,
-              internetFee: 0
-            },
-            settings: this.state.settings || {
-              theme: 'light',
-              lineToken: '',
-              lineUserId: '',
-              apartmentName: 'หอพักสมบัติ นนทบุรี',
-              promptPayBank: 'ธนาคารไทยพาณิชย์',
-              promptPayId: '062-6252564',
-              promptPayName: 'สมบัติ น้ำวน',
-              lineNotifyToken: ''
-            }
-          };
-
-          const url = DBService.getSavedSupabaseUrl();
-          if (url) {
-            await DBService.syncToSupabase(url, cleanState);
-          }
-          
-          localStorage.setItem(DBService.STORAGE_KEY, JSON.stringify(cleanState));
-          alert('✅ ล้างข้อมูลและรีเซ็ตระบบสำเร็จเรียบร้อยแล้ว!');
+          await DBService.clearDemoData(this.state);
+          alert('✅ ล้างข้อมูลและรีเซ็ตระบบทั้งในเครื่องและบน Supabase สำเร็จเรียบร้อยแล้ว!');
           window.location.reload();
         } catch (err) {
           alert('❌ เกิดข้อผิดพลาดในการรีเซ็ตฐานข้อมูล: ' + err.message);
