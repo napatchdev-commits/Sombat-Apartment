@@ -104,16 +104,23 @@ class TenantDBService {
   static getSavedSupabaseUrl() {
     const fromParam = new URLSearchParams(window.location.search).get('supabaseUrl') || new URLSearchParams(window.location.search).get('sheetUrl');
     if (fromParam) {
-      const cleaned = this.cleanUrl(fromParam);
+      let cleaned = this.cleanUrl(fromParam);
+      if (cleaned.includes('bdeowpdjgiambqatdilh')) {
+        cleaned = cleaned.replace('bdeowpdjgiambqatdilh', 'bdeowpdjgiombqatdilh');
+      }
       if (!cleaned.includes('script.google.com') && !cleaned.includes('macros') && !cleaned.includes('google.com')) {
         localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', cleaned);
         return cleaned;
       }
     }
-    const saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL') || localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    let saved = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL') || localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (saved && (saved.includes('script.google.com') || saved.includes('macros') || saved.includes('google.com'))) {
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     } else if (saved) {
+      if (saved.includes('bdeowpdjgiambqatdilh')) {
+        saved = saved.replace('bdeowpdjgiambqatdilh', 'bdeowpdjgiombqatdilh');
+        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', saved);
+      }
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(saved));
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       return this.cleanUrl(saved);

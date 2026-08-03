@@ -1112,6 +1112,9 @@ const App = (() => {
     const params = new URLSearchParams(location.search);
     if (params.get('supabaseUrl')) {
       supabaseUrl = params.get('supabaseUrl');
+      if (supabaseUrl && supabaseUrl.includes('bdeowpdjgiambqatdilh')) {
+        supabaseUrl = supabaseUrl.replace('bdeowpdjgiambqatdilh', 'bdeowpdjgiombqatdilh');
+      }
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', supabaseUrl);
     }
     if (params.get('apiKey')) {
@@ -1121,7 +1124,7 @@ const App = (() => {
     if (params.get('month')) monthKey = params.get('month');
 
     // Fallback defaults
-    if (!supabaseUrl) supabaseUrl = 'https://bdeowpdjgiambqatdilh.supabase.co';
+    if (!supabaseUrl) supabaseUrl = 'https://bdeowpdjgiombqatdilh.supabase.co';
     if (!apiKey) apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
 
     if (!currentUser) {

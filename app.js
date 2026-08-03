@@ -671,19 +671,34 @@ class DBService {
           }
         }
         if (parsed.settings && parsed.settings.supabaseUrl) {
-          return this.cleanUrl(parsed.settings.supabaseUrl);
+          let u = parsed.settings.supabaseUrl;
+          if (u.includes('bdeowpdjgiambqatdilh')) {
+            u = u.replace('bdeowpdjgiambqatdilh', 'bdeowpdjgiombqatdilh');
+            parsed.settings.supabaseUrl = u;
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(parsed));
+          }
+          return this.cleanUrl(u);
         }
       } catch (e) {}
     }
-    const fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL');
-    if (fromStorage && fromStorage.includes('supabase.co')) return this.cleanUrl(fromStorage);
-    const oldStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
+    let fromStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL');
+    if (fromStorage && fromStorage.includes('supabase.co')) {
+      if (fromStorage.includes('bdeowpdjgiambqatdilh')) {
+        fromStorage = fromStorage.replace('bdeowpdjgiambqatdilh', 'bdeowpdjgiombqatdilh');
+        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', fromStorage);
+      }
+      return this.cleanUrl(fromStorage);
+    }
+    let oldStorage = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
     if (oldStorage && oldStorage.includes('supabase.co')) {
+      if (oldStorage.includes('bdeowpdjgiambqatdilh')) {
+        oldStorage = oldStorage.replace('bdeowpdjgiambqatdilh', 'bdeowpdjgiombqatdilh');
+      }
       localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', oldStorage);
       localStorage.removeItem('SOMBAT_APARTMENT_SAVED_SHEET_URL');
       return this.cleanUrl(oldStorage);
     }
-    return 'https://bdeowpdjgiambqatdilh.supabase.co';
+    return 'https://bdeowpdjgiombqatdilh.supabase.co';
   }
 
   static getSavedApiKey() {
