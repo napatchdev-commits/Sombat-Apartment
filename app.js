@@ -1055,29 +1055,41 @@ class DBService {
     const apiKey = this.getSavedApiKey();
     const headers = {
       'apikey': apiKey,
-      'Authorization': `Bearer ${apiKey}`
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
     };
 
     const tablesToDelete = [
       'invoices',
       'tenant_documents',
       'tenant_deposit_deductions',
-      'tenants',
       'repairs',
       'ledger',
-      'events'
+      'events',
+      'tenants',
+      'rooms'
     ];
 
     for (const table of tablesToDelete) {
       try {
-        await fetch(`${baseUrl}/rest/v1/${table}?id=neq.0`, { method: 'DELETE', headers });
-        await fetch(`${baseUrl}/rest/v1/${table}?id=neq._dummy_`, { method: 'DELETE', headers });
+        // 1. PostgREST delete all rows using id=not.is.null filter
+        await fetch(`${baseUrl}/rest/v1/${table}?id=not.is.null`, { method: 'DELETE', headers });
+
+        // 2. Query remaining IDs and delete explicitly to ensure 100% deletion
+        const getRes = await fetch(`${baseUrl}/rest/v1/${table}?select=id`, { headers });
+        if (getRes.ok) {
+          const rows = await getRes.json();
+          if (Array.isArray(rows) && rows.length > 0) {
+            const ids = rows.map(r => `"${String(r.id).replace(/"/g, '')}"`).join(',');
+            await fetch(`${baseUrl}/rest/v1/${table}?id=in.(${ids})`, { method: 'DELETE', headers });
+          }
+        }
       } catch (err) {
         console.warn(`Purge table ${table} failed:`, err);
       }
     }
 
-    // Reset all rooms in Supabase to vacant status
+    // Reset all rooms in Supabase to clean vacant status
     try {
       const initialRooms = this.getInitialRooms();
       const cfg = this.getTableConfigs().rooms;
@@ -1086,7 +1098,6 @@ class DBService {
         method: 'POST',
         headers: {
           ...headers,
-          'Content-Type': 'application/json',
           'Prefer': 'resolution=merge-duplicates'
         },
         body: JSON.stringify(dbRooms)
@@ -1096,6 +1107,7 @@ class DBService {
     }
 
     localStorage.removeItem(this.SNAPSHOT_KEY);
+    localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
   }
 
   static async clearDemoData(state) {
