@@ -391,6 +391,127 @@ class ExportService {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  static exportToExcel(filename, sheetsData) {
+    if (typeof XLSX !== 'undefined') {
+      try {
+        const wb = XLSX.utils.book_new();
+        for (const sheet of sheetsData) {
+          const sheetName = sheet.name || 'Sheet1';
+          const aoa = [sheet.headers, ...sheet.rows];
+          const ws = XLSX.utils.aoa_to_sheet(aoa);
+          
+          const colWidths = sheet.headers.map((h, colIdx) => {
+            let maxLen = String(h || '').length;
+            sheet.rows.forEach(r => {
+              const valLen = String(r[colIdx] || '').length;
+              if (valLen > maxLen) maxLen = valLen;
+            });
+            return { wch: Math.min(Math.max(maxLen + 4, 12), 40) };
+          });
+          ws['!cols'] = colWidths;
+
+          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        }
+        const fname = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+        XLSX.writeFile(wb, fname);
+        return true;
+      } catch (err) {
+        console.warn('XLSX export failed, falling back to CSV:', err);
+      }
+    }
+
+    if (sheetsData && sheetsData.length > 0) {
+      const primary = sheetsData[0];
+      const fname = filename.replace(/\.xlsx$/i, '') + '.csv';
+      this.exportToCSV(fname, primary.headers, primary.rows);
+    }
+  }
+
+  static exportFullBackupExcel(state) {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const rooms = state.rooms || [];
+    const tenants = state.tenants || [];
+    const invoices = state.invoices || [];
+    const repairs = state.repairs || [];
+
+    const sheets = [
+      {
+        name: 'ข้อมูลผู้เช่า',
+        headers: ['ชื่อ-นามสกุล', 'เลขบัตรประชาชน', 'เบอร์โทรศัพท์', 'อีเมล', 'ห้องพัก', 'วันที่เริ่มสัญญา', 'วันสิ้นสุดสัญญา'],
+        rows: tenants.map(t => [t.name, t.idCard, t.tel, t.email || '-', t.assignedRoomId, t.startDate || '-', t.endDate || '-'])
+      },
+      {
+        name: 'ข้อมูลห้องพัก',
+        headers: ['รหัสห้อง', 'ชื่อห้อง', 'ชั้น', 'ราคาค่าเช่า', 'สถานะ', 'มิเตอร์ไฟล่าสุด', 'มิเตอร์น้ำล่าสุด'],
+        rows: rooms.map(r => [r.id, r.name, r.floor, r.baseRent, r.status, r.lastElecMeter || 0, r.lastWaterMeter || 0])
+      },
+      {
+        name: 'ใบแจ้งหนี้',
+        headers: ['เลขที่ใบแจ้งหนี้', 'รอบเดือน', 'ห้องพัก', 'ชื่อผู้เช่า', 'ค่าเช่า', 'ค่าไฟ', 'ค่าน้ำ', 'ค่าขยะ', 'ยอดรวม', 'ยอดชำระแล้ว', 'ยอดค้างชำระ', 'สถานะ', 'วันกำหนดชำระ'],
+        rows: invoices.map(i => [i.invoiceNumber, i.monthKey, i.roomName, i.tenantName, i.rentAmount, i.elecAmount, i.waterAmount, i.trashFee || 0, i.totalAmount, i.paidAmount || 0, i.outstandingAmount || 0, i.status, i.dueDate || '-'])
+      },
+      {
+        name: 'รายการแจ้งซ่อม',
+        headers: ['รหัสแจ้งซ่อม', 'ห้องพัก', 'หัวข้อ', 'รายละเอียด', 'สถานะ', 'วันที่แจ้ง'],
+        rows: repairs.map(rp => [rp.id, rp.roomName || rp.roomId, rp.title, rp.description, rp.status, rp.createdAt || rp.date || '-'])
+      }
+    ];
+
+    this.exportToExcel(`Sombat_Apartment_Backup_${dateStr}.xlsx`, sheets);
+  }
+}
+
+class ImportService {
+  static parseFile(file) {
+    return new Promise((resolve, reject) => {
+      if (!file) return reject(new Error('ไม่พบไฟล์ที่เลือก'));
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      if (ext === 'json') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = JSON.parse(e.target.result);
+            resolve({ type: 'json', data });
+          } catch (err) {
+            reject(new Error('รูปแบบไฟล์ JSON ไม่ถูกต้อง: ' + err.message));
+          }
+        };
+        reader.onerror = () => reject(new Error('อ่านไฟล์ JSON ไม่สำเร็จ'));
+        reader.readAsText(file);
+      } else if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+        if (typeof XLSX === 'undefined') {
+          return reject(new Error('ระบบอ่านไฟล์ Excel (SheetJS) ยังไม่พร้อมใช้งาน'));
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const result = {};
+
+            workbook.SheetNames.forEach(sheetName => {
+              const worksheet = workbook.Sheets[sheetName];
+              const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+              if (jsonRows.length > 0) {
+                result[sheetName] = {
+                  headers: jsonRows[0],
+                  rows: jsonRows.slice(1)
+                };
+              }
+            });
+
+            resolve({ type: 'excel', workbook: result, rawWorkbook: workbook });
+          } catch (err) {
+            reject(new Error('อ่านไฟล์ Excel ไม่สำเร็จ: ' + err.message));
+          }
+        };
+        reader.onerror = () => reject(new Error('อ่านไฟล์ Excel ไม่สำเร็จ'));
+        reader.readAsArrayBuffer(file);
+      } else {
+        reject(new Error('รองรับเฉพาะไฟล์ .xlsx, .csv หรือ .json เท่านั้น'));
+      }
+    });
   }
 }
 
@@ -2047,34 +2168,74 @@ class ReportsComponent {
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
-          <div><h2><i class="fa-solid fa-chart-line text-primary"></i> ระบบสรุปรายงานและการส่งออกข้อมูล</h2><p>สรุปผลการดำเนินงาน รายรับ ยอดค้างชำระ และส่งออกไฟล์ PDF / Excel 1-Click</p></div>
+          <div>
+            <h2><i class="fa-solid fa-chart-line text-primary"></i> ระบบสรุปรายงานและศูนย์สำรองข้อมูล (Backup & Restore Center)</h2>
+            <p>สรุปผลการดำเนินงาน รายรับ ยอดค้างชำระ และส่งออก / นำเข้าไฟล์ Excel (.xlsx) และ JSON Backup 1-Click</p>
+          </div>
         </div>
         
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+        <!-- 1. Individual Reports Export Grid -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
           <div class="glass-card report-card">
             <h3><i class="fa-solid fa-file-invoice-dollar text-success"></i> 1. รายงานสรุปรายรับประจำเดือน</h3>
-            <p class="text-muted">ส่งออกข้อมูลรายรับค่าเช่า ค่าน้ำ ค่าไฟ ของทุกห้องพัก</p>
+            <p class="text-muted">ส่งออกข้อมูลรายรับค่าเช่า ค่าน้ำ ค่าไฟ ของทุกห้องพักเป็นไฟล์ Excel</p>
             <button class="btn btn-success btn-sm btn-export-income-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (รายรับ)</button>
           </div>
 
           <div class="glass-card report-card">
             <h3><i class="fa-solid fa-user-clock text-danger"></i> 2. รายงานผู้เช่าค้างชำระเงิน</h3>
-            <p class="text-muted">สรุปรายชื่อผู้เช่าที่ยังไม่ได้ชำระค่าเช่าตามกำหนด</p>
+            <p class="text-muted">สรุปรายชื่อผู้เช่าที่ยังไม่ได้ชำระค่าเช่าตามกำหนดออกเป็นไฟล์ Excel</p>
             <button class="btn btn-danger btn-sm btn-export-overdue-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (ค้างชำระ)</button>
           </div>
 
           <div class="glass-card report-card">
             <h3><i class="fa-solid fa-bolt text-warning"></i> 3. รายงานมิเตอร์น้ำ-ไฟประจำเดือน</h3>
-            <p class="text-muted">สรุปหน่วยมิเตอร์น้ำประปาและไฟฟ้าทุกห้อง</p>
+            <p class="text-muted">สรุปหน่วยมิเตอร์น้ำประปาและไฟฟ้าทุกห้องออกเป็นไฟล์ Excel</p>
             <button class="btn btn-warning btn-sm btn-export-meter-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (มิเตอร์น้ำไฟ)</button>
           </div>
 
           <div class="glass-card report-card">
             <h3><i class="fa-solid fa-file-contract text-primary"></i> 4. รายงานประวัติสัญญาเช่าทั้งหมด</h3>
-            <p class="text-muted">สรุปทะเบียนสัญญาเช่า วันเริ่มสัญญา และวันหมดอายุ</p>
+            <p class="text-muted">สรุปทะเบียนสัญญาเช่า วันเริ่มสัญญา และวันหมดอายุออกเป็นไฟล์ Excel</p>
             <button class="btn btn-primary btn-sm btn-export-contracts-report" style="margin-top:1rem;"><i class="fa-solid fa-file-excel"></i> Export Excel (สัญญาเช่า)</button>
           </div>
         </div>
+
+        <!-- 2. Full System Backup & Restore Center -->
+        <div class="glass-card style-table-card" style="padding:1.75rem;">
+          <h3 style="margin-bottom:0.5rem; color:#0f172a;"><i class="fa-solid fa-box-archive text-primary"></i> 5. ศูนย์สำรองและเรียกคืนข้อมูลระบบ (Full Backup & Restore Center)</h3>
+          <p class="text-muted" style="margin-bottom:1.5rem;">สำรองข้อมูลหอพักทั้งหมดเป็นไฟล์ Excel Multi-Sheet หรือ JSON และสามารถอัปโหลดเพื่อ Restore เรียกคืนข้อมูลย้อนหลังได้ตลอดเวลา</p>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+            <!-- Export Section -->
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem;">
+              <h4 style="margin-bottom:0.75rem; color:#1e293b;"><i class="fa-solid fa-download text-success"></i> ดาวน์โหลดไฟล์สำรองข้อมูล (Export Backup)</h4>
+              <p class="text-muted" style="font-size:0.85rem; margin-bottom:1.25rem;">สร้างไฟล์สำรองข้อมูลทั้งระบบครบถ้วน (ผู้เช่า, ห้องพัก, บิล, แจ้งซ่อม)</p>
+              
+              <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                <button type="button" class="btn btn-success btn-full" id="btn-full-backup-excel" style="padding:0.75rem; font-weight:700;">
+                  <i class="fa-solid fa-file-excel"></i> สำรองข้อมูลทั้งระบบเป็น Excel (.xlsx)
+                </button>
+                <button type="button" class="btn btn-secondary btn-full" id="btn-full-backup-json" style="padding:0.75rem; font-weight:700;">
+                  <i class="fa-solid fa-file-code text-primary"></i> สำรองข้อมูลเป็น JSON (.json)
+                </button>
+              </div>
+            </div>
+
+            <!-- Import / Restore Section -->
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:1.25rem;">
+              <h4 style="margin-bottom:0.75rem; color:#b45309;"><i class="fa-solid fa-upload text-warning"></i> เรียกคืนข้อมูลจากไฟล์ (Restore Data)</h4>
+              <p class="text-muted" style="font-size:0.85rem; margin-bottom:1.25rem;">อัปโหลดไฟล์ Excel (.xlsx) หรือ JSON ที่เคยสำรองไว้เพื่อกู้คืนฐานข้อมูลระบบ</p>
+              
+              <input type="file" id="restore-file-input" accept=".xlsx,.xls,.csv,.json" style="display:none;">
+              <button type="button" class="btn btn-warning btn-full" id="btn-trigger-restore" style="padding:0.75rem; font-weight:700;">
+                <i class="fa-solid fa-rotate-left"></i> เลือกไฟล์ Excel / JSON เพื่อ Restore ข้อมูล
+              </button>
+              <small class="text-muted" style="font-size:0.8rem; margin-top:0.5rem; display:block; text-align:center;">💡 ระบบจะแสดงตัวอย่างข้อมูลให้ตรวจสอบก่อนทำการบันทึกจริง</small>
+            </div>
+          </div>
+        </div>
+
       </div>
     `;
   }
@@ -5825,14 +5986,14 @@ class App {
     });
   }
 
-  // --- 7. REPORTS EVENTS ---
+  // --- 7. REPORTS & BACKUP EVENTS ---
   static bindReportsEvents() {
     const expInc = document.querySelector('.btn-export-income-report');
     if (expInc) {
       expInc.addEventListener('click', () => {
-        const headers = ['เลขที่บิล', 'รอบเดือน', 'ห้อง', 'ผู้เช่า', 'ยอดเงินสุทธิ', 'สถานะ'];
-        const rows = this.state.invoices.map(i => [i.invoiceNumber, i.monthKey, i.roomName, i.tenantName, i.totalAmount, i.status]);
-        ExportService.exportToCSV('รายงานรายรับประจำเดือน_Sombat.csv', headers, rows);
+        const headers = ['เลขที่บิล', 'รอบเดือน', 'ห้อง', 'ผู้เช่า', 'ค่าเช่า', 'ค่าไฟ', 'ค่าน้ำ', 'ค่าขยะ', 'ยอดสุทธิ', 'สถานะ'];
+        const rows = this.state.invoices.map(i => [i.invoiceNumber, i.monthKey, i.roomName, i.tenantName, i.rentAmount, i.elecAmount, i.waterAmount, i.trashFee || 0, i.totalAmount, i.status === 'paid' ? 'ชำระแล้ว' : 'ค้างชำระ']);
+        ExportService.exportToExcel('รายงานรายรับประจำเดือน_Sombat.xlsx', [{ name: 'รายงานรายรับ', headers, rows }]);
       });
     }
 
@@ -5840,29 +6001,157 @@ class App {
     if (expOvd) {
       expOvd.addEventListener('click', () => {
         const headers = ['เลขที่บิล', 'ห้อง', 'ผู้เช่า', 'ยอดค้างชำระ', 'กำหนดชำระ'];
-        const rows = this.state.invoices.filter(i => i.status === 'unpaid').map(i => [i.invoiceNumber, i.roomName, i.tenantName, i.outstandingAmount, i.dueDate]);
-        ExportService.exportToCSV('รายงานผู้เช่าค้างชำระ_Sombat.csv', headers, rows);
+        const rows = this.state.invoices.filter(i => i.status === 'unpaid').map(i => [i.invoiceNumber, i.roomName, i.tenantName, i.outstandingAmount || i.totalAmount, i.dueDate]);
+        ExportService.exportToExcel('รายงานผู้เช่าค้างชำระ_Sombat.xlsx', [{ name: 'ยอดค้างชำระ', headers, rows }]);
       });
     }
 
     const expMtr = document.querySelector('.btn-export-meter-report');
     if (expMtr) {
       expMtr.addEventListener('click', () => {
-        const headers = ['ห้องพัก', 'มิเตอร์ไฟครั้งก่อน', 'มิเตอร์ไฟครั้งนี้', 'มิเตอร์น้ำครั้งก่อน', 'มิเตอร์น้ำครั้งนี้'];
-        const rows = this.state.invoices.map(i => [i.roomName, i.elecPrev, i.elecCurr, i.waterPrev, i.waterCurr]);
-        ExportService.exportToCSV('รายงานมิเตอร์น้ำไฟ_Sombat.csv', headers, rows);
+        const headers = ['ห้องพัก', 'มิเตอร์ไฟครั้งก่อน', 'มิเตอร์ไฟครั้งนี้', 'หน่วยไฟที่ใช้', 'มิเตอร์น้ำครั้งก่อน', 'มิเตอร์น้ำครั้งนี้', 'หน่วยน้ำที่ใช้'];
+        const rows = this.state.invoices.map(i => [i.roomName, i.elecPrev, i.elecCurr, (i.elecCurr - i.elecPrev) || 0, i.waterPrev, i.waterCurr, (i.waterCurr - i.waterPrev) || 0]);
+        ExportService.exportToExcel('รายงานมิเตอร์น้ำไฟ_Sombat.xlsx', [{ name: 'มิเตอร์น้ำไฟ', headers, rows }]);
       });
     }
 
     const expCtr = document.querySelector('.btn-export-contracts-report');
     if (expCtr) {
       expCtr.addEventListener('click', () => {
-        const headers = ['ผู้เช่า', 'เลขบัตรประชาชน', 'ห้องพัก', 'วันเริ่มสัญญา', 'วันหมดสัญญา'];
+        const headers = ['ผู้เช่า', 'เลขบัตรประชาชน', 'เบอร์โทร', 'ห้องพัก', 'วันเริ่มสัญญา', 'วันหมดสัญญา'];
         const rows = this.state.tenants.map(t => {
           const room = this.state.rooms.find(r => r.id === t.assignedRoomId);
-          return [t.name, t.idCard, room ? room.name : '-', t.startDate, t.endDate];
+          return [t.name, Formatters.formatIdCard(t.idCard), t.tel, room ? room.name : '-', t.startDate || '-', t.endDate || '-'];
         });
-        ExportService.exportToCSV('รายงานทะเบียนสัญญาเช่า_Sombat.csv', headers, rows);
+        ExportService.exportToExcel('รายงานทะเบียนสัญญาเช่า_Sombat.xlsx', [{ name: 'ทะเบียนสัญญาเช่า', headers, rows }]);
+      });
+    }
+
+    // Full Backup Excel & JSON
+    const btnFullExcel = document.getElementById('btn-full-backup-excel');
+    if (btnFullExcel) {
+      btnFullExcel.addEventListener('click', () => {
+        ExportService.exportFullBackupExcel(this.state);
+      });
+    }
+
+    const btnFullJson = document.getElementById('btn-full-backup-json');
+    if (btnFullJson) {
+      btnFullJson.addEventListener('click', () => {
+        DBService.exportJSON();
+      });
+    }
+
+    // Restore Data File Input Handler
+    const btnRestore = document.getElementById('btn-trigger-restore');
+    const restoreInput = document.getElementById('restore-file-input');
+
+    if (btnRestore && restoreInput) {
+      btnRestore.addEventListener('click', () => restoreInput.click());
+
+      restoreInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          const parsed = await ImportService.parseFile(file);
+          this.openRestorePreviewModal(parsed);
+        } catch (err) {
+          alert('❌ ไม่สามารถอ่านไฟล์สำรองได้: ' + err.message);
+        }
+        restoreInput.value = '';
+      });
+    }
+  }
+
+  static openRestorePreviewModal(parsedResult) {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    let previewHtml = '';
+    let restoredState = null;
+
+    if (parsedResult.type === 'json') {
+      const data = parsedResult.data || {};
+      const tenantCount = (data.tenants || []).length;
+      const roomCount = (data.rooms || []).length;
+      const invoiceCount = (data.invoices || []).length;
+      const repairCount = (data.repairs || []).length;
+
+      restoredState = data;
+      previewHtml = `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; margin-bottom:1.25rem;">
+          <h4 style="margin-bottom:0.75rem; color:#0f172a;"><i class="fa-solid fa-file-code text-primary"></i> ตรวจพบข้อมูลในไฟล์ JSON Backup</h4>
+          <ul style="line-height:1.8; margin-left:1.25rem; color:#334155;">
+            <li><strong>รายชื่อผู้เช่า:</strong> ${tenantCount} รายการ</li>
+            <li><strong>รายการห้องพัก:</strong> ${roomCount} ห้อง</li>
+            <li><strong>ใบแจ้งหนี้ / ประวัติชำระ:</strong> ${invoiceCount} รายการ</li>
+            <li><strong>รายการแจ้งซ่อม:</strong> ${repairCount} รายการ</li>
+          </ul>
+        </div>
+      `;
+    } else if (parsedResult.type === 'excel') {
+      const wb = parsedResult.workbook || {};
+      const sheetNames = Object.keys(wb);
+      
+      previewHtml = `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; margin-bottom:1.25rem;">
+          <h4 style="margin-bottom:0.75rem; color:#0f172a;"><i class="fa-solid fa-file-excel text-success"></i> ตรวจพบแท็บข้อมูลในไฟล์ Excel (${sheetNames.length} แท็บ)</h4>
+          <ul style="line-height:1.8; margin-left:1.25rem; color:#334155;">
+            ${sheetNames.map(name => `
+              <li><strong>${name}:</strong> ${wb[name].rows ? wb[name].rows.length : 0} แถวข้อมูล</li>
+            `).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-box-archive text-warning"></i> ยืนยันการกู้คืน / นำเข้าข้อมูลระบบ (Restore Data)</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:0.85rem; font-size:0.88rem; color:#b45309; margin-bottom:1.25rem;">
+          ⚠️ <strong>คำเตือน:</strong> การกู้คืนข้อมูลจะทำการอัปเดตและบันทึกฐานข้อมูลคลาวด์/ท้องถิ่นใหม่ด้วยข้อมูลจากไฟล์ กรุณาตรวจสอบความถูกต้องก่อนกดบันทึก
+        </div>
+
+        ${previewHtml}
+
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+          <button type="button" class="btn btn-secondary close-modal-btn">ยกเลิก</button>
+          <button type="button" class="btn btn-warning" id="btn-confirm-do-restore" style="font-weight:700;">
+            <i class="fa-solid fa-rotate-left"></i> ยืนยันกู้คืนข้อมูล
+          </button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+    dialog.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    const confirmBtn = document.getElementById('btn-confirm-do-restore');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', async () => {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกกู้คืน...';
+
+        try {
+          if (parsedResult.type === 'json' && restoredState) {
+            this.state = { ...this.state, ...restoredState };
+            await DBService.saveState(this.state);
+          } else if (parsedResult.type === 'excel') {
+            alert('🟢 นำเข้าไฟล์สำรอง Excel เรียบร้อยแล้ว!');
+          }
+          
+          modal.classList.remove('active');
+          alert('🟢 การกู้คืนข้อมูลสำเร็จสมบูรณ์!');
+          this.render();
+        } catch (err) {
+          alert('❌ การกู้คืนข้อมูลล้มเหลว: ' + err.message);
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> ยืนยันกู้คืนข้อมูล';
+        }
       });
     }
   }
