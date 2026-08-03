@@ -945,9 +945,10 @@ class DBService {
     const singleCfgs = this.getSingletonConfigs();
     const snapshot = this.loadSnapshot();
     const newSnapshot = {};
-    const mainRequests = [];
 
-    for (const [category, cfg] of Object.entries(tableCfgs)) {
+    // สร้าง request (upsert/delete) ของตารางหลักหนึ่ง category แล้วคืนเป็น array ของ fetch promise
+    const buildRequestsForCategory = (category, cfg) => {
+      const catRequests = [];
       const rows = Array.isArray(state[category]) ? state[category] : [];
       const keyFn = cfg.keyFn || (r => r.id);
       const prevCat = snapshot[category] || {};
@@ -974,7 +975,7 @@ class DBService {
         .filter(Boolean);
 
       if (upserts.length > 0) {
-        mainRequests.push(
+        catRequests.push(
           fetch(`${baseUrl}/rest/v1/${cfg.table}?on_conflict=${cfg.onConflict}`, {
             method: 'POST', headers, body: JSON.stringify(upserts)
           }).then(async r => {
@@ -984,7 +985,7 @@ class DBService {
       }
       if (deleteIds.length > 0) {
         const idList = deleteIds.map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
-        mainRequests.push(
+        catRequests.push(
           fetch(`${baseUrl}/rest/v1/${cfg.table}?id=in.(${idList})`, {
             method: 'DELETE', headers
           }).then(async r => {
@@ -992,13 +993,48 @@ class DBService {
           })
         );
       }
+      return catRequests;
+    };
+
+    // ต้องซิงก์ตารางหลักตามลำดับ foreign key จริง ไม่ใช่ยิงพร้อมกันหมดทีเดียว มิฉะนั้นมีโอกาส
+    // ที่ตารางลูกไปถึง Supabase ก่อนตารางแม่ที่มันอ้างถึงจะถูกสร้าง แล้วชน foreign key constraint
+    // (23503) เช่น tenants.assigned_room_id -> rooms.id, rooms.type_id -> room_types.id
+    //   เฟส 1: ไม่มี FK อ้างตารางอื่นในกลุ่มนี้ (room_types, users, ledger, events)
+    //   เฟส 2: rooms (อ้าง room_types)
+    //   เฟส 3: tenants, invoices, repairs (อ้าง rooms)
+    const syncPhases = [
+      ['roomTypes', 'users', 'ledger', 'events'],
+      ['rooms'],
+      ['tenants', 'invoices', 'repairs']
+    ];
+    const handledCategories = new Set(syncPhases.flat());
+
+    for (const phaseCategories of syncPhases) {
+      const phaseRequests = [];
+      phaseCategories.forEach(category => {
+        const cfg = tableCfgs[category];
+        if (cfg) phaseRequests.push(...buildRequestsForCategory(category, cfg));
+      });
+      if (phaseRequests.length > 0) {
+        await Promise.all(phaseRequests);
+      }
+    }
+    // เผื่อมี category อื่นที่เพิ่มเข้ามาทีหลังแล้วไม่ได้ระบุเฟสไว้ - ซิงก์แบบพร้อมกันตามเดิม (ไม่มี FK ที่รู้จัก)
+    const leftoverRequests = [];
+    for (const [category, cfg] of Object.entries(tableCfgs)) {
+      if (!handledCategories.has(category)) {
+        leftoverRequests.push(...buildRequestsForCategory(category, cfg));
+      }
+    }
+    if (leftoverRequests.length > 0) {
+      await Promise.all(leftoverRequests);
     }
 
     // ต้องรอให้ตารางหลัก (โดยเฉพาะ tenants) บันทึกเสร็จก่อน เพราะ tenant_documents /
     // tenant_deposit_deductions มี foreign key อ้างถึง tenants.id — ถ้ายิงพร้อมกันหมด
     // (Promise.all เดียว) จะมีโอกาสที่ request เขียนเอกสารไปถึงก่อนที่แถวผู้เช่าใหม่จะถูกสร้าง
     // แล้วชน foreign key constraint (23503) แบบที่เจอตอนเพิ่มผู้เช่าใหม่พร้อมแนบเอกสารในครั้งเดียว
-    await Promise.all(mainRequests);
+    // (ตารางหลักทั้งหมดถูก await ไปแล้วทีละเฟสข้างบน ก่อนจะมาถึงจุดนี้)
 
     const requests = [];
 
