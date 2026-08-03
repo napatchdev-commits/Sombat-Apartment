@@ -225,7 +225,82 @@ Deno.serve(async (req: Request) => {
           message: "ยังไม่ได้กรอก LINE Channel Access Token ในระบบ! กรุณาไปที่เมนู 'ตั้งค่า' แล้วกรอก Token ก่อนครับ",
         });
       }
-      const result = await lineBroadcast(channelToken, requestData.messageText || "");
+
+      const invoiceId = requestData.invoiceId;
+      const messageText = requestData.messageText || "";
+
+      if (invoiceId && invoiceId !== "ALL") {
+        // Query database to find the invoice details
+        const invRes = await fetch(`${SUPABASE_URL}/rest/v1/invoices?id=eq.${invoiceId}`, {
+          headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` }
+        });
+        const invData = await invRes.json();
+        
+        if (invData && invData.length > 0) {
+          const invoice = invData[0];
+          const roomId = invoice.room_id;
+          const tenantId = invoice.tenant_id;
+
+          // Query tenant_line_accounts to see if this tenant/room has linked LINE
+          let queryUrl = `${SUPABASE_URL}/rest/v1/tenant_line_accounts`;
+          if (tenantId) {
+            queryUrl += `?tenant_id=eq.${tenantId}`;
+          } else {
+            queryUrl += `?room_id=eq.${roomId}`;
+          }
+
+          const lineRes = await fetch(queryUrl, {
+            headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` }
+          });
+          const lineData = await lineRes.json();
+
+          if (lineData && lineData.length > 0) {
+            const lineAccount = lineData[0];
+            const lineUserId = lineAccount.line_user_id;
+
+            // Send push message directly to the tenant's LINE User ID!
+            try {
+              const pushRes = await fetch("https://api.line.me/v2/bot/message/push", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${channelToken}`,
+                },
+                body: JSON.stringify({
+                  to: lineUserId.trim(),
+                  messages: [{ type: "text", text: messageText }],
+                }),
+              });
+              if (pushRes.ok) {
+                return json({
+                  status: "success",
+                  message: `ส่ง LINE Bot แจ้งเตือนตรงหาไลน์ส่วนตัวผู้เช่าห้อง ${invoice.room_name || 'ที่ระบุ'} (คุณ ${lineAccount.display_name || 'ผู้เช่า'}) เรียบร้อยแล้ว!`,
+                });
+              } else {
+                const errText = await pushRes.text();
+                return json({
+                  status: "error",
+                  message: `ไม่สามารถส่งหา LINE ส่วนตัวได้: ${errText}`,
+                });
+              }
+            } catch (err: any) {
+              return json({
+                status: "error",
+                message: `เกิดข้อผิดพลาดในการส่ง LINE ส่วนตัว: ${err.message}`,
+              });
+            }
+          }
+        }
+        
+        // If it was a specific invoice but they haven't linked their LINE account
+        return json({
+          status: "error",
+          message: "ผู้เช่าห้องนี้ยังไม่ได้ทำการเชื่อมโยง LINE กับระบบ! กรุณาใช้วิธีกดคัดลอก/ส่งข้อความแชร์ในไลน์ปกติแทนครับ",
+        });
+      }
+
+      // Fallback: Send a broadcast message to all users
+      const result = await lineBroadcast(channelToken, messageText);
       return json(result);
     }
 

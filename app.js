@@ -5956,18 +5956,41 @@ class App {
 
     const lineNotifyBtn = document.getElementById('btn-line-notify-header');
     if (lineNotifyBtn) {
-      lineNotifyBtn.addEventListener('click', () => this.openLineNotifyModal());
+      lineNotifyBtn.addEventListener('click', async () => await this.openLineNotifyModal());
     }
 
     document.querySelectorAll('.btn-send-line').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const id = e.currentTarget.getAttribute('data-id');
-        this.openLineNotifyModal(id);
+        await this.openLineNotifyModal(id);
       });
     });
   }
 
-  static openLineNotifyModal(initialInvoiceId = null) {
+  static lineAccounts = [];
+
+  static async fetchAllLineAccounts() {
+    try {
+      const supabaseUrl = (this.state.settings && this.state.settings.supabaseUrl) || DBService.getSavedSupabaseUrl();
+      const apiKey = (this.state.settings && this.state.settings.apiKey) || DBService.getSavedApiKey();
+      if (!supabaseUrl) return;
+      const baseUrl = DBService.getBaseSupabaseUrl(supabaseUrl);
+      const res = await fetch(`${baseUrl}/rest/v1/tenant_line_accounts`, {
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      if (res.ok) {
+        this.lineAccounts = await res.json();
+      }
+    } catch (e) {
+      console.warn('Failed to fetch all line accounts:', e);
+    }
+  }
+
+  static async openLineNotifyModal(initialInvoiceId = null) {
+    await this.fetchAllLineAccounts();
     const invoices = this.state.invoices || [];
     const settings = this.state.settings || {};
     
@@ -5979,6 +6002,12 @@ class App {
 
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
+
+    const getLinkStatusText = (inv) => {
+      if (!inv) return '';
+      const isLinked = this.lineAccounts.some(acc => acc.tenant_id === inv.tenantId || acc.room_id === inv.roomId);
+      return isLinked ? ' (เชื่อม LINE แล้ว 🟢)' : '';
+    };
 
     dialog.innerHTML = `
       <div class="modal-header" style="background:#06c755; color:#ffffff;">
@@ -5993,10 +6022,13 @@ class App {
             <option value="ALL" ${!selectedInv ? 'selected' : ''}>📢 ประกาศแจ้งเตือนรวม (เรียนผู้เช่าทุกท่าน)</option>
             ${invoices.map(inv => `
               <option value="${inv.id}" ${selectedInv && selectedInv.id === inv.id ? 'selected' : ''}>
-                ห้อง ${inv.roomName} - คุณ ${inv.tenantName || 'ผู้เช่า'} (ยอดชำระ ฿${(inv.totalAmount || 0).toLocaleString()})
+                ห้อง ${inv.roomName} - คุณ ${inv.tenantName || 'ผู้เช่า'} (ยอดชำระ ฿${(inv.totalAmount || 0).toLocaleString()})${getLinkStatusText(inv)}
               </option>
             `).join('')}
           </select>
+        </div>
+
+        <div id="line-notify-status-box" style="margin-bottom:1.25rem; padding:0.75rem 1rem; border-radius:8px; font-size:0.88rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; transition: all 0.2s;">
         </div>
 
         <div class="form-group" style="margin-bottom:1.25rem;">
@@ -6032,6 +6064,7 @@ class App {
 
     const invSelect = document.getElementById('line-notify-inv-select');
     const textarea = document.getElementById('line-msg-preview-textarea');
+    const statusBox = document.getElementById('line-notify-status-box');
 
     const updatePreview = () => {
       const invId = invSelect ? invSelect.value : null;
@@ -6040,6 +6073,28 @@ class App {
       const apt = currentAptName;
       const url = savedTenantUrl;
       const bot = savedLineBotUrl;
+
+      if (statusBox) {
+        if (isBroadcast) {
+          statusBox.style.background = '#eff6ff';
+          statusBox.style.color = '#1d4ed8';
+          statusBox.style.border = '1px solid #bfdbfe';
+          statusBox.innerHTML = '<i class="fa-solid fa-bullhorn" style="font-size:1.1rem;"></i> 📢 ระบบจะส่งข้อความประกาศแบบ Broadcast ไปยังผู้ติดตาม LINE Bot ทุกคน';
+        } else if (inv) {
+          const isLinked = this.lineAccounts.some(acc => acc.tenant_id === inv.tenantId || acc.room_id === inv.roomId);
+          if (isLinked) {
+            statusBox.style.background = '#f0fdf4';
+            statusBox.style.color = '#166534';
+            statusBox.style.border = '1px solid #bbf7d0';
+            statusBox.innerHTML = '<i class="fa-solid fa-circle-check" style="color:#16a34a; font-size:1.1rem;"></i> ผู้เช่าห้องนี้เชื่อมต่อ LINE แล้ว (ระบบจะส่งตรงเข้าไลน์ส่วนตัวทันที)';
+          } else {
+            statusBox.style.background = '#fff7ed';
+            statusBox.style.color = '#9a3412';
+            statusBox.style.border = '1px solid #fed7aa';
+            statusBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color:#ea580c; font-size:1.1rem;"></i> ผู้เช่าห้องนี้ยังไม่ได้เชื่อมต่อ LINE (สามารถใช้วิธีกดแชร์/ส่งในแอปแทน)';
+          }
+        }
+      }
 
       if (inv && inv.status === 'unpaid' && new Date() > new Date(inv.dueDate)) {
         textarea.value = LineService.createOverdueMessage(inv, apt, url, bot);
