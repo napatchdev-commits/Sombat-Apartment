@@ -32,7 +32,20 @@ function errorResponse(msg: string, status = 400) {
 Deno.serve(async (req: Request) => {
   const urlObj = new URL(req.url);
   const action = urlObj.searchParams.get("action");
-  const CALLBACK_URL = Deno.env.get("LINE_REDIRECT_URI") || `${urlObj.origin}${urlObj.pathname}`;
+  
+  // Construct external Callback URL handling reverse proxy (Kong) protocol downgrade & path rewrite
+  let CALLBACK_URL = Deno.env.get("LINE_REDIRECT_URI");
+  if (!CALLBACK_URL) {
+    const host = urlObj.hostname;
+    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+    const port = urlObj.port ? `:${urlObj.port}` : "";
+    
+    if (host.includes("supabase.co")) {
+      CALLBACK_URL = `https://${host}/functions/v1/line-login-callback`;
+    } else {
+      CALLBACK_URL = `${protocol}://${host}${port}${urlObj.pathname}`;
+    }
+  }
 
   // 1. STEP 1: Redirect user to LINE Login Authorization
   if (action === "loginRedirect") {
