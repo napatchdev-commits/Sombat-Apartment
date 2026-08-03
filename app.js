@@ -391,6 +391,8 @@ class ExportService {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
   static exportToExcel(filename, sheetsData) {
     if (typeof XLSX !== 'undefined') {
       try {
@@ -2344,106 +2346,165 @@ class SettingsComponent {
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
-          <div><h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & เชื่อมต่อ Supabase</h2><p>จัดการผู้ใช้งานระบบ (3 บทบาท) ตั้งค่าระบบ LINE Bot และบันทึกข้อมูลซิงค์ฐานข้อมูลคลาวด์ Supabase</p></div>
+          <div>
+            <h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & บัญชีรับเงิน (System & Bank Settings)</h2>
+            <p>ตั้งค่าบัญชีธนาคารพร้อมเพย์ ข้อมูลหอพัก ระบบ LINE Bot สิทธิ์ผู้ใช้งาน และเซิร์ฟเวอร์ Supabase รวมอยู่ในหน้าเดียว</p>
+          </div>
         </div>
 
-        <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot & LINE Notify (บันทึกข้อมูลแบบเรียลไทม์)</h3>
-          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-            ระบุ Token เพื่อส่งบิล ใบเสร็จ และแจ้งเตือนชำระเงินอัตโนมัติไปยัง LINE กลุ่มผู้บริหาร/ผู้เช่า (ซิงค์ลง Supabase ใช้งานตรงกันทุกเครื่อง)
-          </p>
+        <!-- 2-Column Responsive Grid Layout (Fits into 1 Page) -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem; align-items:start;">
           
-          <form id="line-bot-settings-form" style="margin-top:1rem;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-              <div class="form-group">
-                <label style="font-weight:600;"><i class="fa-brands fa-line text-success"></i> LINE Channel Access Token (LINE Bot Token):</label>
-                <input type="text" id="setting-line-token" class="form-control" value="${settings.lineToken || ''}" placeholder="ระบุ LINE Channel Access Token..." style="padding:0.65rem 0.85rem;">
+          <!-- LEFT COLUMN -->
+          <div style="display:flex; flex-direction:column; gap:1.25rem;">
+            
+            <!-- 1. Apartment & Bank Account Settings -->
+            <div class="glass-card">
+              <h3><i class="fa-solid fa-building-columns text-primary"></i> ข้อมูลหอพัก & บัญชีธนาคารรับเงิน</h3>
+              <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+                ข้อมูลบัญชีธนาคารและเบอร์พร้อมเพย์จะถูกนำไปสร้าง QR Code ชำระเงินและออกบิลอัตโนมัติ
+              </p>
+              
+              <form id="form-bank-settings" style="margin-top:1rem;">
+                <div class="form-group" style="margin-bottom:0.85rem;">
+                  <label style="font-weight:600;"><i class="fa-solid fa-building text-primary"></i> ชื่อหอพัก / สถานประกอบการ:</label>
+                  <input type="text" id="setting-apt-name" class="form-control" value="${settings.apartmentName || 'หอพักสมบัติ นนทบุรี'}" required style="padding:0.55rem 0.75rem;">
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
+                  <div class="form-group">
+                    <label style="font-weight:600;"><i class="fa-solid fa-piggy-bank text-success"></i> ธนาคารรับเงิน:</label>
+                    <select id="setting-bank-name" class="form-control" style="padding:0.55rem 0.75rem;">
+                      <option value="ธนาคารกรุงศรีอยุธยา (BAY)" ${settings.bankName === 'ธนาคารกรุงศรีอยุธยา (BAY)' ? 'selected' : ''}>ธนาคารกรุงศรีอยุธยา (BAY)</option>
+                      <option value="ธนาคารกสิกรไทย (KBANK)" ${settings.bankName === 'ธนาคารกสิกรไทย (KBANK)' ? 'selected' : ''}>ธนาคารกสิกรไทย (KBANK)</option>
+                      <option value="ธนาคารไทยพาณิชย์ (SCB)" ${settings.bankName === 'ธนาคารไทยพาณิชย์ (SCB)' ? 'selected' : ''}>ธนาคารไทยพาณิชย์ (SCB)</option>
+                      <option value="ธนาคารกรุงเทพ (BBL)" ${settings.bankName === 'ธนาคารกรุงเทพ (BBL)' ? 'selected' : ''}>ธนาคารกรุงเทพ (BBL)</option>
+                      <option value="ธนาคารกรุงไทย (KTB)" ${settings.bankName === 'ธนาคารกรุงไทย (KTB)' ? 'selected' : ''}>ธนาคารกรุงไทย (KTB)</option>
+                      <option value="ธนาคารออมสิน (GSB)" ${settings.bankName === 'ธนาคารออมสิน (GSB)' ? 'selected' : ''}>ธนาคารออมสิน (GSB)</option>
+                      <option value="PromptPay (พร้อมเพย์)" ${settings.bankName === 'PromptPay (พร้อมเพย์)' ? 'selected' : ''}>PromptPay (พร้อมเพย์)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label style="font-weight:600;"><i class="fa-solid fa-credit-card text-info"></i> เลขที่บัญชีธนาคาร:</label>
+                    <input type="text" id="setting-bank-no" class="form-control" value="${settings.bankAccountNo || '2401346663'}" placeholder="2401346663" style="padding:0.55rem 0.75rem;">
+                  </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
+                  <div class="form-group">
+                    <label style="font-weight:600;"><i class="fa-solid fa-user-check text-success"></i> ชื่อบัญชีผู้รับเงิน:</label>
+                    <input type="text" id="setting-bank-acc-name" class="form-control" value="${settings.bankAccountName || 'นางสมผิว น้ำวน'}" placeholder="สมบัติ / สมผิว น้ำวน" style="padding:0.55rem 0.75rem;">
+                  </div>
+                  <div class="form-group">
+                    <label style="font-weight:600;"><i class="fa-solid fa-qrcode text-warning"></i> เบอร์พร้อมเพย์ (PromptPay ID):</label>
+                    <input type="text" id="setting-promptpay-id" class="form-control" value="${settings.promptPayId || '0805991691'}" placeholder="0805991691" style="padding:0.55rem 0.75rem;">
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full" style="padding:0.6rem; font-weight:700; margin-top:0.35rem;">
+                  <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลหอพัก & บัญชีธนาคาร
+                </button>
+              </form>
+            </div>
+
+            <!-- 2. Appearance Settings & Supabase -->
+            <div class="glass-card">
+              <h3><i class="fa-solid fa-circle-half-stroke text-primary"></i> ตั้งค่าธีมระบบ (Appearance)</h3>
+              <div style="display:flex; gap:0.75rem; margin-top:0.75rem; margin-bottom:1.25rem;">
+                <button class="btn btn-primary" id="btn-theme-light" style="flex:1; padding:0.55rem;"><i class="fa-solid fa-sun text-warning"></i> โหมดสว่าง</button>
+                <button class="btn btn-secondary" id="btn-theme-dark" style="flex:1; padding:0.55rem;"><i class="fa-solid fa-moon text-info"></i> โหมดมืด</button>
               </div>
-              <div class="form-group">
-                <label style="font-weight:600;"><i class="fa-solid fa-user-tag text-primary"></i> LINE User ID / Group ID (สำหรับส่งบิล):</label>
-                <input type="text" id="setting-line-userid" class="form-control" value="${settings.lineUserId || ''}" placeholder="U123456789... หรือ Group ID..." style="padding:0.65rem 0.85rem;">
+
+              <h3 style="border-top:1px solid #e2e8f0; padding-top:1rem; margin-top:0.5rem;"><i class="fa-solid fa-database text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & Supabase</h3>
+              <div class="form-group" style="margin-top:0.65rem;">
+                <label style="font-size:0.85rem;">Supabase Project URL:</label>
+                <input type="url" id="supabase-url-input" class="form-control" value="${settings.supabaseUrl || ''}" placeholder="https://your-project.supabase.co" style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+              </div>
+              <div class="form-group" style="margin-top:0.5rem;">
+                <label style="font-size:0.85rem;">Supabase API Key (Anon Key):</label>
+                <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัส Anon Key..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.85rem;">
+                <button class="btn btn-primary btn-sm" id="btn-save-supabase-url"><i class="fa-solid fa-save"></i> บันทึก</button>
+                <button class="btn btn-success btn-sm" id="btn-sync-to-supabase"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ตอนนี้</button>
+                <button class="btn btn-secondary btn-sm" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> ลิงก์แชร์</button>
+              </div>
+              
+              <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px dashed rgba(220,38,38,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="color:#dc2626; font-size:0.82rem; font-weight:700;"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone:</span>
+                  <button class="btn btn-danger btn-xs" id="btn-danger-reset-all" style="padding:0.35rem 0.65rem; font-size:0.78rem;"><i class="fa-solid fa-trash-can"></i> รีเซ็ตระบบทั้งหมด</button>
+                </div>
               </div>
             </div>
 
-            <div class="form-group" style="margin-top:0.5rem;">
-              <label style="font-weight:600;"><i class="fa-solid fa-bell text-warning"></i> LINE Notify Token (สำหรับแจ้งเตือนไลน์กลุ่ม):</label>
-              <input type="text" id="setting-line-notify-token" class="form-control" value="${settings.lineNotifyToken || ''}" placeholder="ระบุ LINE Notify Token..." style="padding:0.65rem 0.85rem;">
+          </div>
+
+          <!-- RIGHT COLUMN -->
+          <div style="display:flex; flex-direction:column; gap:1.25rem;">
+
+            <!-- 3. LINE Bot & Notify Settings -->
+            <div class="glass-card">
+              <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot & LINE Notify</h3>
+              <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+                ระบุ Token เพื่อส่งบิล และแจ้งเตือนชำระเงินอัตโนมัติไปยัง LINE กลุ่มผู้บริหาร/ผู้เช่า
+              </p>
+              
+              <form id="line-bot-settings-form" style="margin-top:0.85rem;">
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-brands fa-line text-success"></i> LINE Channel Access Token:</label>
+                  <input type="text" id="setting-line-token" class="form-control" value="${settings.lineToken || ''}" placeholder="ระบุ Token..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-solid fa-user-tag text-primary"></i> LINE User ID / Group ID:</label>
+                  <input type="text" id="setting-line-userid" class="form-control" value="${settings.lineUserId || ''}" placeholder="U123456... หรือ Group ID..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+                </div>
+                <div class="form-group" style="margin-bottom:0.85rem;">
+                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-solid fa-bell text-warning"></i> LINE Notify Token:</label>
+                  <input type="text" id="setting-line-notify-token" class="form-control" value="${settings.lineNotifyToken || ''}" placeholder="ระบุ Notify Token..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+                </div>
+
+                <div style="display:flex; gap:0.5rem;">
+                  <button type="submit" class="btn btn-success btn-sm" style="flex:1;"><i class="fa-solid fa-floppy-disk"></i> บันทึก LINE Settings</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ทดสอบส่ง</button>
+                </div>
+              </form>
             </div>
 
-            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1.25rem;">
-              <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า LINE Bot ลง Supabase</button>
-              <button type="button" class="btn btn-secondary" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ทดสอบส่งข้อความ LINE</button>
+            <!-- 4. User Roles Management -->
+            <div class="glass-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <h3 style="font-size:1.05rem;"><i class="fa-solid fa-users-gear text-primary"></i> จัดการผู้ใช้งานระบบ</h3>
+                <button id="btn-add-user" class="btn btn-primary btn-xs"><i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้</button>
+              </div>
+              
+              <div class="table-responsive">
+                <table class="custom-table" style="font-size:0.85rem;">
+                  <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>สิทธิ์</th><th>การจัดการ</th></tr></thead>
+                  <tbody>
+                    ${users.map(u => `
+                      <tr>
+                        <td><strong>${u.username}</strong></td>
+                        <td>${u.displayName}</td>
+                        <td><span class="role-pill role-${u.role}" style="font-size:0.75rem; padding:0.15rem 0.4rem;">${u.role === 'super_admin' ? '👑 Super' : (u.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}</span></td>
+                        <td>
+                          <div class="action-buttons">
+                            <button class="btn btn-secondary btn-xs btn-edit-user" data-id="${u.id}"><i class="fa-solid fa-pen"></i></button>
+                            <button class="btn btn-primary btn-xs btn-switch-user" data-id="${u.id}"><i class="fa-solid fa-right-to-bracket"></i></button>
+                            ${users.length > 1 ? `<button class="btn btn-danger btn-xs btn-delete-user" data-id="${u.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                          </div>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </form>
+
+          </div>
+
         </div>
 
-        <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-solid fa-circle-half-stroke text-primary"></i> ตั้งค่าธีมระบบ (Appearance)</h3>
-          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-            เลือกโหมดการแสดงผลของหน้าต่างแอดมินและผู้ใช้งาน (รองรับโหมดกลางคืนถนอมสายตา)
-          </p>
-          <div style="display:flex; gap:1rem; margin-top:1rem;">
-            <button class="btn btn-primary" id="btn-theme-light" style="flex:1;"><i class="fa-solid fa-sun text-warning"></i> โหมดสว่าง (Light Mode)</button>
-            <button class="btn btn-secondary" id="btn-theme-dark" style="flex:1;"><i class="fa-solid fa-moon text-info"></i> โหมดมืด (Dark Mode)</button>
-          </div>
-        </div>
-
-        <div class="glass-card" style="margin-bottom:1.5rem;">
-          <h3><i class="fa-solid fa-database text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & ฐานข้อมูล Supabase</h3>
-          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-            ระบบเชื่อมต่อข้อมูลหลักผ่าน Supabase Database เพื่อจัดเก็บประวัติข้อมูลห้องพัก บิล และผู้เช่าแบบเรียลไทม์
-          </p>
-          <div class="form-group" style="margin-top:1rem;">
-            <label>Supabase Project URL:</label>
-            <input type="url" id="supabase-url-input" class="form-control" value="${settings.supabaseUrl || ''}" placeholder="https://your-project.supabase.co">
-          </div>
-          <div class="form-group" style="margin-top:1rem;">
-            <label>Supabase API Key (Anon Key):</label>
-            <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัส Supabase Anon Key ที่นี่...">
-            <p class="text-muted" style="font-size:0.8rem; margin-top:0.35rem;">
-              ⚠️ ต้องรันไฟล์ 1_schema.sql ใน Supabase SQL Editor ก่อน (สร้างตารางแยกประเภท เช่น rooms, tenants, invoices ฯลฯ) และเปิดสิทธิ์การอ่าน/เขียนตามที่สคริปต์ตั้งค่าไว้ให้แล้ว
-            </p>
-          </div>
-          <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1rem;">
-            <button class="btn btn-primary" id="btn-save-supabase-url"><i class="fa-solid fa-save"></i> บันทึกการตั้งค่า</button>
-            <button class="btn btn-success" id="btn-sync-to-supabase"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ข้อมูลลง Supabase ตอนนี้</button>
-            <button class="btn btn-secondary" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> คัดลอกลิงก์แชร์เชื่อมต่อทุกเครื่อง</button>
-          </div>
-          
-          <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid rgba(220,38,38,0.15);">
-            <h4 style="color:#dc2626; font-size:0.95rem; font-weight:600; display:flex; align-items:center; gap:0.4rem; margin-bottom:0.25rem;"><i class="fa-solid fa-triangle-exclamation"></i> เขตอันตราย (Danger Zone)</h4>
-            <p class="text-muted" style="font-size:0.8rem; margin:0;">หากคุณต้องการลบข้อมูลประวัติ สัญญาเช่า ผู้เช่า และยอดค้างชำระทั้งหมด เพื่อเริ่มต้นกรอกข้อมูลของจริงใหม่</p>
-            <button class="btn btn-danger" id="btn-danger-reset-all" style="margin-top:0.75rem; background:#dc2626; border-color:#dc2626; font-size:0.85rem; padding:0.5rem 1rem; color:#fff; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-trash-can"></i> ล้างข้อมูลและรีเซ็ตระบบทั้งหมด</button>
-          </div>
-        </div>
-
-        <div class="glass-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <h3><i class="fa-solid fa-users-gear text-primary"></i> จัดการผู้ใช้งานระบบ (User Roles Management)</h3>
-            <button id="btn-add-user" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> เพิ่มแอดมิน / ผู้ใช้งานใหม่</button>
-          </div>
-          <div class="table-responsive">
-            <table class="custom-table">
-              <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>บทบาทสิทธิ์ใช้งาน</th><th>การจัดการ</th></tr></thead>
-              <tbody>
-                ${users.map(u => `
-                  <tr>
-                    <td><strong>${u.username}</strong></td>
-                    <td>${u.displayName}</td>
-                    <td><span class="role-pill role-${u.role}">${u.role === 'super_admin' ? '👑 Super Admin' : (u.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}</span></td>
-                    <td>
-                      <div class="action-buttons">
-                        <button class="btn btn-secondary btn-xs btn-edit-user" data-id="${u.id}"><i class="fa-solid fa-pen"></i> แก้ไข</button>
-                        <button class="btn btn-primary btn-xs btn-switch-user" data-id="${u.id}"><i class="fa-solid fa-right-to-bracket"></i> สลับใช้งาน</button>
-                        ${users.length > 1 ? `<button class="btn btn-danger btn-xs btn-delete-user" data-id="${u.id}"><i class="fa-solid fa-trash"></i> ลบ</button>` : ''}
-                      </div>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     `;
   }
