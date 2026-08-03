@@ -99,17 +99,7 @@ class PromptPayService {
 }
 
 class TenantDBService {
-  static getInitialRooms() {
-    const rooms = [];
-    for (let f = 1; f <= 3; f++) {
-      for (let r = 1; r <= 8; r++) {
-        const id = `room_${f}_${r}`;
-        const name = `S${f}${String(r).padStart(2, '0')}`;
-        rooms.push({ id, name, floor: f, baseRent: 2500, status: 'vacant' });
-      }
-    }
-    return rooms;
-  }
+  static getInitialRooms() { return []; }
 
   static getSavedSupabaseUrl() {
     const fromParam = new URLSearchParams(window.location.search).get('supabaseUrl') || new URLSearchParams(window.location.search).get('sheetUrl');
@@ -172,7 +162,7 @@ class TenantDBService {
   static getEmptyState() {
     return {
       settings: { apartmentName: 'หอพักสมบัติ นนทบุรี' },
-      rooms: this.getInitialRooms(),
+      rooms: [],
       invoices: [],
       tenants: [],
       repairs: [],
@@ -246,7 +236,7 @@ class TenantDBService {
     }
     return {
       settings: { apartmentName: data.apartmentName || 'หอพักสมบัติ นนทบุรี' },
-      rooms: (data.rooms && data.rooms.length > 0) ? data.rooms : this.getInitialRooms(),
+      rooms: (data.rooms && Array.isArray(data.rooms)) ? data.rooms : [],
       invoices: [],
       tenants: [],
       repairs: [],

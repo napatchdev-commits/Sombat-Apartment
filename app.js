@@ -602,9 +602,18 @@ class DBService {
 
   static getInitialState() {
     const savedState = this.getStateFromStorage();
-    const isDemo = savedState && savedState.settings && savedState.settings.isDemoMode !== undefined
+    // Only show demo rooms when isDemoMode is explicitly true.
+    // If savedState has isDemoMode=false (production mode) OR no savedState exists
+    // but Supabase URL is configured, start with empty rooms.
+    const hasSavedState = !!savedState;
+    const isDemo = hasSavedState && savedState.settings && savedState.settings.isDemoMode !== undefined
       ? Boolean(savedState.settings.isDemoMode)
       : true;
+    const hasSupabaseUrl = !!(this.getSavedSupabaseUrl());
+    // In production mode (isDemo=false), always start with empty rooms.
+    // In demo mode without any saved state and with a Supabase URL, also start empty
+    // so that Supabase data is the single source of truth.
+    const useDemo = isDemo && !hasSupabaseUrl;
 
     return {
       settings: {
@@ -630,7 +639,7 @@ class DBService {
         { id: 'rt_air', name: 'ห้องแอร์ปรับอากาศ', description: 'เครื่องปรับอากาศประหยัดไฟเบอร์ 5 พร้อมเฟอร์นิเจอร์', defaultRent: 3500 },
         { id: 'rt_shop', name: 'ห้องพาณิชย์ร้านค้า', description: 'ติดถนนหลัก เหมาะค้าขายหรือทำออฟฟิศ', defaultRent: 5500 }
       ],
-      rooms: this.getInitialRooms(isDemo),
+      rooms: useDemo ? this.getInitialRooms(true) : [],
       tenants: [],
       invoices: [],
       repairs: [],
@@ -1129,24 +1138,9 @@ class DBService {
       }
     }
 
-    // Re-insert rooms ONLY IF isDemoMode is TRUE
-    if (isDemo) {
-      try {
-        const initialRooms = this.getInitialRooms(true);
-        const cfg = this.getTableConfigs().rooms;
-        const dbRooms = initialRooms.map(r => this.toRow(cfg.fields, r));
-        await fetch(`${baseUrl}/rest/v1/rooms?on_conflict=id`, {
-          method: 'POST',
-          headers: {
-            ...headers,
-            'Prefer': 'resolution=merge-duplicates'
-          },
-          body: JSON.stringify(dbRooms)
-        });
-      } catch (err) {
-        console.warn('Reset rooms in Supabase failed:', err);
-      }
-    }
+    // NOTE: Do NOT re-insert demo rooms after purge.
+    // Rooms must be created manually by the admin after purge.
+    // This ensures Supabase is the single source of truth.
 
     localStorage.removeItem(this.SNAPSHOT_KEY);
     localStorage.removeItem('SOMBAT_APARTMENT_SNAPSHOT_V1');
