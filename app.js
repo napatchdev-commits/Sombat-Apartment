@@ -2697,6 +2697,26 @@ class SettingsComponent {
                 <button class="btn btn-success btn-sm" id="btn-sync-to-supabase"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ตอนนี้</button>
                 <button class="btn btn-secondary btn-sm" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> ลิงก์แชร์</button>
               </div>
+
+              <!-- Meter Link Card -->
+              <div style="margin-top:1rem; padding:0.85rem; background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(99,102,241,0.08)); border:1px solid rgba(59,130,246,0.25); border-radius:12px;">
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem;">
+                  <span style="font-size:1.1rem;">📱</span>
+                  <div>
+                    <div style="font-weight:700; font-size:0.9rem; color:#2563eb;">ลิงก์จดมิเตอร์ (สำหรับพนักงาน)</div>
+                    <div style="font-size:0.78rem; color:#64748b;">ส่งให้พนักงานเปิดบนมือถือ เพื่อจดมิเตอร์น้ำ–ไฟทีละห้อง</div>
+                  </div>
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                  <button class="btn btn-primary btn-sm" id="btn-copy-meter-link" style="flex:1; background:linear-gradient(135deg,#2563eb,#6366f1); border:none;">
+                    <i class="fa-solid fa-gauge-high"></i> คัดลอกลิงก์จดมิเตอร์
+                  </button>
+                  <button class="btn btn-secondary btn-sm" id="btn-open-meter" title="เปิดหน้าจดมิเตอร์ในแท็บใหม่">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                  </button>
+                </div>
+              </div>
+
               
               <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px dashed rgba(220,38,38,0.25);">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -7241,7 +7261,40 @@ class App {
       });
     }
 
+    // ── Meter Reading Link ────────────────────────────────
+    const meterLinkBtn = document.getElementById('btn-copy-meter-link');
+    if (meterLinkBtn) {
+      meterLinkBtn.addEventListener('click', () => {
+        const supaUrl = this.state.settings.supabaseUrl || DBService.getSavedSupabaseUrl();
+        const ak = this.state.settings.apiKey || DBService.getSavedApiKey();
+        if (!supaUrl) {
+          alert('กรุณาบันทึก Supabase URL ก่อนคัดลอกลิงก์จดมิเตอร์');
+          return;
+        }
+        const base = window.location.href.replace(/\/[^\/]*(\?.*)?$/, '/');
+        const meterUrl = `${base}meter.html?supabaseUrl=${encodeURIComponent(supaUrl)}&apiKey=${encodeURIComponent(ak || '')}`;
+        navigator.clipboard.writeText(meterUrl).then(() => {
+          meterLinkBtn.innerHTML = '<i class="fa-solid fa-check"></i> คัดลอกแล้ว!';
+          setTimeout(() => { meterLinkBtn.innerHTML = '<i class="fa-solid fa-gauge-high"></i> คัดลอกลิงก์จดมิเตอร์'; }, 2500);
+        }).catch(() => {
+          prompt('คัดลอกลิงก์จดมิเตอร์:', meterUrl);
+        });
+      });
+    }
+
+    const openMeterBtn = document.getElementById('btn-open-meter');
+    if (openMeterBtn) {
+      openMeterBtn.addEventListener('click', () => {
+        const supaUrl = this.state.settings.supabaseUrl || DBService.getSavedSupabaseUrl();
+        const ak = this.state.settings.apiKey || DBService.getSavedApiKey();
+        const base = window.location.href.replace(/\/[^\/]*(\?.*)?$/, '/');
+        const meterUrl = `${base}meter.html${supaUrl ? '?supabaseUrl=' + encodeURIComponent(supaUrl) + '&apiKey=' + encodeURIComponent(ak || '') : ''}`;
+        window.open(meterUrl, '_blank');
+      });
+    }
+
     const resetBtn = document.getElementById('btn-danger-reset-all');
+
     if (resetBtn) {
       resetBtn.addEventListener('click', async () => {
         if (!confirm('⚠️ คำเตือน: คุณต้องการล้างข้อมูลผู้เช่า บิล สัญญาเช่า และประวัติทั้งหมดในระบบใช่หรือไม่? (การกระทำนี้ไม่สามารถย้อนกลับได้)')) {
