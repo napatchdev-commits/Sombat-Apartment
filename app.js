@@ -1068,7 +1068,8 @@ class DBService {
       const tenantsById = {};
       (data.tenants || []).forEach(t => {
         t.documents = [];
-        t.deposit = { initialBail: t.depositAmount || 0, status: t.depositStatus || 'active', deductions: [] };
+        t.depositAmount = (t.depositAmount !== undefined && t.depositAmount !== null) ? Number(t.depositAmount) : 0;
+        t.deposit = { initialBail: t.depositAmount, status: t.depositStatus || 'active', deductions: [] };
         tenantsById[t.id] = t;
       });
       nestedEntries.forEach(([key, cfg], idx) => {
@@ -4955,7 +4956,7 @@ class App {
 
           <div class="form-group">
             <label>เงินประกันมัดจำ (บาท)</label>
-            <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit && tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 7000}">
+            <input type="number" id="tn-deposit" class="form-control" value="${tenantToEdit ? (tenantToEdit.depositAmount !== undefined && tenantToEdit.depositAmount !== null ? tenantToEdit.depositAmount : (tenantToEdit.deposit ? tenantToEdit.deposit.initialBail : 0)) : 7000}" placeholder="7000">
           </div>
 
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
@@ -5005,7 +5006,8 @@ class App {
       const endDateInput = document.getElementById('tn-end-date').value.trim();
       const startDate = Formatters.parseThaiDateToISO(startDateInput);
       const endDate = Formatters.parseThaiDateToISO(endDateInput);
-      const bail = parseFloat(document.getElementById('tn-deposit').value) || 7000;
+      const rawBail = document.getElementById('tn-deposit').value.trim();
+      const bail = rawBail !== '' ? parseFloat(rawBail) : 0;
 
       if (!name) name = 'ผู้เช่า (ยังไม่ระบุชื่อ)';
       if (!idCard) idCard = '-';
@@ -5051,12 +5053,17 @@ class App {
         tenantToEdit.startDate = startDate;
         tenantToEdit.endDate = endDate;
         tenantToEdit.documents = newDocs;
-        if (tenantToEdit.deposit) tenantToEdit.deposit.initialBail = bail;
+        tenantToEdit.depositAmount = bail;
+        tenantToEdit.depositStatus = tenantToEdit.depositStatus || 'active';
+        if (!tenantToEdit.deposit) tenantToEdit.deposit = { deductions: [], status: 'active' };
+        tenantToEdit.deposit.initialBail = bail;
       } else {
         const newTenant = {
           id: 't_' + Date.now(),
           name, idCard, tel, lineId, email, address,
           startDate, endDate, assignedRoomId: roomId,
+          depositAmount: bail,
+          depositStatus: 'active',
           deposit: { initialBail: bail, deductions: [], status: 'active' },
           documents: newDocs
         };
@@ -8263,7 +8270,8 @@ class App {
       const roomId = document.getElementById('ctr-room-select').value;
       const startDate = document.getElementById('ctr-start-date').value;
       const endDate = document.getElementById('ctr-end-date').value;
-      const bail = parseFloat(document.getElementById('ctr-deposit-amt').value) || 7000;
+      const rawBail = document.getElementById('ctr-deposit-amt').value.trim();
+      const bail = rawBail !== '' ? parseFloat(rawBail) : 0;
       const witness1 = document.getElementById('ctr-witness1').value.trim();
       const witness2 = document.getElementById('ctr-witness2').value.trim();
 
@@ -8275,11 +8283,16 @@ class App {
         tenant.startDate = startDate;
         tenant.endDate = endDate;
         tenant.assignedRoomId = roomId;
-        if (tenant.deposit) tenant.deposit.initialBail = bail;
+        tenant.depositAmount = bail;
+        tenant.depositStatus = tenant.depositStatus || 'active';
+        if (!tenant.deposit) tenant.deposit = { deductions: [], status: 'active' };
+        tenant.deposit.initialBail = bail;
       } else {
         tenant = {
           id: 't_' + Date.now(),
           name, idCard, tel, address, startDate, endDate, assignedRoomId: roomId,
+          depositAmount: bail,
+          depositStatus: 'active',
           deposit: { initialBail: bail, deductions: [], status: 'active' },
           documents: []
         };
