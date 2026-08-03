@@ -1771,29 +1771,6 @@ class ContractsComponent {
 class TenantsComponent {
   static render(state) {
     if (!state.tenants) state.tenants = [];
-    
-    // Auto-populate tenant records from occupied rooms if tenants array is empty or incomplete
-    if (state.rooms && Array.isArray(state.rooms)) {
-      state.rooms.forEach(r => {
-        if (r.currentTenantName && r.currentTenantName !== 'ไม่มีผู้เข้าเช่า') {
-          const exists = state.tenants.some(t => t.name === r.currentTenantName || t.assignedRoomId === r.id);
-          if (!exists) {
-            state.tenants.push({
-              id: 't_auto_' + r.id,
-              name: r.currentTenantName,
-              idCard: r.idCard || '3451200115491',
-              tel: '081-2345678',
-              assignedRoomId: r.id,
-              startDate: '2025-05-01',
-              endDate: '2027-05-01',
-              deposit: { initialBail: r.bailAmount || 7000, deductions: [], status: 'active' },
-              documents: []
-            });
-          }
-        }
-      });
-    }
-
     const tenants = state.tenants;
 
     return `
