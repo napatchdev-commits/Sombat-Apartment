@@ -217,6 +217,88 @@ Deno.serve(async (req: Request) => {
       return json(result);
     }
 
+    // 3. Tenant uploaded a slip, notify admin
+    if (requestData.action === "notifyAdminNewSlip") {
+      const state = await getLatestState();
+      const settings = state?.settings || {};
+      const roomName = requestData.roomName || "ไม่ทราบห้อง";
+      const tenantName = requestData.tenantName || "ผู้เช่า";
+      const amount = Number(requestData.amount || 0);
+
+      const messageText = `🔔 แจ้งเตือนสลิปเงินโอนใหม่!\n\n` +
+        `ห้อง: ${roomName}\n` +
+        `ผู้เช่า: ${tenantName}\n` +
+        `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
+        `ขณะนี้ผู้เช่าได้อัปโหลดหลักฐานสลิปเข้าระบบแล้ว แอดมินกรุณาตรวจสอบความถูกต้องอีกครั้งครับ 🧾`;
+
+      let sentNotify = false;
+      let sentBot = false;
+      let errorMsg = "";
+
+      // A. Try LINE Notify if token is configured
+      const notifyToken = settings.lineNotifyToken || "";
+      if (notifyToken && notifyToken.trim()) {
+        try {
+          const params = new URLSearchParams();
+          params.append("message", messageText);
+
+          const notifyRes = await fetch("https://notify-api.line.me/api/notify", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              Authorization: `Bearer ${notifyToken.trim()}`,
+            },
+            body: params,
+          });
+          if (notifyRes.ok) {
+            sentNotify = true;
+          } else {
+            errorMsg += `LINE Notify error status: ${notifyRes.status} ${await notifyRes.text()}; `;
+          }
+        } catch (err: any) {
+          errorMsg += `LINE Notify exception: ${err.message}; `;
+        }
+      }
+
+      // B. Try LINE Bot Push if channel token and admin user ID are configured
+      const channelToken = getChannelToken(state);
+      const adminUserId = settings.lineUserId || "";
+      if (channelToken && adminUserId && adminUserId.trim()) {
+        try {
+          const pushRes = await fetch("https://api.line.me/v2/bot/message/push", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${channelToken}`,
+            },
+            body: JSON.stringify({
+              to: adminUserId.trim(),
+              messages: [{ type: "text", text: messageText }],
+            }),
+          });
+          if (pushRes.ok) {
+            sentBot = true;
+          } else {
+            errorMsg += `LINE Bot Push error status: ${pushRes.status} ${await pushRes.text()}; `;
+          }
+        } catch (err: any) {
+          errorMsg += `LINE Bot Push exception: ${err.message}; `;
+        }
+      }
+
+      if (sentNotify || sentBot) {
+        return json({
+          status: "success",
+          message: `แจ้งเตือนไปยังแอดมินสำเร็จ (Notify: ${sentNotify}, Bot: ${sentBot})`,
+        });
+      } else {
+        return json({
+          status: "error",
+          message: errorMsg || "ยังไม่ได้ตั้งค่า LINE Notify Token หรือ LINE Bot UserId สำหรับแอดมิน",
+        });
+      }
+    }
+
     return json({ status: "error", message: "Invalid action" }, 400);
   } catch (err) {
     console.error(err);

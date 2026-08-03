@@ -1822,6 +1822,31 @@ class MyBillsApp {
                 invoicesList[invIdx] = Object.assign({}, invoicesList[invIdx], result.invoice);
               }
 
+              // Fire-and-forget LINE notification to Admin
+              try {
+                const supabaseUrl = TenantDBService.getSavedSupabaseUrl();
+                const apiKey = TenantDBService.getSavedTenantApiKey();
+                if (supabaseUrl && apiKey) {
+                  const baseUrl = TenantDBService.getBaseSupabaseUrl(supabaseUrl);
+                  fetch(`${baseUrl}/functions/v1/line-notify`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': apiKey,
+                      'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                      action: 'notifyAdminNewSlip',
+                      roomName: room ? room.name : tenant.assignedRoomId,
+                      tenantName: tenant.name,
+                      amount: amountToPay
+                    })
+                  }).catch(e => console.warn('Failed to send LINE notification to admin:', e));
+                }
+              } catch (lineErr) {
+                console.warn('LINE notification trigger error:', lineErr);
+              }
+
               MyBillsApp.render();
               MyBillsApp.openOfficialBillModal(invoicesList[invIdx]);
             } catch (err) {
