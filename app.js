@@ -999,7 +999,8 @@ class DBService {
         table: 'settings',
         fields: [['apartmentName','apartment_name'],['address','address'],['tel','tel'],['lineId','line_id'],
                  ['bankName','bank_name'],['bankAccountNo','bank_account_no'],['bankAccountName','bank_account_name'],
-                 ['promptPayId','prompt_pay_id']]
+                 ['promptPayId','prompt_pay_id'],
+                 ['lineToken','line_token'],['lineUserId','line_user_id'],['lineNotifyToken','line_notify_token']]
       },
       rates: {
         table: 'rates',
