@@ -7261,18 +7261,11 @@ class App {
       });
     }
 
-    // ── Meter Reading Link ────────────────────────────────
     const meterLinkBtn = document.getElementById('btn-copy-meter-link');
     if (meterLinkBtn) {
       meterLinkBtn.addEventListener('click', () => {
-        const supaUrl = this.state.settings.supabaseUrl || DBService.getSavedSupabaseUrl();
-        const ak = this.state.settings.apiKey || DBService.getSavedApiKey();
-        if (!supaUrl) {
-          alert('กรุณาบันทึก Supabase URL ก่อนคัดลอกลิงก์จดมิเตอร์');
-          return;
-        }
         const base = window.location.href.replace(/\/[^\/]*(\?.*)?$/, '/');
-        const meterUrl = `${base}meter.html?supabaseUrl=${encodeURIComponent(supaUrl)}&apiKey=${encodeURIComponent(ak || '')}`;
+        const meterUrl = `${base}meter.html`;
         navigator.clipboard.writeText(meterUrl).then(() => {
           meterLinkBtn.innerHTML = '<i class="fa-solid fa-check"></i> คัดลอกแล้ว!';
           setTimeout(() => { meterLinkBtn.innerHTML = '<i class="fa-solid fa-gauge-high"></i> คัดลอกลิงก์จดมิเตอร์'; }, 2500);
@@ -7285,11 +7278,8 @@ class App {
     const openMeterBtn = document.getElementById('btn-open-meter');
     if (openMeterBtn) {
       openMeterBtn.addEventListener('click', () => {
-        const supaUrl = this.state.settings.supabaseUrl || DBService.getSavedSupabaseUrl();
-        const ak = this.state.settings.apiKey || DBService.getSavedApiKey();
         const base = window.location.href.replace(/\/[^\/]*(\?.*)?$/, '/');
-        const meterUrl = `${base}meter.html${supaUrl ? '?supabaseUrl=' + encodeURIComponent(supaUrl) + '&apiKey=' + encodeURIComponent(ak || '') : ''}`;
-        window.open(meterUrl, '_blank');
+        window.open(`${base}meter.html`, '_blank');
       });
     }
 
