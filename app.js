@@ -472,7 +472,7 @@ class DBService {
         promptPayId: '0805991691',
         supabaseUrl: ''
       },
-      rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 200.0, commonFee: 100.0 },
+      rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 0, commonFee: 0 },
       users: [
         { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
         { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' /* sha256('admin') */ },
@@ -2112,6 +2112,18 @@ class RatesComponent {
                 <input type="number" step="0.1" id="rate-trash" class="form-control" value="${rates.trashFee !== undefined ? rates.trashFee : 20.0}" required>
               </div>
             </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1rem;">
+              <div class="form-group">
+                <label>ค่าอินเทอร์เน็ต (บาท / เดือน)</label>
+                <input type="number" step="0.1" id="rate-internet" class="form-control" value="${rates.internetFee || ''}" placeholder="เว้นว่างหรือ 0 = ไม่คิดค่านี้">
+                <small class="text-muted">ใส่เฉพาะห้องที่มีอินเทอร์เน็ต (เดิมใช้กับห้องประเภท "ห้องแอร์ปรับอากาศ") เว้นว่างหรือใส่ 0 = ไม่นำไปคำนวณในบิล</small>
+              </div>
+              <div class="form-group">
+                <label>ค่าส่วนกลาง (บาท / เดือน)</label>
+                <input type="number" step="0.1" id="rate-common" class="form-control" value="${rates.commonFee || ''}" placeholder="เว้นว่างหรือ 0 = ไม่คิดค่านี้">
+                <small class="text-muted">เว้นว่างหรือใส่ 0 = ไม่นำไปคำนวณในบิล</small>
+              </div>
+            </div>
             <button type="submit" class="btn btn-primary" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกปรับเรทหลัก</button>
           </form>
         </div>
@@ -3316,9 +3328,7 @@ class App {
       btn.addEventListener('click', (e) => {
         const tenantId = e.currentTarget.getAttribute('data-id');
         const tenantName = e.currentTarget.getAttribute('data-name');
-        if (confirm(`คุณต้องการลบข้อมูลผู้เช่า "${tenantName}" ออกจากระบบใช่หรือไม่?`)) {
-          this.deleteTenant(tenantId);
-        }
+        this.openDeleteTenantModal(tenantId, tenantName);
       });
     });
 
@@ -3584,7 +3594,63 @@ class App {
     modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
   }
 
-  static deleteTenant(tenantId) {
+  static openDeleteTenantModal(tenantId, tenantName) {
+    const tenant = this.state.tenants.find(t => t.id === tenantId);
+    const room = tenant ? this.state.rooms.find(r => r.id === tenant.assignedRoomId) : null;
+    const relatedInvoiceCount = room ? this.state.invoices.filter(i => i.roomId === room.id).length : 0;
+
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-triangle-exclamation text-danger"></i> ลบข้อมูลผู้เช่า</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>คุณต้องการลบข้อมูลผู้เช่า <strong>"${tenantName}"</strong> ออกจากระบบใช่หรือไม่?</p>
+        <p class="text-muted text-sm">ห้องพักที่เคยเข้าอยู่จะถูกเปลี่ยนสถานะเป็น "ว่าง" โดยอัตโนมัติ</p>
+
+        ${room ? `
+          <div style="background:#fef3c7; border:1px solid #f59e0b; border-radius:8px; padding:1rem; margin-top:1rem;">
+            <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; margin-bottom:0.75rem;">
+              <input type="checkbox" id="chk-reset-meters" checked style="margin-top:0.2rem;">
+              <span>
+                <strong>เคลียร์เลขมิเตอร์น้ำ-ไฟของห้อง ${room.name} เป็น 0</strong><br>
+                <span class="text-muted text-sm">แนะนำให้ติ๊ก ถ้านี่คือผู้เช่าทดสอบ — ป้องกันบิลแรกของผู้เช่าจริงคนต่อไปเอาเลขมิเตอร์เก่าไปคำนวณผิด (ถ้าเป็นผู้เช่าจริงที่ย้ายออก แล้วมิเตอร์ยังเดินต่อเนื่อง ให้ไม่ติ๊กช่องนี้)</span>
+              </span>
+            </label>
+            ${relatedInvoiceCount > 0 ? `
+              <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+                <input type="checkbox" id="chk-delete-invoices" style="margin-top:0.2rem;">
+                <span>
+                  <strong>ลบบิล/ใบแจ้งหนี้ทั้งหมดของห้อง ${room.name} ด้วย (${relatedInvoiceCount} ใบ)</strong><br>
+                  <span class="text-muted text-sm">แนะนำให้ติ๊ก ถ้านี่คือบิลทดสอบ — ถ้าเป็นบิลจริงที่มีประวัติการชำระเงินจริง ไม่ควรติ๊ก</span>
+                </span>
+              </label>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+          <button id="btn-confirm-delete-tenant" class="btn btn-danger" style="flex:1;"><i class="fa-solid fa-trash"></i> ยืนยันลบผู้เช่า</button>
+          <button class="btn btn-secondary close-modal-btn" style="flex:1;">ยกเลิก</button>
+        </div>
+      </div>
+    `;
+    modal.classList.add('active');
+    modal.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    document.getElementById('btn-confirm-delete-tenant').addEventListener('click', () => {
+      const resetMeters = room ? document.getElementById('chk-reset-meters').checked : false;
+      const deleteInvoicesChk = document.getElementById('chk-delete-invoices');
+      const deleteInvoices = deleteInvoicesChk ? deleteInvoicesChk.checked : false;
+      modal.classList.remove('active');
+      this.deleteTenant(tenantId, { resetMeters, deleteInvoices });
+    });
+  }
+
+  static deleteTenant(tenantId, options = {}) {
+    const { resetMeters = false, deleteInvoices = false } = options;
     const idx = this.state.tenants.findIndex(t => t.id === tenantId);
     if (idx !== -1) {
       const assignedRoomId = this.state.tenants[idx].assignedRoomId;
@@ -3593,6 +3659,13 @@ class App {
         room.status = 'vacant';
         room.currentTenantId = null;
         room.currentTenantName = null;
+        if (resetMeters) {
+          room.lastElecMeter = 0;
+          room.lastWaterMeter = 0;
+        }
+        if (deleteInvoices) {
+          this.state.invoices = this.state.invoices.filter(i => i.roomId !== room.id);
+        }
       }
       this.state.tenants.splice(idx, 1);
       DBService.saveState(this.state);
@@ -4828,7 +4901,8 @@ class App {
             "เลขที่บิล", "รอบเดือน", "ห้องพัก", "ชื่อผู้เช่า", "วันที่ออกบิล", "กำหนดชำระ",
             "ไฟครั้งก่อน", "ไฟครั้งนี้", "หน่วยที่ใช้ (ไฟ)", "ค่าไฟฟ้า",
             "น้ำครั้งก่อน", "น้ำครั้งนี้", "หน่วยที่ใช้ (น้ำ)", "ค่าน้ำประปา",
-            "ค่าเช่าห้อง", "ค่าขยะ", "ค่าใช้จ่ายอื่น", "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ"
+            "ค่าเช่าห้อง", "ค่าขยะ", "ค่าอินเทอร์เน็ต", "ค่าส่วนกลาง", "ค่าปรับ", "ค่าใช้จ่ายอื่น",
+            "ยอดรวมสุทธิ (บาท)", "สถานะการชำระ"
           ];
           
           const rows = targetInvoices.map(inv => {
@@ -4856,6 +4930,9 @@ class App {
               inv.waterAmount || 0,
               inv.rentAmount || 0,
               inv.trashFee !== undefined ? inv.trashFee : 20,
+              inv.internetFee || 0,
+              inv.commonFee || 0,
+              inv.fineAmount || 0,
               otherAmt,
               inv.totalAmount || 0,
               statusStr
@@ -4963,8 +5040,8 @@ class App {
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
       const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
       const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
-      const internetFee = room.typeId === 'rt_air' ? (this.state.rates.internetFee || 200) : 0;
-      const commonFee = this.state.rates.commonFee || 100;
+      const internetFee = room.typeId === 'rt_air' ? (Number(this.state.rates.internetFee) || 0) : 0;
+      const commonFee = Number(this.state.rates.commonFee) || 0;
       const fineAmt = parseFloat(fineAmount) || 0;
       return rentAmt + elecAmt + waterAmt + trashFee + internetFee + commonFee + fineAmt;
     };
@@ -5423,8 +5500,8 @@ class App {
           const elecCurr = parseFloat(elecCurrVal) || 0;
           const waterCurr = parseFloat(waterCurrVal) || 0;
           const fineAmt = parseFloat(fineVal) || 0;
-          const internetFee = room.typeId === 'rt_air' ? (this.state.rates.internetFee || 200) : 0;
-          const commonFee = this.state.rates.commonFee || 100;
+          const internetFee = room.typeId === 'rt_air' ? (Number(this.state.rates.internetFee) || 0) : 0;
+          const commonFee = Number(this.state.rates.commonFee) || 0;
 
           let result;
           try {
@@ -5799,6 +5876,9 @@ class App {
         this.state.rates.electricityRate = parseFloat(document.getElementById('rate-elec').value) || 8.0;
         this.state.rates.waterRate = parseFloat(document.getElementById('rate-water').value) || 20.0;
         this.state.rates.trashFee = parseFloat(document.getElementById('rate-trash').value) || 20.0;
+        // เว้นว่างหรือใส่ 0 = ไม่คิดค่านี้ (ไม่มี default แบบค่าเช่า/ไฟ/น้ำ/ขยะที่จำเป็นต้องมีค่า)
+        this.state.rates.internetFee = parseFloat(document.getElementById('rate-internet').value) || 0;
+        this.state.rates.commonFee = parseFloat(document.getElementById('rate-common').value) || 0;
         DBService.saveState(this.state);
         alert('✅ บันทึกปรับเรทค่าน้ำ ค่าไฟ และค่าขยะเรียบร้อยแล้ว!');
       });
@@ -6079,9 +6159,9 @@ class App {
             rates: {
               waterRate: 20,
               electricityRate: 8,
-              commonFee: 100,
+              commonFee: 0,
               trashFee: 20,
-              internetFee: 200
+              internetFee: 0
             },
             settings: this.state.settings || {
               theme: 'light',
