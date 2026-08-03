@@ -665,41 +665,265 @@ class DBService {
     return match ? match[1] : cleaned;
   }
 
+  /* อัปโหลดไฟล์ขึ้น Supabase Storage (bucket: tenant-documents) แทนการฝัง base64
+     ใช้แพทเทิร์นเดียวกับฝั่งผู้เช่า (uploadBase64ToStorage ใน tenant-app.js) */
+  static async uploadFileToStorage(file, pathPrefix = 'doc') {
+    if (!file) return null;
+    const url = this.getSavedSupabaseUrl();
+    const apiKey = this.getSavedApiKey();
+    if (!url || !apiKey) {
+      throw new Error('ยังไม่ได้ตั้งค่า Supabase URL / API Key จึงอัปโหลดไฟล์ไม่ได้');
+    }
+    const baseUrl = this.getBaseSupabaseUrl(url);
+    const safeName = (file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filename = `${pathPrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${safeName}`;
+    const uploadUrl = `${baseUrl}/storage/v1/object/tenant-documents/${filename}`;
+
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': file.type || 'application/octet-stream'
+      },
+      body: file
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`อัปโหลดไฟล์ "${file.name}" ไม่สำเร็จ: ${txt || res.statusText}`);
+    }
+    return `${baseUrl}/storage/v1/object/public/tenant-documents/${filename}`;
+  }
+
+  /* เรียก Postgres RPC function ผ่าน PostgREST (/rest/v1/rpc/<fn>) ด้วย anon key ของแอดมิน
+     ใช้แพทเทิร์นเดียวกับที่ tenant-app.js ใช้เรียก submit_tenant_payment / submit_tenant_repair */
+  static async callRpc(fnName, params = {}) {
+    const url = this.getSavedSupabaseUrl();
+    const apiKey = this.getSavedApiKey();
+    if (!url || !apiKey) {
+      throw new Error('ยังไม่ได้ตั้งค่า Supabase URL / API Key');
+    }
+    const baseUrl = this.getBaseSupabaseUrl(url);
+    const res = await fetch(`${baseUrl}/rest/v1/rpc/${fnName}`, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(params)
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`เรียกใช้ฟังก์ชัน ${fnName} ไม่สำเร็จ: ${txt || res.statusText}`);
+    }
+    return res.json();
+  }
+
+  /* ==========================================================================
+     ตารางแยกประเภท (เหมือนชีตแยกแท็บ) แทนที่ apartment_state ก้อนเดียว
+     - แต่ละ category มีตารางของตัวเอง บันทึกเฉพาะแถวที่เปลี่ยนจริง (ไม่ทับทั้งก้อน)
+     - invoices ใช้ on_conflict = room_id,month_key ตรงกับ UNIQUE constraint ในฐานข้อมูล
+       ทำให้ "ห้องเดียวกัน เดือนเดียวกัน" ไม่มีทางเกิดบิลซ้ำ/ชนกันได้ในระดับ DB จริง
+     ========================================================================== */
+  static SNAPSHOT_KEY = 'SOMBAT_APARTMENT_TABLE_SNAPSHOT_V1';
+
+  static getTableConfigs() {
+    return {
+      rooms: {
+        table: 'rooms', onConflict: 'id',
+        fields: [['id','id'],['name','name'],['floor','floor'],['typeId','type_id'],['baseRent','base_rent'],
+                 ['status','status'],['currentTenantId','current_tenant_id'],['currentTenantName','current_tenant_name'],
+                 ['entryDate','entry_date'],['lastWaterMeter','last_water_meter'],['lastElecMeter','last_elec_meter']]
+      },
+      tenants: {
+        table: 'tenants', onConflict: 'id',
+        fields: [['id','id'],['name','name'],['idCard','id_card'],['tel','tel'],['lineId','line_id'],['email','email'],
+                 ['address','address'],['startDate','start_date'],['endDate','end_date'],['assignedRoomId','assigned_room_id'],
+                 ['depositAmount','deposit_amount'],['depositStatus','deposit_status']]
+      },
+      invoices: {
+        table: 'invoices', onConflict: 'room_id,month_key',
+        keyFn: (r) => `${r.roomId || ''}::${r.monthKey || ''}`,
+        fields: [['id','id'],['invoiceNumber','invoice_number'],['monthKey','month_key'],['roomId','room_id'],
+                 ['roomName','room_name'],['tenantId','tenant_id'],['tenantName','tenant_name'],['issueDate','issue_date'],
+                 ['dueDate','due_date'],['waterPrev','water_prev'],['waterCurr','water_curr'],['waterAmount','water_amount'],
+                 ['elecPrev','elec_prev'],['elecCurr','elec_curr'],['elecAmount','elec_amount'],['rentAmount','rent_amount'],
+                 ['trashFee','trash_fee'],['fineAmount','fine_amount'],['internetFee','internet_fee'],['commonFee','common_fee'],
+                 ['totalAmount','total_amount'],['paidAmount','paid_amount'],['outstandingAmount','outstanding_amount'],
+                 ['status','status'],['slipUrl','slip_url']]
+      },
+      repairs: {
+        table: 'repairs', onConflict: 'id',
+        fields: [['id','id'],['ticketNumber','ticket_number'],['roomId','room_id'],['roomName','room_name'],
+                 ['tenantName','tenant_name'],['title','title'],['description','description'],['category','category'],
+                 ['requestDate','request_date'],['status','status'],['expenseAmount','expense_amount'],
+                 ['assignedTechnician','assigned_technician'],['imageUrl','image_url']]
+      },
+      ledger: {
+        table: 'ledger', onConflict: 'id',
+        fields: [['id','id'],['date','date'],['type','type'],['category','category'],['description','description'],
+                 ['amount','amount'],['recordedBy','recorded_by']]
+      },
+      roomTypes: {
+        table: 'room_types', onConflict: 'id',
+        fields: [['id','id'],['name','name'],['rentalType','rental_type'],['defaultRent','default_rent'],['description','description']]
+      },
+      events: {
+        table: 'events', onConflict: 'id',
+        fields: [['id','id'],['title','title'],['date','date'],['category','category'],['roomName','room_name']]
+      },
+      users: {
+        table: 'users', onConflict: 'id',
+        fields: [['id','id'],['username','username'],['displayName','display_name'],['role','role'],['passwordHash','password_hash']]
+      }
+    };
+  }
+
+  // เอกสารผู้เช่า (สลิป/บัตรประชาชน/ทะเบียนบ้าน) และรายการหักเงินมัดจำ
+  // ในหน่วยความจำอยู่ซ้อนใน tenant.documents / tenant.deposit.deductions
+  // แต่บันทึกลง DB เป็นตารางแยกของตัวเอง (คอลัมน์ชัดเจน ไม่ปนกับข้อมูลผู้เช่าหลัก)
+  static getNestedTenantConfigs() {
+    return {
+      documents: {
+        table: 'tenant_documents', onConflict: 'id',
+        fields: [['id','id'],['tenantId','tenant_id'],['category','category'],['title','title'],
+                 ['fileName','file_name'],['fileType','file_type'],['fileSize','file_size'],
+                 ['dataUrl','file_url'],['uploadDate','upload_date']]
+      },
+      deductions: {
+        table: 'tenant_deposit_deductions', onConflict: 'id',
+        fields: [['id','id'],['tenantId','tenant_id'],['description','description'],['amount','amount'],['date','date']]
+      }
+    };
+  }
+
+  static getSingletonConfigs() {
+    return {
+      settings: {
+        table: 'settings',
+        fields: [['apartmentName','apartment_name'],['address','address'],['tel','tel'],['lineId','line_id'],
+                 ['bankName','bank_name'],['bankAccountNo','bank_account_no'],['bankAccountName','bank_account_name'],
+                 ['promptPayId','prompt_pay_id']]
+      },
+      rates: {
+        table: 'rates',
+        fields: [['electricityRate','electricity_rate'],['waterRate','water_rate'],['trashFee','trash_fee'],
+                 ['internetFee','internet_fee'],['commonFee','common_fee']]
+      }
+    };
+  }
+
+  static toRow(fields, obj) {
+    const row = {};
+    fields.forEach(([jsKey, dbKey]) => { row[dbKey] = obj[jsKey] !== undefined ? obj[jsKey] : null; });
+    return row;
+  }
+
+  static fromRow(fields, row) {
+    const obj = {};
+    fields.forEach(([jsKey, dbKey]) => { obj[jsKey] = row[dbKey] !== undefined ? row[dbKey] : null; });
+    return obj;
+  }
+
+  static loadSnapshot() {
+    try { return JSON.parse(localStorage.getItem(this.SNAPSHOT_KEY) || '{}'); } catch (e) { return {}; }
+  }
+
+  static saveSnapshot(snap) {
+    localStorage.setItem(this.SNAPSHOT_KEY, JSON.stringify(snap));
+  }
+
   static async pullFromSupabase(url) {
     if (!url) return null;
     const apiKey = this.getSavedApiKey();
+    const baseUrl = this.getBaseSupabaseUrl(url);
+    const headers = { 'apikey': apiKey, 'Authorization': `Bearer ${apiKey}` };
     try {
-      const baseUrl = this.getBaseSupabaseUrl(url);
-      const res = await fetch(`${baseUrl}/rest/v1/apartment_state?id=eq.1`, {
-        headers: {
-          'apikey': apiKey,
-          'Authorization': `Bearer ${apiKey}`
+      const tableCfgs = this.getTableConfigs();
+      const singleCfgs = this.getSingletonConfigs();
+
+      const tableEntries = Object.entries(tableCfgs);
+      const singleEntries = Object.entries(singleCfgs);
+
+      const [tableResults, singleResults] = await Promise.all([
+        Promise.all(tableEntries.map(([, cfg]) =>
+          fetch(`${baseUrl}/rest/v1/${cfg.table}?select=*`, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error(`โหลดตาราง ${cfg.table} ไม่สำเร็จ: ${r.statusText}`)))
+        )),
+        Promise.all(singleEntries.map(([, cfg]) =>
+          fetch(`${baseUrl}/rest/v1/${cfg.table}?id=eq.1&select=*`, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error(`โหลด ${cfg.table} ไม่สำเร็จ: ${r.statusText}`)))
+        ))
+      ]);
+
+      const data = this.getInitialState();
+      const snapshot = {};
+
+      tableEntries.forEach(([category, cfg], idx) => {
+        const rows = tableResults[idx] || [];
+        const jsRows = rows.map(r => this.fromRow(cfg.fields, r));
+        data[category] = jsRows;
+        const keyFn = cfg.keyFn || (r => r.id);
+        const catSnap = {};
+        jsRows.forEach((jsRow) => {
+          catSnap[keyFn(jsRow)] = { id: jsRow.id, json: JSON.stringify(this.toRow(cfg.fields, jsRow)) };
+        });
+        snapshot[category] = catSnap;
+      });
+
+      singleEntries.forEach(([category, cfg], idx) => {
+        const rows = singleResults[idx] || [];
+        if (rows && rows.length > 0) {
+          data[category] = Object.assign({}, data[category], this.fromRow(cfg.fields, rows[0]));
         }
       });
-      if (!res.ok) throw new Error(`Supabase error: ${res.statusText}`);
-      const array = await res.json();
-      if (array && array.length > 0 && array[0].state) {
-        const data = array[0].state;
-        if (!data.settings) data.settings = {};
-        data.settings.supabaseUrl = this.cleanUrl(url);
-        if (apiKey) data.settings.apiKey = apiKey;
-        if (!data.users || !Array.isArray(data.users) || data.users.length === 0) {
-          data.users = [
-            { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
-            { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
-            { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' }
-          ];
-        }
-        localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(url));
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
-        return data;
+
+      // ประกอบ documents / deposit.deductions กลับเข้าไปในแต่ละ tenant (เก็บแยกตารางใน DB)
+      const nestedCfgs = this.getNestedTenantConfigs();
+      const nestedEntries = Object.entries(nestedCfgs);
+      const nestedResults = await Promise.all(nestedEntries.map(([, cfg]) =>
+        fetch(`${baseUrl}/rest/v1/${cfg.table}?select=*`, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error(`โหลดตาราง ${cfg.table} ไม่สำเร็จ: ${r.statusText}`)))
+      ));
+      const tenantsById = {};
+      (data.tenants || []).forEach(t => {
+        t.documents = [];
+        t.deposit = { initialBail: t.depositAmount || 0, status: t.depositStatus || 'active', deductions: [] };
+        tenantsById[t.id] = t;
+      });
+      nestedEntries.forEach(([key, cfg], idx) => {
+        const rows = nestedResults[idx] || [];
+        const jsRows = rows.map(r => this.fromRow(cfg.fields, r));
+        const catSnap = {};
+        jsRows.forEach(jsRow => {
+          catSnap[jsRow.id] = { id: jsRow.id, json: JSON.stringify(this.toRow(cfg.fields, jsRow)) };
+          const tenant = tenantsById[jsRow.tenantId];
+          if (tenant) {
+            if (key === 'documents') tenant.documents.push(jsRow);
+            else if (key === 'deductions') tenant.deposit.deductions.push(jsRow);
+          }
+        });
+        snapshot['tenant_' + key] = catSnap;
+      });
+
+      if (!data.settings) data.settings = {};
+      data.settings.supabaseUrl = this.cleanUrl(url);
+      if (apiKey) data.settings.apiKey = apiKey;
+      if (!data.users || !Array.isArray(data.users) || data.users.length === 0) {
+        data.users = [
+          { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+          { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
+          { id: 'usr_staff', username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff', passwordHash: '1562206543da764123c21bd524674f0a8aaf49c8a89744c97352fe677f7e4006' }
+        ];
       }
+
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(url));
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+      this.saveSnapshot(snapshot);
+      return data;
     } catch (e) {
       console.error('Failed to pull from Supabase:', e);
     }
     return null;
   }
-
 
   static async syncToSupabase(url, state) {
     if (!url) throw new Error('กรุณาระบุ Supabase Project URL ก่อน');
@@ -710,20 +934,133 @@ class DBService {
     const apiKey = (state.settings && state.settings.apiKey) || this.getSavedApiKey();
     localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', this.cleanUrl(url));
     const baseUrl = this.getBaseSupabaseUrl(url);
-    const response = await fetch(`${baseUrl}/rest/v1/apartment_state?on_conflict=id`, {
-      method: 'POST',
-      headers: {
-        'apikey': apiKey,
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({ id: 1, state: state, updated_at: new Date().toISOString() })
-    });
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`เกิดข้อผิดพลาดในการบันทึกข้อมูล Supabase: ${errText || response.statusText}`);
+    const headers = {
+      'apikey': apiKey,
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    };
+
+    const tableCfgs = this.getTableConfigs();
+    const singleCfgs = this.getSingletonConfigs();
+    const snapshot = this.loadSnapshot();
+    const newSnapshot = {};
+    const requests = [];
+
+    for (const [category, cfg] of Object.entries(tableCfgs)) {
+      const rows = Array.isArray(state[category]) ? state[category] : [];
+      const keyFn = cfg.keyFn || (r => r.id);
+      const prevCat = snapshot[category] || {};
+      const catSnap = {};
+      const upserts = [];
+
+      rows.forEach(jsRow => {
+        if (!jsRow || !jsRow.id) return;
+        const key = keyFn(jsRow);
+        const dbRow = this.toRow(cfg.fields, jsRow);
+        const json = JSON.stringify(dbRow);
+        catSnap[key] = { id: jsRow.id, json };
+        if (!prevCat[key] || prevCat[key].json !== json) {
+          upserts.push(dbRow);
+        }
+      });
+      newSnapshot[category] = catSnap;
+
+      // แถวที่หายไปจาก state (ถูกลบ) เทียบกับ key เดิม -> ลบออกจาก DB ด้วย id ล่าสุดที่เคยซิงก์
+      const newKeys = new Set(Object.keys(catSnap));
+      const deleteIds = Object.entries(prevCat)
+        .filter(([key]) => !newKeys.has(key))
+        .map(([, v]) => v.id)
+        .filter(Boolean);
+
+      if (upserts.length > 0) {
+        requests.push(
+          fetch(`${baseUrl}/rest/v1/${cfg.table}?on_conflict=${cfg.onConflict}`, {
+            method: 'POST', headers, body: JSON.stringify(upserts)
+          }).then(async r => {
+            if (!r.ok) throw new Error(`บันทึก ${cfg.table} ไม่สำเร็จ: ${await r.text() || r.statusText}`);
+          })
+        );
+      }
+      if (deleteIds.length > 0) {
+        const idList = deleteIds.map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
+        requests.push(
+          fetch(`${baseUrl}/rest/v1/${cfg.table}?id=in.(${idList})`, {
+            method: 'DELETE', headers
+          }).then(async r => {
+            if (!r.ok) throw new Error(`ลบข้อมูล ${cfg.table} ไม่สำเร็จ: ${await r.text() || r.statusText}`);
+          })
+        );
+      }
     }
+
+    // เอกสารผู้เช่า / รายการหักมัดจำ ซ้อนอยู่ใน tenant.documents และ tenant.deposit.deductions
+    // -> แผ่ออกมาเป็นแถวแบนแล้วซิงก์ลงตารางของตัวเอง เช่นเดียวกับ category อื่น ๆ
+    const nestedCfgs = this.getNestedTenantConfigs();
+    for (const [key, cfg] of Object.entries(nestedCfgs)) {
+      const flatRows = [];
+      (Array.isArray(state.tenants) ? state.tenants : []).forEach(t => {
+        const arr = key === 'documents' ? (t.documents || []) : ((t.deposit && t.deposit.deductions) || []);
+        arr.forEach(item => {
+          if (!item || !item.id) return;
+          flatRows.push(Object.assign({}, item, { tenantId: t.id }));
+        });
+      });
+
+      const snapKey = 'tenant_' + key;
+      const prevCat = snapshot[snapKey] || {};
+      const catSnap = {};
+      const upserts = [];
+      flatRows.forEach(jsRow => {
+        const dbRow = this.toRow(cfg.fields, jsRow);
+        const json = JSON.stringify(dbRow);
+        catSnap[jsRow.id] = { id: jsRow.id, json };
+        if (!prevCat[jsRow.id] || prevCat[jsRow.id].json !== json) upserts.push(dbRow);
+      });
+      newSnapshot[snapKey] = catSnap;
+
+      const newKeys = new Set(Object.keys(catSnap));
+      const deleteIds = Object.entries(prevCat)
+        .filter(([k]) => !newKeys.has(k))
+        .map(([, v]) => v.id)
+        .filter(Boolean);
+
+      if (upserts.length > 0) {
+        requests.push(
+          fetch(`${baseUrl}/rest/v1/${cfg.table}?on_conflict=${cfg.onConflict}`, {
+            method: 'POST', headers, body: JSON.stringify(upserts)
+          }).then(async r => {
+            if (!r.ok) throw new Error(`บันทึก ${cfg.table} ไม่สำเร็จ: ${await r.text() || r.statusText}`);
+          })
+        );
+      }
+      if (deleteIds.length > 0) {
+        const idList = deleteIds.map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
+        requests.push(
+          fetch(`${baseUrl}/rest/v1/${cfg.table}?id=in.(${idList})`, {
+            method: 'DELETE', headers
+          }).then(async r => {
+            if (!r.ok) throw new Error(`ลบข้อมูล ${cfg.table} ไม่สำเร็จ: ${await r.text() || r.statusText}`);
+          })
+        );
+      }
+    }
+
+    for (const [category, cfg] of Object.entries(singleCfgs)) {
+      const obj = state[category] || {};
+      const row = this.toRow(cfg.fields, obj);
+      row.id = 1;
+      requests.push(
+        fetch(`${baseUrl}/rest/v1/${cfg.table}?on_conflict=id`, {
+          method: 'POST', headers, body: JSON.stringify(row)
+        }).then(async r => {
+          if (!r.ok) throw new Error(`บันทึก ${cfg.table} ไม่สำเร็จ: ${await r.text() || r.statusText}`);
+        })
+      );
+    }
+
+    await Promise.all(requests);
+    this.saveSnapshot(newSnapshot);
     return { status: 'success', message: 'บันทึกข้อมูลเรียบร้อย' };
   }
 
@@ -1847,7 +2184,7 @@ class SettingsComponent {
             <label>Supabase API Key (Anon Key):</label>
             <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัส Supabase Anon Key ที่นี่...">
             <p class="text-muted" style="font-size:0.8rem; margin-top:0.35rem;">
-              ⚠️ ต้องเปิดสิทธิ์การอ่าน/เขียน (Insert/Select) ในตาราง \`apartment_state\` ฝั่ง Supabase
+              ⚠️ ต้องรันไฟล์ 1_schema.sql ใน Supabase SQL Editor ก่อน (สร้างตารางแยกประเภท เช่น rooms, tenants, invoices ฯลฯ) และเปิดสิทธิ์การอ่าน/เขียนตามที่สคริปต์ตั้งค่าไว้ให้แล้ว
             </p>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1rem;">
@@ -2747,88 +3084,45 @@ class App {
         let skipCount = 0;
         let errorMessages = [];
 
-        occupiedRooms.forEach(room => {
-          // Find meter reading for this room
+        // ออกบิลทีละห้องผ่าน RPC เดียว (generate_room_invoice) ซึ่งรับมิเตอร์ → คำนวณ →
+        // อัปเดตห้อง + สร้าง/เขียนทับบิล ในทรานแซกชันเดียวฝั่ง Postgres (กันชนกันจริงระดับ DB)
+        for (const room of occupiedRooms) {
           const reading = readings.find(r => r.roomName === room.name);
-          if (!reading) {
-            skipCount++;
-            return;
-          }
+          if (!reading) { skipCount++; continue; }
 
-          // Check if both electricity and water new meters are provided
           if (reading.elecCurr === null || reading.waterCurr === null || reading.elecCurr === "" || reading.waterCurr === "") {
             skipCount++;
-            return;
+            continue;
           }
 
-          const elecPrev = room.lastElecMeter || 0;
           const elecCurr = Number(reading.elecCurr);
-          const waterPrev = room.lastWaterMeter || 0;
           const waterCurr = Number(reading.waterCurr);
+          if (isNaN(elecCurr) || isNaN(waterCurr)) { skipCount++; continue; }
 
-          if (isNaN(elecCurr) || isNaN(waterCurr)) {
-            skipCount++;
-            return;
+          let result;
+          try {
+            result = await DBService.callRpc('generate_room_invoice', {
+              p_room_id: room.id,
+              p_month_key: monthKey,
+              p_elec_curr: elecCurr,
+              p_water_curr: waterCurr,
+              p_issue_date: issueDate,
+              p_due_date: dueDate,
+              p_fine_amount: Number(reading.fineAmount || 0),
+              p_force: false
+            });
+          } catch (rpcErr) {
+            errorMessages.push(`ห้อง ${room.name}: ${rpcErr.message}`);
+            continue;
           }
 
-          if (elecCurr < elecPrev || waterCurr < waterPrev) {
-            errorMessages.push(`ห้อง ${room.name}: ตัวเลขมิเตอร์ใหม่น้อยกว่ามิเตอร์เดิม (ไฟ: ${elecCurr} < ${elecPrev}, น้ำ: ${waterCurr} < ${waterPrev})`);
-            return;
-          }
-
-          const elecUnits = elecCurr - elecPrev;
-          const waterUnits = waterCurr - waterPrev;
-          const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
-          const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
-          const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
-          const trashFee = this.state.rates.trashFee !== undefined ? Number(this.state.rates.trashFee) : 20;
-          const fineAmt = Number(reading.fineAmount || 0);
-          const total = rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
-
-          // Update room's meter records
-          room.lastElecMeter = elecCurr;
-          room.lastWaterMeter = waterCurr;
-
-          // Check if invoice already exists for this room in this month to avoid duplicates
-          const invoiceNum = `INV${monthKey.replace('-', '')}-${room.name}`;
-          const existingIdx = this.state.invoices.findIndex(i => i.invoiceNumber === invoiceNum);
-
-          const invoiceObj = {
-            id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-            invoiceNumber: invoiceNum,
-            monthKey: monthKey,
-            roomId: room.id,
-            roomName: room.name,
-            tenantId: room.currentTenantId || 't1',
-            tenantName: room.currentTenantName || 'ผู้เช่า',
-            issueDate: issueDate,
-            dueDate: dueDate,
-            waterPrev: waterPrev,
-            waterCurr: waterCurr,
-            waterAmount: waterAmt,
-            elecPrev: elecPrev,
-            elecCurr: elecCurr,
-            elecAmount: elecAmt,
-            rentAmount: rentAmt,
-            trashFee: trashFee,
-            fineAmount: fineAmt,
-            totalAmount: total,
-            paidAmount: 0,
-            outstandingAmount: total,
-            status: 'unpaid',
-            slipUrl: ''
-          };
-
-          if (existingIdx !== -1) {
-            // Overwrite existing invoice
-            this.state.invoices[existingIdx] = invoiceObj;
-          } else {
-            // Insert new invoice at the beginning
-            this.state.invoices.unshift(invoiceObj);
+          if (!result || result.status === 'error') {
+            errorMessages.push(result && result.message ? result.message : `ห้อง ${room.name}: ออกบิลไม่สำเร็จ`);
+            continue;
           }
 
           successCount++;
-        });
+        }
 
         if (successCount === 0) {
           let errMsg = 'ไม่มีการออกบิลเพิ่มเติม';
@@ -2838,8 +3132,14 @@ class App {
           throw new Error(errMsg);
         }
 
-        // Save State
-        await DBService.saveState(this.state);
+        // ดึงข้อมูลล่าสุดจาก Supabase มาแทนที่ state ในเครื่อง (rooms/invoices ที่ RPC เพิ่งอัปเดต
+        // คือค่าจริงในฐานข้อมูลแล้ว ไม่ต้องคำนวณซ้ำฝั่ง JS หรือ saveState ทับอีกรอบ)
+        const refreshedState = await DBService.pullFromSupabase(syncUrl);
+        if (refreshedState) {
+          this.state = refreshedState;
+        }
+        this.state.tempMeterReadings = [];
+        localStorage.setItem(DBService.STORAGE_KEY, JSON.stringify(this.state));
 
         modal.classList.remove('active');
         this.switchTab('billing');
@@ -2995,20 +3295,19 @@ class App {
     });
   }
 
-  static readFileAsDataUrl(file) {
-    return new Promise((resolve) => {
-      if (!file) return resolve(null);
-      const reader = new FileReader();
-      reader.onload = (e) => resolve({
-        id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        dataUrl: e.target.result,
-        uploadDate: new Date().toISOString().slice(0, 10)
-      });
-      reader.readAsDataURL(file);
-    });
+  // อัปโหลดไฟล์เอกสารผู้เช่าขึ้น Supabase Storage แทนการฝัง base64 ลงคอลัมน์ file_url โดยตรง
+  // (bucket: tenant-documents ต้องสร้างไว้ล่วงหน้าใน Supabase Dashboard → Storage และตั้งเป็น public)
+  static async readFileAsDataUrl(file) {
+    if (!file) return null;
+    const publicUrl = await DBService.uploadFileToStorage(file, 'doc');
+    return {
+      id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      dataUrl: publicUrl,
+      uploadDate: new Date().toISOString().slice(0, 10)
+    };
   }
 
   static openTenantModal(tenantToEdit = null) {
@@ -3140,17 +3439,27 @@ class App {
 
       const newDocs = tenantToEdit && tenantToEdit.documents ? [...tenantToEdit.documents] : [];
 
-      if (fileIdCard) {
-        const doc = await App.readFileAsDataUrl(fileIdCard);
-        if (doc) { doc.category = 'idcard'; doc.title = 'สำเนาบัตรประชาชน'; newDocs.push(doc); }
-      }
-      if (fileHouse) {
-        const doc = await App.readFileAsDataUrl(fileHouse);
-        if (doc) { doc.category = 'house'; doc.title = 'สำเนาทะเบียนบ้าน'; newDocs.push(doc); }
-      }
-      for (const f of otherFiles) {
-        const doc = await App.readFileAsDataUrl(f);
-        if (doc) { doc.category = 'other'; doc.title = doc.fileName; newDocs.push(doc); }
+      try {
+        if (fileIdCard || fileHouse || otherFiles.length) {
+          submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลดไฟล์เอกสารขึ้น Supabase Storage...';
+        }
+        if (fileIdCard) {
+          const doc = await App.readFileAsDataUrl(fileIdCard);
+          if (doc) { doc.category = 'idcard'; doc.title = 'สำเนาบัตรประชาชน'; newDocs.push(doc); }
+        }
+        if (fileHouse) {
+          const doc = await App.readFileAsDataUrl(fileHouse);
+          if (doc) { doc.category = 'house'; doc.title = 'สำเนาทะเบียนบ้าน'; newDocs.push(doc); }
+        }
+        for (const f of otherFiles) {
+          const doc = await App.readFileAsDataUrl(f);
+          if (doc) { doc.category = 'other'; doc.title = doc.fileName; newDocs.push(doc); }
+        }
+      } catch (err) {
+        alert(`❌ อัปโหลดไฟล์เอกสารไม่สำเร็จ: ${err.message}\n\nข้อมูลผู้เช่ายังไม่ถูกบันทึก กรุณาลองใหม่อีกครั้ง (ตรวจสอบว่าสร้าง Storage bucket ชื่อ "tenant-documents" และตั้งเป็น public แล้ว)`);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'บันทึกการแก้ไขข้อมูลผู้เช่า' : 'บันทึกเพิ่มผู้เช่าใหม่เข้าระบบ'}`;
+        return;
       }
 
       if (isEdit) {
@@ -4004,7 +4313,9 @@ class App {
       const waterUnits = Math.max(0, waterCurr - waterPrev);
       const elecAmount = elecUnits * (this.state.rates ? (this.state.rates.electricityRate || 8) : 8);
       const waterAmount = waterUnits * (this.state.rates ? (this.state.rates.waterRate || 20) : 20);
-      const totalAmount = rentAmount + elecAmount + waterAmount + trashFee + fineAmount;
+      const internetFee = Number(inv.internetFee || 0);
+      const commonFee = Number(inv.commonFee || 0);
+      const totalAmount = rentAmount + elecAmount + waterAmount + trashFee + fineAmount + internetFee + commonFee;
 
       const idx = this.state.invoices.findIndex(i => i.id === inv.id);
       if (idx !== -1) {
@@ -4326,6 +4637,28 @@ class App {
                   <td style="text-align:right;">฿${(inv.trashFee !== undefined ? inv.trashFee : 20).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                 </tr>
               ` : ''}
+              ${(inv.internetFee || 0) > 0 ? `
+                <tr>
+                  <td style="text-align:center;">5</td>
+                  <td>ค่าอินเทอร์เน็ต</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:right;">-</td>
+                  <td style="text-align:right;">฿${Number(inv.internetFee).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                </tr>
+              ` : ''}
+              ${(inv.commonFee || 0) > 0 ? `
+                <tr>
+                  <td style="text-align:center;">6</td>
+                  <td>ค่าส่วนกลาง</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:center;">-</td>
+                  <td style="text-align:right;">-</td>
+                  <td style="text-align:right;">฿${Number(inv.commonFee).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                </tr>
+              ` : ''}
               <tr style="font-weight:bold; background:#f5f5f5;">
                 <td colspan="6" style="text-align:right;">ยอดรวมสุทธิที่ต้องชำระ:</td>
                 <td style="text-align:right;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
@@ -4586,8 +4919,10 @@ class App {
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
       const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
       const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
+      const internetFee = room.typeId === 'rt_air' ? (this.state.rates.internetFee || 200) : 0;
+      const commonFee = this.state.rates.commonFee || 100;
       const fineAmt = parseFloat(fineAmount) || 0;
-      return rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
+      return rentAmt + elecAmt + waterAmt + trashFee + internetFee + commonFee + fineAmt;
     };
 
     const renderExcelRows = () => {
@@ -5018,89 +5353,78 @@ class App {
           return;
         }
       }
+      const forceOverride = errorInputs.length > 0; // ผู้ใช้ยืนยันแล้วว่าจะออกบิลต่อแม้เลขมิเตอร์น้อยกว่าเดิม
 
       const saveBtn = document.getElementById('btn-excel-save-all');
       saveBtn.disabled = true;
       saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกและสร้างบิลทั้งหมด...';
 
       try {
-        const invoices = this.state.invoices || [];
-        const trs = gridBody.querySelectorAll('tr');
+        const trs = Array.from(gridBody.querySelectorAll('tr'));
         let generatedCount = 0;
+        const errorMessages = [];
 
-        trs.forEach(tr => {
+        // ออกบิลทีละห้องผ่าน RPC เดียว (generate_room_invoice) — รับมิเตอร์ → คำนวณ →
+        // อัปเดตห้อง + สร้าง/เขียนทับบิล ในทรานแซกชันเดียวฝั่ง Postgres
+        for (const tr of trs) {
           const roomId = tr.getAttribute('data-room-id');
           const room = this.state.rooms.find(r => r.id === roomId);
-          if (!room || !room.occupied) return;
+          if (!room || (room.status !== 'occupied' && room.status !== 'overdue')) continue;
 
-          const prev = prevReadings[roomId];
           const elecCurrVal = tr.querySelector('.elec-input').value;
           const waterCurrVal = tr.querySelector('.water-input').value;
           const fineVal = tr.querySelector('.fine-input').value;
-
-          if (elecCurrVal === '' || waterCurrVal === '') return;
+          if (elecCurrVal === '' || waterCurrVal === '') continue;
 
           const elecCurr = parseFloat(elecCurrVal) || 0;
           const waterCurr = parseFloat(waterCurrVal) || 0;
           const fineAmt = parseFloat(fineVal) || 0;
-
-          room.lastElecMeter = elecCurr;
-          room.lastWaterMeter = waterCurr;
-
-          const elecUnits = Math.max(0, elecCurr - prev.elecPrev);
-          const waterUnits = Math.max(0, waterCurr - prev.waterPrev);
-          const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
-          const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
-          const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
-          const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
-          const internetFee = room.type === 'rt_air' ? (this.state.rates.internetFee || 200) : 0;
+          const internetFee = room.typeId === 'rt_air' ? (this.state.rates.internetFee || 200) : 0;
           const commonFee = this.state.rates.commonFee || 100;
-          
-          const total = rentAmt + elecAmt + waterAmt + trashFee + internetFee + commonFee + fineAmt;
 
-          const existsIdx = invoices.findIndex(inv => inv.roomId === room.id && inv.monthKey === monthKey);
-          
-          const invoiceObj = {
-            id: existsIdx !== -1 ? invoices[existsIdx].id : 'inv_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-            invoiceNumber: `INV${monthKey.replace('-', '')}-${room.name}`,
-            monthKey,
-            roomId: room.id,
-            roomName: room.name,
-            tenantId: room.currentTenantId || 't_unknown',
-            tenantName: room.currentTenantName || 'ผู้เช่า',
-            issueDate: new Date().toISOString().slice(0, 10),
-            dueDate,
-            waterPrev: prev.waterPrev,
-            waterCurr,
-            elecPrev: prev.elecPrev,
-            elecCurr,
-            rentAmount: rentAmt,
-            waterAmount: waterAmt,
-            elecAmount: elecAmt,
-            trashFee: trashFee,
-            internetFee: internetFee,
-            commonFee: commonFee,
-            fineAmount: fineAmt,
-            totalAmount: total,
-            paidAmount: 0,
-            outstandingAmount: total,
-            status: 'unpaid',
-            slipUrl: ''
-          };
+          let result;
+          try {
+            result = await DBService.callRpc('generate_room_invoice', {
+              p_room_id: room.id,
+              p_month_key: monthKey,
+              p_elec_curr: elecCurr,
+              p_water_curr: waterCurr,
+              p_issue_date: new Date().toISOString().slice(0, 10),
+              p_due_date: dueDate,
+              p_fine_amount: fineAmt,
+              p_force: forceOverride,
+              p_internet_fee: internetFee,
+              p_common_fee: commonFee
+            });
+          } catch (rpcErr) {
+            errorMessages.push(`ห้อง ${room.name}: ${rpcErr.message}`);
+            continue;
+          }
 
-          if (existsIdx !== -1) {
-            invoices[existsIdx] = invoiceObj;
-          } else {
-            invoices.unshift(invoiceObj);
+          if (!result || result.status === 'error') {
+            errorMessages.push(result && result.message ? result.message : `ห้อง ${room.name}: ออกบิลไม่สำเร็จ`);
+            continue;
           }
           generatedCount++;
-        });
+        }
 
+        if (generatedCount === 0) {
+          let errMsg = 'ไม่มีการออกบิลเพิ่มเติม (ไม่มีห้องที่กรอกเลขมิเตอร์ครบ)';
+          if (errorMessages.length > 0) errMsg += '\n\n' + errorMessages.join('\n');
+          throw new Error(errMsg);
+        }
+
+        // ดึงข้อมูลล่าสุดจาก Supabase (rooms/invoices ที่ RPC เพิ่งอัปเดตคือค่าจริงในฐานข้อมูลแล้ว)
+        const savedUrl = DBService.getSavedSupabaseUrl();
+        const syncUrl = savedUrl + (savedUrl.includes('?') ? '&merge=true' : '?merge=true');
+        const refreshedState = await DBService.pullFromSupabase(syncUrl);
+        if (refreshedState) this.state = refreshedState;
         this.state.tempMeterReadings = [];
-        this.state.invoices = invoices;
+        localStorage.setItem(DBService.STORAGE_KEY, JSON.stringify(this.state));
 
-        await DBService.saveState(this.state);
-        alert(`✅ ประมวลผลออกบิลและบันทึกข้อมูลสำเร็จรวม ${generatedCount} ห้องพัก!`);
+        let msg = `✅ ประมวลผลออกบิลและบันทึกข้อมูลสำเร็จรวม ${generatedCount} ห้องพัก!`;
+        if (errorMessages.length > 0) msg += `\n\n⚠️ ห้องที่ข้าม/เกิดข้อผิดพลาด:\n` + errorMessages.join('\n');
+        alert(msg);
         handleClose();
         this.switchTab('billing');
       } catch (err) {
