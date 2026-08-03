@@ -546,12 +546,12 @@ class DBService {
         floor: 1,
         type: 'rt_fan',
         baseRent: 2500,
-        status: i % 2 === 0 ? 'occupied' : 'vacant',
-        occupied: i % 2 === 0,
-        currentTenantId: i % 2 === 0 ? `t_${i}` : null,
-        currentTenantName: i % 2 === 0 ? `ผู้เช่าห้อง S${i}` : '',
-        lastElecMeter: 1000 + i * 5,
-        lastWaterMeter: 100 + i * 2
+        status: 'vacant',
+        occupied: false,
+        currentTenantId: '',
+        currentTenantName: '',
+        lastElecMeter: 0,
+        lastWaterMeter: 0
       });
     }
     // Rooms 101 - 110 (Floor 1), 201 - 210 (Floor 2)
@@ -565,19 +565,19 @@ class DBService {
           floor: f,
           type: f === 1 ? 'rt_fan' : 'rt_air',
           baseRent: f === 1 ? 2500 : 3500,
-          status: r % 3 === 0 ? 'occupied' : 'vacant',
-          occupied: r % 3 === 0,
-          currentTenantId: r % 3 === 0 ? `t_${code}` : null,
-          currentTenantName: r % 3 === 0 ? `ผู้เช่าห้อง ${num}` : '',
-          lastElecMeter: 1200 + r * 10,
-          lastWaterMeter: 150 + r * 3
+          status: 'vacant',
+          occupied: false,
+          currentTenantId: '',
+          currentTenantName: '',
+          lastElecMeter: 0,
+          lastWaterMeter: 0
         });
       }
     }
     // Named houses / commercial rooms
     rooms.push(
-      { id: 'rm_house1', name: 'บ้านหลัง 1', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'occupied', occupied: true, currentTenantName: 'เพชรน้ำหนึ่ง' },
-      { id: 'rm_house2', name: 'บ้านหลัง 2', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'occupied', occupied: true, currentTenantName: 'แสงเงินแสงทอง' }
+      { id: 'rm_house1', name: 'บ้านหลัง 1', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'vacant', occupied: false, currentTenantId: '', currentTenantName: '' },
+      { id: 'rm_house2', name: 'บ้านหลัง 2', floor: 1, type: 'rt_shop', baseRent: 5500, status: 'vacant', occupied: false, currentTenantId: '', currentTenantName: '' }
     );
     return rooms;
   }
@@ -1326,6 +1326,10 @@ class NavbarComponent {
           <a href="tenant.html?apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}" target="_blank" class="btn btn-secondary btn-sm" style="margin-right:0.5rem; text-decoration:none;" title="เปิดระบบแจ้งบิลผู้เช่า MyBills">
             <i class="fa-solid fa-mobile-screen-button text-success"></i> <span class="desktop-only">เปิดระบบบิลผู้เช่า MyBills</span>
           </a>
+
+          <button id="btn-quick-full-backup" class="btn btn-success btn-sm" style="margin-right:0.5rem;" title="1-Click สำรองข้อมูลทั้งระบบเป็น Excel">
+            <i class="fa-solid fa-cloud-arrow-down"></i> <span class="desktop-only">สำรองข้อมูลระบบ</span>
+          </button>
 
           <button id="btn-manual-sync-supabase" class="btn btn-secondary btn-sm" style="margin-right:0.5rem;" title="ดึงข้อมูลล่าสุดจาก Supabase">
             <i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลล่าสุด</span>
@@ -2236,6 +2240,17 @@ class ReportsComponent {
               <small class="text-muted" style="font-size:0.8rem; margin-top:0.5rem; display:block; text-align:center;">💡 ระบบจะแสดงตัวอย่างข้อมูลให้ตรวจสอบก่อนทำการบันทึกจริง</small>
             </div>
           </div>
+
+          <!-- Clear Demo Data / Clean System Section -->
+          <div style="margin-top:1.25rem; background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h4 style="color:#991b1b; margin-bottom:0.25rem;"><i class="fa-solid fa-broom text-danger"></i> ล้างข้อมูลตัวอย่างเดโม่ (Clear Mock Data) เพื่อเริ่มต้นลงข้อมูลจริง</h4>
+              <p class="text-muted" style="font-size:0.85rem; margin:0;">ลบข้อมูลผู้เช่าทดลอง บิลทดลอง และเปลี่ยนสถานะห้องพักทุกห้องให้ว่าง พร้อมสำหรับลงทะเบียนผู้เช่าและบันทึกข้อมูลจริง</p>
+            </div>
+            <button type="button" class="btn btn-danger" id="btn-clear-demo-data" style="white-space:nowrap; padding:0.65rem 1.25rem; font-weight:700; background:#dc2626; border-color:#dc2626; color:#fff;">
+              <i class="fa-solid fa-trash-can"></i> ล้างข้อมูลเดโม่เริ่มต้นใช้งานจริง
+            </button>
+          </div>
         </div>
 
       </div>
@@ -3014,6 +3029,14 @@ class App {
       if (syncBtn) {
         e.preventDefault();
         this.handleManualSyncSupabase(syncBtn);
+        return;
+      }
+
+      // 7.1 Quick Full Backup Button
+      const quickBackupBtn = e.target.closest('#btn-quick-full-backup');
+      if (quickBackupBtn) {
+        e.preventDefault();
+        ExportService.exportFullBackupExcel(this.state);
         return;
       }
     });
@@ -6121,6 +6144,40 @@ class App {
           alert('❌ ไม่สามารถอ่านไฟล์สำรองได้: ' + err.message);
         }
         restoreInput.value = '';
+      });
+    }
+
+    const btnClearDemo = document.getElementById('btn-clear-demo-data');
+    if (btnClearDemo) {
+      btnClearDemo.addEventListener('click', async () => {
+        if (!confirm('⚠️ คำเตือน: คุณต้องการล้างข้อมูลผู้เช่าทดลอง บิลทดลอง และปรับสถานะห้องพักทุกห้องให้ว่าง เพื่อเริ่มต้นลงข้อมูลของจริงใหม่ใช่หรือไม่?\n\n(แนะนำให้กดปุ่ม "สำรองข้อมูลทั้งระบบ" ไว้ก่อนทำการล้างข้อมูล)')) {
+          return;
+        }
+        
+        btnClearDemo.disabled = true;
+        btnClearDemo.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังล้างข้อมูลเดโม่...';
+        
+        try {
+          this.state.tenants = [];
+          this.state.invoices = [];
+          this.state.repairs = [];
+          this.state.ledger = [];
+          this.state.events = [];
+          this.state.rooms = DBService.getInitialRooms();
+          
+          await DBService.saveState(this.state);
+          const url = DBService.getSavedSupabaseUrl();
+          if (url) {
+            await DBService.syncToSupabase(url, this.state);
+          }
+          
+          alert('🟢 ล้างข้อมูลตัวอย่างเดโม่เรียบร้อยแล้ว! สถานะห้องพักทุกห้องเปลี่ยนเป็นห้องว่าง พร้อมสำหรับกรอกข้อมูลจริง');
+          this.render();
+        } catch (err) {
+          alert('❌ เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
+          btnClearDemo.disabled = false;
+          btnClearDemo.innerHTML = '<i class="fa-solid fa-trash-can"></i> ล้างข้อมูลเดโม่เริ่มต้นใช้งานจริง';
+        }
       });
     }
   }
