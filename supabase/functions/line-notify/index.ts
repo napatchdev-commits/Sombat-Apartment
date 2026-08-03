@@ -43,15 +43,77 @@ function json(body: unknown, status = 200) {
 }
 
 async function getLatestState() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/apartment_state?id=eq.1`, {
-    headers: {
-      apikey: SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-    },
-  });
-  if (!res.ok) throw new Error(`Failed to read apartment_state: ${res.statusText}`);
-  const rows = await res.json();
-  return rows && rows.length > 0 ? rows[0].state : {};
+  try {
+    // 1. Fetch settings from settings table
+    const settingsRes = await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1&select=*`, {
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+    });
+    let settings: Record<string, any> = {};
+    if (settingsRes.ok) {
+      const rows = await settingsRes.json();
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        settings = {
+          apartmentName: row.apartment_name,
+          address: row.address,
+          tel: row.tel,
+          lineId: row.line_id,
+          bankName: row.bank_name,
+          bankAccountNo: row.bank_account_no,
+          bankAccountName: row.bank_account_name,
+          promptPayId: row.prompt_pay_id,
+          lineToken: row.line_token,
+          lineUserId: row.line_user_id,
+          lineNotifyToken: row.line_notify_token
+        };
+      }
+    }
+
+    // 2. Fetch invoices from invoices table
+    const invoicesRes = await fetch(`${SUPABASE_URL}/rest/v1/invoices?select=*`, {
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+    });
+    let invoices: any[] = [];
+    if (invoicesRes.ok) {
+      const rows = await invoicesRes.json();
+      invoices = rows.map((row: any) => ({
+        id: row.id,
+        invoiceNumber: row.invoice_number,
+        monthKey: row.month_key,
+        roomId: row.room_id,
+        roomName: row.room_name,
+        tenantId: row.tenant_id,
+        tenantName: row.tenant_name,
+        issueDate: row.issue_date,
+        dueDate: row.due_date,
+        waterPrev: row.water_prev,
+        waterCurr: row.water_curr,
+        waterAmount: row.water_amount,
+        elecPrev: row.elec_prev,
+        elecCurr: row.elec_curr,
+        elecAmount: row.elec_amount,
+        rentAmount: row.rent_amount,
+        trashFee: row.trash_fee,
+        fineAmount: row.fine_amount,
+        totalAmount: row.total_amount,
+        paidAmount: row.paid_amount,
+        outstandingAmount: row.outstanding_amount,
+        status: row.status,
+        slipUrl: row.slip_url
+      }));
+    }
+
+    return { settings, invoices };
+  } catch (err) {
+    console.error("Error in getLatestState:", err);
+    return { settings: {}, invoices: [] };
+  }
 }
 
 function getChannelToken(state: Record<string, any>) {
