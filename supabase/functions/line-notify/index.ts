@@ -236,12 +236,19 @@ Deno.serve(async (req: Request) => {
       const roomName = requestData.roomName || "ไม่ทราบห้อง";
       const tenantName = requestData.tenantName || "ผู้เช่า";
       const amount = Number(requestData.amount || 0);
+      const paymentMethod = requestData.paymentMethod || "transfer";
 
-      const messageText = `🔔 แจ้งเตือนสลิปเงินโอนใหม่!\n\n` +
-        `ห้อง: ${roomName}\n` +
-        `ผู้เช่า: ${tenantName}\n` +
-        `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
-        `ขณะนี้ผู้เช่าได้อัปโหลดหลักฐานสลิปเข้าระบบแล้ว แอดมินกรุณาตรวจสอบความถูกต้องอีกครั้งครับ 🧾`;
+      const messageText = paymentMethod === "cash"
+        ? `🔔 แจ้งชำระเงินด้วยเงินสด!\n\n` +
+          `ห้อง: ${roomName}\n` +
+          `ผู้เช่า: ${tenantName}\n` +
+          `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
+          `ผู้เช่าแจ้งชำระเงินด้วย "เงินสด" แอดมินกรุณาตรวจสอบและบันทึกรับเงินสดด้วยครับ 💵`
+        : `🔔 แจ้งเตือนสลิปเงินโอนใหม่!\n\n` +
+          `ห้อง: ${roomName}\n` +
+          `ผู้เช่า: ${tenantName}\n` +
+          `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
+          `ขณะนี้ผู้เช่าได้อัปโหลดหลักฐานสลิปเข้าระบบแล้ว แอดมินกรุณาตรวจสอบความถูกต้องอีกครั้งครับ 🧾`;
 
       let sentNotify = false;
       let sentBot = false;
