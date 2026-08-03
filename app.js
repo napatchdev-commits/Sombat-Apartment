@@ -986,9 +986,19 @@ class DBService {
     };
   }
 
-  static toRow(fields, obj) {
+  static toRow(fields, obj, state) {
     const row = {};
-    fields.forEach(([jsKey, dbKey]) => { row[dbKey] = obj[jsKey] !== undefined ? obj[jsKey] : null; });
+    fields.forEach(([jsKey, dbKey]) => {
+      let val = obj[jsKey] !== undefined ? obj[jsKey] : null;
+      if (val === '' || val === 'null' || val === 'undefined') val = null;
+      if ((dbKey === 'assigned_room_id' || dbKey === 'room_id') && val) {
+        if (state && Array.isArray(state.rooms)) {
+          const roomExists = state.rooms.some(r => r.id === val);
+          if (!roomExists) val = null;
+        }
+      }
+      row[dbKey] = val;
+    });
     return row;
   }
 
@@ -1337,7 +1347,7 @@ class DBService {
       rows.forEach(jsRow => {
         if (!jsRow || !jsRow.id) return;
         const key = keyFn(jsRow);
-        const dbRow = this.toRow(cfg.fields, jsRow);
+        const dbRow = this.toRow(cfg.fields, jsRow, state);
         const json = JSON.stringify(dbRow);
         catSnap[key] = { id: jsRow.id, json };
         if (!prevCat[key] || prevCat[key].json !== json) {
