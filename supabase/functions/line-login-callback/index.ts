@@ -32,7 +32,7 @@ function errorResponse(msg: string, status = 400) {
 Deno.serve(async (req: Request) => {
   const urlObj = new URL(req.url);
   const action = urlObj.searchParams.get("action");
-  const CALLBACK_URL = `${urlObj.origin}${urlObj.pathname}`;
+  const CALLBACK_URL = Deno.env.get("LINE_REDIRECT_URI") || `${urlObj.origin}${urlObj.pathname}`;
 
   // 1. STEP 1: Redirect user to LINE Login Authorization
   if (action === "loginRedirect") {
