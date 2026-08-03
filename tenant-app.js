@@ -414,7 +414,86 @@ class MyBillsApp {
     return qrString.length > 20 ? qrString.substring(qrString.length - 20) : qrString;
   }
 
+  static lineAccount = null;
+
+  static async fetchLineAccount() {
+    if (!this.currentTenant) {
+      this.lineAccount = null;
+      return;
+    }
+    try {
+      const url = TenantDBService.getSavedSupabaseUrl();
+      const apiKey = TenantDBService.getSavedTenantApiKey();
+      const baseUrl = TenantDBService.getBaseSupabaseUrl(url);
+
+      const res = await fetch(`${baseUrl}/rest/v1/tenant_line_accounts?tenant_id=eq.${this.currentTenant.id}`, {
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      if (res.ok) {
+        const rows = await res.json();
+        this.lineAccount = (rows && rows.length > 0) ? rows[0] : null;
+      } else {
+        this.lineAccount = null;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch LINE account link status:', e);
+      this.lineAccount = null;
+    }
+  }
+
+  static async unlinkLineAccount() {
+    if (!this.currentTenant) return;
+    if (!confirm('คุณต้องการยกเลิกการเชื่อมโยงบัญชี LINE หรือไม่? (หากยกเลิก คุณจะไม่ได้รับการแจ้งเตือนบิลใหม่ผ่าน LINE บัญชีนี้อีกต่อไป)')) return;
+
+    try {
+      const url = TenantDBService.getSavedSupabaseUrl();
+      const apiKey = TenantDBService.getSavedTenantApiKey();
+      const baseUrl = TenantDBService.getBaseSupabaseUrl(url);
+
+      const res = await fetch(`${baseUrl}/rest/v1/rpc/unlink_tenant_line_account`, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ p_tenant_id: this.currentTenant.id })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert('✅ ยกเลิกการเชื่อมโยงบัญชี LINE สำเร็จแล้ว!');
+        await this.fetchLineAccount();
+        this.render();
+      } else {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
+    } catch (e) {
+      alert(`❌ ไม่สามารถยกเลิกการเชื่อมโยงได้: ${e.message}`);
+    }
+  }
+
   static async init() {
+    // Check LINE Login callback parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const linkingStatus = urlParams.get('line_linking');
+    if (linkingStatus === 'success') {
+      alert('🎉 เชื่อมโยงบัญชี LINE สำเร็จเรียบร้อยแล้ว!');
+      urlParams.delete('line_linking');
+      urlParams.delete('error_msg');
+      window.history.replaceState({}, document.title, window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : ''));
+    } else if (linkingStatus === 'error') {
+      const errMsg = urlParams.get('error_msg') || 'เกิดข้อผิดพลาดในการเชื่อมโยงบัญชี LINE';
+      alert(`❌ การเชื่อมโยง LINE ล้มเหลว:\n\n${errMsg}`);
+      urlParams.delete('line_linking');
+      urlParams.delete('error_msg');
+      window.history.replaceState({}, document.title, window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : ''));
+    }
+
     TenantDBService.getSavedSupabaseUrl();
     TenantDBService.getSavedTenantApiKey();
 
@@ -445,6 +524,7 @@ class MyBillsApp {
         this.state = await TenantDBService.getPublicState();
         const billData = await TenantDBService.fetchTenantBill(cleanIdCard, this.currentTenant.assignedRoomId);
         this.applyTenantBillData(billData);
+        await this.fetchLineAccount();
         TenantDBService.setLoggedInTenant(this.currentTenant);
       } else {
         this.state = await TenantDBService.getPublicState();
@@ -584,6 +664,7 @@ class MyBillsApp {
       try {
         const billData = await TenantDBService.fetchTenantBill(cleanInput, selectedRoomId);
         this.applyTenantBillData(billData);
+        await this.fetchLineAccount();
         TenantDBService.setLoggedInTenant(this.currentTenant);
         this.activeTab = 'home';
         this.render();
@@ -1555,6 +1636,33 @@ class MyBillsApp {
           </div>
         </div>
 
+        <!-- LINE Account Linking Card -->
+        <div class="white-card" style="padding:1.25rem 1.5rem;">
+          <h4 style="font-size:0.92rem; font-weight:800; color:#1e293b; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem; margin-bottom:0.85rem;">
+            <i class="fa-brands fa-line text-success" style="margin-right:0.35rem;"></i> เชื่อมต่อบัญชี LINE
+          </h4>
+          
+          ${this.lineAccount ? `
+            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem; padding:0.5rem 0;">
+              <img src="${this.lineAccount.picture_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=line'}" style="width:48px; height:48px; border-radius:50%; border:2px solid #06c755; background:#f0fdf4;" />
+              <div style="flex:1;">
+                <div style="font-weight:700; color:#0f172a; font-size:0.92rem;">${this.lineAccount.display_name || 'LINE User'}</div>
+                <div style="font-size:0.78rem; color:#059669; font-weight:700;"><i class="fa-solid fa-circle-check"></i> เชื่อม LINE แล้ว</div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-full" id="btn-line-unlink" style="border-radius:10px; padding:0.6rem; color:#dc2626; border-color:#fca5a5; background:#fff5f5; font-size:0.85rem; font-weight:700; display:flex; justify-content:center; gap:0.35rem;">
+              <i class="fa-solid fa-link-slash"></i> ยกเลิกการเชื่อมต่อ
+            </button>
+          ` : `
+            <p style="font-size:0.82rem; color:#64748b; margin:0 0 1rem 0; line-height:1.5;">
+              เชื่อมต่อบัญชี LINE ของคุณ เพื่อรับข้อความแจ้งเตือนเมื่อออกบิลใหม่ แจ้งเตือนชำระเงิน หรือส่งข้อความจากหอพักโดยตรง
+            </p>
+            <button type="button" class="btn btn-success btn-full" id="btn-line-link" style="border-radius:10px; padding:0.75rem; background:#06c755; border-color:#06c755; font-weight:700; font-size:0.9rem; display:flex; justify-content:center; gap:0.4rem;">
+              <i class="fa-brands fa-line" style="font-size:1.1rem;"></i> เชื่อมต่อบัญชี LINE
+            </button>
+          `}
+        </div>
+
         <!-- Logout Action Button -->
         <button type="button" class="btn btn-secondary btn-full" id="btn-profile-logout" style="border-radius:12px; padding:0.85rem; color:#dc2626; border-color:#fca5a5; background:#fff5f5; font-weight:700; margin-top:0.5rem; display:flex; justify-content:center; gap:0.5rem;">
           <i class="fa-solid fa-right-from-bracket"></i>
@@ -1566,6 +1674,28 @@ class MyBillsApp {
   }
 
   static bindProfileTabEvents() {
+    const linkBtn = document.getElementById('btn-line-link');
+    if (linkBtn) {
+      linkBtn.addEventListener('click', () => {
+        const url = TenantDBService.getSavedSupabaseUrl();
+        const baseUrl = TenantDBService.getBaseSupabaseUrl(url);
+        const tenant = this.currentTenant;
+        
+        // Redirect to Edge Function OAuth Redirect endpoint
+        const returnUrl = window.location.origin + window.location.pathname;
+        const redirectUrl = `${baseUrl}/functions/v1/line-login-callback?action=loginRedirect&tenantId=${tenant.id}&roomId=${tenant.assignedRoomId}&returnUrl=${encodeURIComponent(returnUrl)}`;
+        
+        window.location.href = redirectUrl;
+      });
+    }
+
+    const unlinkBtn = document.getElementById('btn-line-unlink');
+    if (unlinkBtn) {
+      unlinkBtn.addEventListener('click', () => {
+        this.unlinkLineAccount();
+      });
+    }
+
     const logoutBtn = document.getElementById('btn-profile-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
