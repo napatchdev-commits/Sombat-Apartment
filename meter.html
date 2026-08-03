@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>จดมิเตอร์ — หอพักสมบัติ</title>
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #273549;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-dark: #2563eb;
+      --success: #10b981;
+      --success-dark: #059669;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --water: #06b6d4;
+      --elec: #f59e0b;
+      --radius: 14px;
+      --bottom-bar: 100px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans Thai', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    /* ===== LAYOUT ===== */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* ===== TOP BAR ===== */
+    .top-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .top-bar-back {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .top-bar-back:active { background: var(--border); }
+    .top-bar-info { flex: 1; min-width: 0; }
+    .top-bar-title {
+      font-size: 1rem; font-weight: 700; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .top-bar-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 1px; }
+    .top-bar-progress {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    }
+    .progress-text { font-size: 0.75rem; color: var(--text-muted); }
+    .progress-bar-wrap { width: 80px; height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 99px; transition: width 0.3s ease; }
+
+    /* ===== SCROLL AREA ===== */
+    .scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 1rem 1rem calc(var(--bottom-bar) + 1rem);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ===== ROOM CARD ===== */
+    .room-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .room-badge {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; font-weight: 800; color: #fff;
+      flex-shrink: 0;
+    }
+    .room-info-name { font-size: 1.15rem; font-weight: 700; }
+    .room-info-tenant { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
+    .status-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600;
+    }
+    .chip-occupied { background: rgba(16,185,129,0.15); color: #34d399; }
+    .chip-vacant { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+    /* ===== METER CARDS ===== */
+    .meter-cards { display: flex; flex-direction: column; gap: 1rem; }
+
+    .meter-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem;
+      transition: border-color 0.2s;
+    }
+    .meter-card.focused { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .meter-card.water.focused { border-color: var(--water); box-shadow: 0 0 0 3px rgba(6,182,212,0.15); }
+    .meter-card.elec.focused { border-color: var(--elec); box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+
+    .meter-card-head {
+      display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;
+    }
+    .meter-icon {
+      width: 34px; height: 34px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem;
+    }
+    .meter-icon.water { background: rgba(6,182,212,0.15); color: var(--water); }
+    .meter-icon.elec { background: rgba(245,158,11,0.15); color: var(--elec); }
+
+    .meter-card-label { font-size: 0.9rem; font-weight: 700; flex: 1; }
+    .meter-prev-badge {
+      font-size: 0.72rem; font-weight: 600;
+      padding: 2px 8px; border-radius: 99px;
+      background: var(--surface2);
+      color: var(--text-muted);
+    }
+
+    .meter-row { display: flex; gap: 0.75rem; align-items: flex-end; }
+    .meter-field { flex: 1; }
+    .meter-field label { font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem; }
+    .meter-input {
+      width: 100%;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1.4rem;
+      font-weight: 700;
+      padding: 0.7rem 0.85rem;
+      text-align: center;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .meter-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .meter-input.water:focus { border-color: var(--water); }
+    .meter-input.elec:focus { border-color: var(--elec); }
+    .meter-input.error { border-color: var(--danger); }
+
+    .meter-unit {
+      font-size: 0.8rem; color: var(--text-muted);
+      padding-bottom: 0.85rem;
+      white-space: nowrap;
+    }
+
+    .usage-display {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.85rem;
+      border-radius: 9px;
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .usage-label { font-size: 0.78rem; color: var(--text-muted); }
+    .usage-value { font-size: 1rem; font-weight: 700; }
+    .usage-value.water { color: var(--water); }
+    .usage-value.elec { color: var(--elec); }
+    .usage-value.error { color: var(--danger); }
+
+    .error-msg {
+      font-size: 0.78rem; color: var(--danger);
+      margin-top: 0.5rem;
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    /* ===== SUMMARY CARD ===== */
+    .summary-card {
+      margin-top: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+    }
+    .summary-title { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; }
+    .summary-row + .summary-row { border-top: 1px solid rgba(255,255,255,0.05); }
+    .summary-key { font-size: 0.85rem; color: var(--text-muted); }
+    .summary-val { font-size: 0.92rem; font-weight: 700; }
+    .summary-total-row {
+      margin-top: 0.6rem;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .summary-total-key { font-size: 0.85rem; font-weight: 600; }
+    .summary-total-val { font-size: 1.2rem; font-weight: 800; color: var(--success); }
+
+    /* ===== PREV INVOICE INFO ===== */
+    .prev-info-card {
+      margin-top: 1rem;
+      background: var(--surface2);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+    }
+    .prev-info-title { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .prev-info-row { display: flex; justify-content: space-between; font-size: 0.82rem; padding: 0.2rem 0; }
+    .prev-info-key { color: var(--text-muted); }
+
+    /* ===== BOTTOM ACTION BAR ===== */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 0.85rem 1rem;
+      padding-bottom: calc(0.85rem + env(safe-area-inset-bottom));
+      display: flex;
+      gap: 0.75rem;
+      z-index: 100;
+    }
+    .btn {
+      flex: 1;
+      padding: 0.85rem 1rem;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      transition: transform 0.1s, opacity 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-save {
+      background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+    }
+    .btn-next {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-save-next {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+    }
+
+    /* ===== ROOM LIST PANEL ===== */
+    .panel-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 200;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .panel-overlay.open { opacity: 1; pointer-events: all; }
+    .panel {
+      position: fixed;
+      bottom: 0; left: 50%;
+      transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px;
+      background: var(--surface);
+      border-radius: var(--radius) var(--radius) 0 0;
+      border-top: 1px solid var(--border);
+      z-index: 201;
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      max-height: 75dvh;
+      display: flex; flex-direction: column;
+    }
+    .panel.open { transform: translateX(-50%) translateY(0); }
+    .panel-handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border); margin: 0.75rem auto 0;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      padding: 0.6rem 1.1rem 0.85rem;
+      font-weight: 700; font-size: 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .panel-list { overflow-y: auto; flex: 1; padding: 0.5rem; }
+    .panel-room-item {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.75rem 0.85rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .panel-room-item:active { background: var(--surface2); }
+    .panel-room-item.active { background: rgba(59,130,246,0.12); }
+    .panel-room-num {
+      width: 38px; height: 38px; border-radius: 9px;
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+    }
+    .panel-room-num.recorded { background: rgba(16,185,129,0.15); color: #34d399; }
+    .panel-room-name { font-weight: 600; font-size: 0.9rem; }
+    .panel-room-tenant { font-size: 0.78rem; color: var(--text-muted); }
+    .panel-room-check { margin-left: auto; color: #34d399; }
+
+    /* ===== MONTH SELECTOR ===== */
+    .month-pill {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed;
+      top: 72px; left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+      background: #1c2b38;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.7rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex; align-items: center; gap: 0.5rem;
+      z-index: 300;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      max-width: 340px;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--success); color: #34d399; }
+    .toast.error { border-color: var(--danger); color: #f87171; }
+
+    /* ===== LOGIN / LOADING ===== */
+    #loading-screen, #login-screen {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 500;
+      padding: 1.5rem;
+    }
+    .spin {
+      width: 48px; height: 48px;
+      border: 4px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 1.25rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .login-card {
+      width: 100%; max-width: 380px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 2rem 1.5rem;
+    }
+    .login-logo {
+      width: 56px; height: 56px; border-radius: 16px;
+      background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; margin: 0 auto 1rem;
+    }
+    .login-title { font-size: 1.1rem; font-weight: 800; text-align: center; margin-bottom: 0.3rem; }
+    .login-sub { font-size: 0.82rem; color: var(--text-muted); text-align: center; margin-bottom: 1.75rem; }
+
+    .form-group { margin-bottom: 1.1rem; }
+    .form-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.45rem; display: block; }
+    .form-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      padding: 0.75rem 1rem;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus { outline: none; border-color: var(--primary); }
+
+    .btn-login {
+      width: 100%;
+      padding: 0.85rem;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 60dvh;
+      color: var(--text-muted);
+      text-align: center;
+      gap: 0.75rem;
+      padding: 2rem;
+    }
+    .empty-icon { font-size: 3rem; opacity: 0.3; }
+    .empty-title { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+    .empty-sub { font-size: 0.85rem; }
+
+    /* ===== SAVED INDICATOR ===== */
+    .saved-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse-dot 1.5s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-screen">
+  <div class="spin"></div>
+  <div style="font-weight:700; font-size:1rem;">กำลังโหลด...</div>
+  <div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">ระบบจดมิเตอร์ หอพักสมบัติ</div>
+</div>
+
+<!-- Login -->
+<div id="login-screen" style="display:none;">
+  <div class="login-card">
+    <div class="login-logo"><i class="fa-solid fa-gauge-high"></i></div>
+    <div class="login-title">จดมิเตอร์น้ำ–ไฟ</div>
+    <div class="login-sub">เข้าสู่ระบบเพื่อเริ่มจดมิเตอร์</div>
+    <div class="form-group">
+      <label class="form-label">ชื่อผู้ใช้</label>
+      <input type="text" id="login-user" class="form-input" placeholder="username" autocomplete="username" autocapitalize="none">
+    </div>
+    <div class="form-group">
+      <label class="form-label">รหัสผ่าน</label>
+      <input type="password" id="login-pass" class="form-input" placeholder="password" autocomplete="current-password">
+    </div>
+    <div id="login-err" style="font-size:0.82rem; color:var(--danger); margin-bottom:0.75rem; display:none;"></div>
+    <button class="btn-login" id="btn-login"><i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ</button>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app" style="display:none;">
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <button class="top-bar-back" id="btn-room-list" title="รายการห้อง">
+      <i class="fa-solid fa-list"></i>
+    </button>
+    <div class="top-bar-info">
+      <div class="top-bar-title" id="topbar-title">เลือกห้อง</div>
+      <div class="top-bar-sub" id="topbar-sub">
+        <span id="topbar-month"></span>
+        &nbsp;·&nbsp;
+        <button class="month-pill" id="btn-change-month" style="display:inline-flex; padding:1px 8px; font-size:0.72rem; background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-family:inherit;">
+          <i class="fa-solid fa-calendar-alt"></i>&nbsp;เปลี่ยนเดือน
+        </button>
+      </div>
+    </div>
+    <div class="top-bar-progress">
+      <div class="progress-text" id="progress-text">0/0</div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Scroll Area -->
+  <div class="scroll-area" id="scroll-area">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon"><i class="fa-solid fa-gauge-high"></i></div>
+      <div class="empty-title">กดปุ่ม <i class="fa-solid fa-list"></i> เพื่อเลือกห้อง</div>
+      <div class="empty-sub">หรือกด "ห้องถัดไป" เพื่อเริ่มจากห้องแรก</div>
+    </div>
+    <div id="room-content" style="display:none;"></div>
+  </div>
+
+  <!-- Bottom Action Bar -->
+  <div class="bottom-bar" id="bottom-bar">
+    <button class="btn btn-next" id="btn-skip" title="ข้ามห้องนี้">
+      <i class="fa-solid fa-forward"></i> ข้าม
+    </button>
+    <button class="btn btn-save" id="btn-save" disabled>
+      <i class="fa-solid fa-floppy-disk"></i> บันทึก
+    </button>
+    <button class="btn btn-save-next" id="btn-save-next" disabled>
+      <i class="fa-solid fa-circle-check"></i> บันทึก&ถัดไป
+    </button>
+  </div>
+
+</div>
+
+<!-- Room List Panel -->
+<div class="panel-overlay" id="panel-overlay"></div>
+<div class="panel" id="room-panel">
+  <div class="panel-handle"></div>
+  <div class="panel-title"><i class="fa-solid fa-building"></i> รายการห้องทั้งหมด</div>
+  <div class="panel-list" id="panel-list"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========================================================
+   METER APP — Sombat Apartment
+   ======================================================== */
+
+const App = (() => {
+  // ── State ──────────────────────────────────────────────
+  let supabaseUrl = '';
+  let apiKey = '';
+  let currentUser = null;
+  let rooms = [];
+  let roomTypes = [];
+  let invoices = [];
+  let settings = {};
+  let currentRoomIndex = -1;
+  let monthKey = '';
+  let recordedRooms = new Set();
+  let pendingWater = '';
+  let pendingElec = '';
+  let saving = false;
+
+  const rates = { electricityRate: 8, waterRate: 20 };
+
+  // ── DOM refs ───────────────────────────────────────────
+  const el = id => document.getElementById(id);
+
+  // ── Utilities ──────────────────────────────────────────
+  function getBaseUrl(url) {
+    if (!url) return '';
+    const u = url.split('?')[0].trim().replace(/\/$/, '');
+    const m = u.match(/^(https?:\/\/[^\/]+)/i);
+    return m ? m[1] : u;
+  }
+
+  function headers() {
+    return {
+      'apikey': apiKey,
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    };
+  }
+
+  function thaiMonth(mk) {
+    if (!mk) return '';
+    const [y, m] = mk.split('-').map(Number);
+    const names = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    return `${names[m - 1]} ${y + 543}`;
+  }
+
+  function currMonth() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  async function sha256(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // ── Toast ──────────────────────────────────────────────
+  let toastTimer = null;
+  function toast(msg, type = 'info', dur = 2500) {
+    const t = el('toast');
+    t.className = `toast ${type}`;
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    t.innerHTML = `${icon} ${msg}`;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), dur);
+  }
+
+  // ── LocalStorage helpers ───────────────────────────────
+  function loadCreds() {
+    supabaseUrl = localStorage.getItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL') || '';
+    apiKey = localStorage.getItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY') || '';
+    const raw = localStorage.getItem('METER_APP_SESSION');
+    if (raw) { try { currentUser = JSON.parse(raw); } catch {} }
+  }
+
+  function saveSession(user) {
+    currentUser = user;
+    localStorage.setItem('METER_APP_SESSION', JSON.stringify(user));
+  }
+
+  function clearSession() {
+    currentUser = null;
+    localStorage.removeItem('METER_APP_SESSION');
+  }
+
+  // ── Auth ───────────────────────────────────────────────
+  async function loginUser(username, password) {
+    const base = getBaseUrl(supabaseUrl);
+    const hash = await sha256(password);
+    const url = `${base}/rest/v1/users?username=eq.${encodeURIComponent(username)}&select=*`;
+    const res = await fetch(url, { headers: { 'apikey': apiKey, 'Authorization': `Bearer ${apiKey}` } });
+    const users = await res.json();
+    if (!users || !users.length) throw new Error('ไม่พบชื่อผู้ใช้');
+    const user = users[0];
+    if (user.password_hash !== hash) throw new Error('รหัสผ่านไม่ถูกต้อง');
+    const role = user.role || '';
+    if (!['super_admin', 'admin', 'staff'].includes(role)) throw new Error('ไม่มีสิทธิ์ใช้งานระบบนี้');
+    return { id: user.id, username: user.username, displayName: user.display_name, role };
+  }
+
+  // ── Supabase Fetch ────────────────────────────────────
+  async function fetchData() {
+    const base = getBaseUrl(supabaseUrl);
+    const h = { 'apikey': apiKey, 'Authorization': `Bearer ${apiKey}` };
+
+    const [roomRes, rtRes, invRes, settRes] = await Promise.all([
+      fetch(`${base}/rest/v1/rooms?select=*&order=name.asc`, { headers: h }),
+      fetch(`${base}/rest/v1/room_types?select=*`, { headers: h }),
+      fetch(`${base}/rest/v1/invoices?select=*&month_key=eq.${monthKey}`, { headers: h }),
+      fetch(`${base}/rest/v1/settings?id=eq.1&select=*`, { headers: h })
+    ]);
+
+    rooms = roomRes.ok ? await roomRes.json() : [];
+    roomTypes = rtRes.ok ? await rtRes.json() : [];
+    const rawInv = invRes.ok ? await invRes.json() : [];
+    const rawSet = settRes.ok ? await settRes.json() : [];
+
+    // Normalize field names (snake_case → camelCase)
+    rooms = rooms.map(r => ({
+      id: r.id, name: r.name, floor: r.floor,
+      status: r.status, typeId: r.type_id,
+      currentTenantId: r.current_tenant_id,
+      currentTenantName: r.current_tenant_name,
+      lastWaterMeter: r.last_water_meter || 0,
+      lastElecMeter: r.last_elec_meter || 0,
+      baseRent: r.base_rent || 0
+    }));
+
+    // Map invoices keyed by room_id
+    invoices = {};
+    rawInv.forEach(inv => {
+      invoices[inv.room_id] = {
+        id: inv.id, invoiceNumber: inv.invoice_number,
+        monthKey: inv.month_key, roomId: inv.room_id,
+        waterPrev: inv.water_prev || 0, waterCurr: inv.water_curr || 0,
+        waterAmount: inv.water_amount || 0,
+        elecPrev: inv.elec_prev || 0, elecCurr: inv.elec_curr || 0,
+        elecAmount: inv.elec_amount || 0,
+        totalAmount: inv.total_amount || 0,
+        status: inv.status
+      };
+    });
+
+    if (rawSet.length) {
+      settings = rawSet[0];
+      rates.electricityRate = settings.electricity_rate || 8;
+      rates.waterRate = settings.water_rate || 20;
+    }
+
+    // Mark recorded rooms
+    recordedRooms = new Set(
+      Object.entries(invoices)
+        .filter(([, inv]) => inv.waterCurr > 0 || inv.elecCurr > 0)
+        .map(([roomId]) => roomId)
+    );
+  }
+
+  // ── Get prev meter ─────────────────────────────────────
+  function getPrev(room) {
+    const inv = invoices[room.id];
+    if (inv) {
+      return {
+        water: inv.waterCurr > 0 ? inv.waterCurr : (room.lastWaterMeter || 0),
+        elec: inv.elecCurr > 0 ? inv.elecCurr : (room.lastElecMeter || 0)
+      };
+    }
+    return { water: room.lastWaterMeter || 0, elec: room.lastElecMeter || 0 };
+  }
+
+  // ── Compute amounts ───────────────────────────────────
+  function computeAmounts(room, waterCurr, elecCurr) {
+    const prev = getPrev(room);
+    const prevWater = prev.water;
+    const prevElec = prev.elec;
+    const waterUnits = Math.max(0, waterCurr - prevWater);
+    const elecUnits = Math.max(0, elecCurr - prevElec);
+    const waterAmount = waterUnits * rates.waterRate;
+    const elecAmount = elecUnits * rates.electricityRate;
+    return { prevWater, prevElec, waterUnits, elecUnits, waterAmount, elecAmount };
+  }
+
+  // ── Save Meter ────────────────────────────────────────
+  async function saveMeter(room, waterCurr, elecCurr) {
+    const base = getBaseUrl(supabaseUrl);
+    const h = headers();
+    const { prevWater, prevElec, waterUnits, elecUnits, waterAmount, elecAmount } = computeAmounts(room, waterCurr, elecCurr);
+    const now = new Date().toISOString();
+    const existing = invoices[room.id];
+
+    let payload;
+    if (existing) {
+      // Update existing invoice
+      payload = {
+        water_prev: prevWater, water_curr: waterCurr,
+        water_amount: waterAmount,
+        elec_prev: prevElec, elec_curr: elecCurr,
+        elec_amount: elecAmount
+      };
+      // Recompute total
+      const rentAmount = existing.rentAmount || room.baseRent || 0;
+      payload.total_amount = waterAmount + elecAmount + rentAmount;
+
+      const url = `${base}/rest/v1/invoices?room_id=eq.${encodeURIComponent(room.id)}&month_key=eq.${encodeURIComponent(monthKey)}`;
+      const res = await fetch(url, { method: 'PATCH', headers: h, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error(await res.text());
+    } else {
+      // Insert new invoice
+      const d = new Date();
+      const nextM = d.getMonth() + 2 > 12 ? 1 : d.getMonth() + 2;
+      const nextY = d.getMonth() + 2 > 12 ? d.getFullYear() + 1 : d.getFullYear();
+      const dueDate = `${nextY}-${String(nextM).padStart(2,'0')}-05`;
+      const rentAmount = room.baseRent || 0;
+      payload = {
+        id: `inv_${room.id}_${monthKey}_${Date.now()}`,
+        invoice_number: `INV-${monthKey}-${room.name.replace(/\s/g,'')}`,
+        month_key: monthKey,
+        room_id: room.id,
+        room_name: room.name,
+        tenant_id: room.currentTenantId || '',
+        tenant_name: room.currentTenantName || 'ห้องว่าง',
+        issue_date: now.split('T')[0],
+        due_date: dueDate,
+        water_prev: prevWater, water_curr: waterCurr, water_amount: waterAmount,
+        elec_prev: prevElec, elec_curr: elecCurr, elec_amount: elecAmount,
+        rent_amount: rentAmount, trash_fee: 0, fine_amount: 0, internet_fee: 0, common_fee: 0,
+        total_amount: waterAmount + elecAmount + rentAmount,
+        paid_amount: 0, outstanding_amount: waterAmount + elecAmount + rentAmount,
+        status: 'pending', slip_url: ''
+      };
+      const url = `${base}/rest/v1/invoices`;
+      const res = await fetch(url, { method: 'POST', headers: h, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error(await res.text());
+    }
+
+    // Log audit
+    try {
+      const logPayload = {
+        id: `log_${room.id}_${Date.now()}`,
+        room_id: room.id, room_name: room.name, month_key: monthKey,
+        recorded_by: currentUser?.displayName || 'staff',
+        action_type: existing ? 'EDIT' : 'RECORD',
+        old_water_curr: existing?.waterCurr || 0,
+        new_water_curr: waterCurr,
+        old_elec_curr: existing?.elecCurr || 0,
+        new_elec_curr: elecCurr,
+        water_units: waterUnits, elec_units: elecUnits,
+        water_amount: waterAmount, elec_amount: elecAmount,
+        created_at: now
+      };
+      await fetch(`${base}/rest/v1/meter_audit_logs`, { method: 'POST', headers: h, body: JSON.stringify(logPayload) });
+    } catch {}
+
+    // Update local cache
+    invoices[room.id] = {
+      ...(existing || {}),
+      waterPrev: prevWater, waterCurr, waterAmount,
+      elecPrev: prevElec, elecCurr, elecAmount,
+      status: existing?.status || 'pending'
+    };
+    recordedRooms.add(room.id);
+  }
+
+  // ── Render Room Content ───────────────────────────────
+  function renderRoom(idx) {
+    if (idx < 0 || idx >= rooms.length) return;
+    const room = rooms[idx];
+    const prev = getPrev(room);
+    const inv = invoices[room.id];
+    const isOccupied = room.status === 'occupied' && room.currentTenantName;
+    const isRecorded = recordedRooms.has(room.id);
+
+    pendingWater = inv && inv.waterCurr > 0 ? String(inv.waterCurr) : '';
+    pendingElec = inv && inv.elecCurr > 0 ? String(inv.elecCurr) : '';
+
+    el('topbar-title').textContent = `ห้อง ${room.name}`;
+    el('topbar-sub').innerHTML = `
+      <span style="color:var(--text-muted)">${thaiMonth(monthKey)}</span>&nbsp;·&nbsp;
+      <button class="month-pill" id="btn-change-month" style="display:inline-flex; padding:1px 8px; font-size:0.72rem; background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-family:inherit;">
+        <i class="fa-solid fa-calendar-alt"></i>&nbsp;เปลี่ยนเดือน
+      </button>
+    `;
+    el('btn-change-month').onclick = () => promptChangeMonth();
+
+    const content = el('room-content');
+    content.style.display = '';
+    el('empty-state').style.display = 'none';
+
+    const rt = roomTypes.find(t => t.id === room.type_id || t.id === room.typeId);
+
+    content.innerHTML = `
+      <div class="room-header">
+        <div class="room-badge">${room.name.replace(/[^\d]/g,'').slice(0,3) || room.name.slice(0,2)}</div>
+        <div>
+          <div class="room-info-name">ห้อง ${room.name} ${isRecorded ? '<span class="saved-dot"></span>' : ''}</div>
+          <div class="room-info-tenant">
+            <span class="status-chip ${isOccupied ? 'chip-occupied' : 'chip-vacant'}">
+              ${isOccupied ? '🟢 ' + room.currentTenantName : '⚪ ห้องว่าง'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="meter-cards">
+        <!-- Water -->
+        <div class="meter-card water" id="card-water">
+          <div class="meter-card-head">
+            <div class="meter-icon water"><i class="fa-solid fa-droplet"></i></div>
+            <div class="meter-card-label">มิเตอร์น้ำ</div>
+            <div class="meter-prev-badge">ค่าก่อนหน้า: ${prev.water}</div>
+          </div>
+          <div class="meter-row">
+            <div class="meter-field">
+              <label>ค่ามิเตอร์ปัจจุบัน</label>
+              <input
+                id="input-water"
+                class="meter-input water"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="0.1"
+                placeholder="${prev.water}"
+                value="${pendingWater}"
+                autocomplete="off"
+              >
+            </div>
+            <div class="meter-unit">หน่วย</div>
+          </div>
+          <div class="usage-display" id="water-usage">
+            <div class="usage-label">การใช้น้ำ</div>
+            <div class="usage-value water" id="water-units-text">— หน่วย</div>
+          </div>
+          <div class="usage-display" style="margin-top:0.5rem;" id="water-amount-row">
+            <div class="usage-label">ค่าน้ำ (${rates.waterRate} บ./หน่วย)</div>
+            <div class="usage-value water" id="water-amount-text">— บาท</div>
+          </div>
+          <div class="error-msg" id="water-error" style="display:none;"><i class="fa-solid fa-triangle-exclamation"></i> ค่ามิเตอร์ต้องไม่น้อยกว่าค่าก่อนหน้า (${prev.water})</div>
+        </div>
+
+        <!-- Electricity -->
+        <div class="meter-card elec" id="card-elec">
+          <div class="meter-card-head">
+            <div class="meter-icon elec"><i class="fa-solid fa-bolt"></i></div>
+            <div class="meter-card-label">มิเตอร์ไฟฟ้า</div>
+            <div class="meter-prev-badge">ค่าก่อนหน้า: ${prev.elec}</div>
+          </div>
+          <div class="meter-row">
+            <div class="meter-field">
+              <label>ค่ามิเตอร์ปัจจุบัน</label>
+              <input
+                id="input-elec"
+                class="meter-input elec"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="0.1"
+                placeholder="${prev.elec}"
+                value="${pendingElec}"
+                autocomplete="off"
+              >
+            </div>
+            <div class="meter-unit">หน่วย</div>
+          </div>
+          <div class="usage-display" id="elec-usage">
+            <div class="usage-label">การใช้ไฟ</div>
+            <div class="usage-value elec" id="elec-units-text">— หน่วย</div>
+          </div>
+          <div class="usage-display" style="margin-top:0.5rem;" id="elec-amount-row">
+            <div class="usage-label">ค่าไฟ (${rates.electricityRate} บ./หน่วย)</div>
+            <div class="usage-value elec" id="elec-amount-text">— บาท</div>
+          </div>
+          <div class="error-msg" id="elec-error" style="display:none;"><i class="fa-solid fa-triangle-exclamation"></i> ค่ามิเตอร์ต้องไม่น้อยกว่าค่าก่อนหน้า (${prev.elec})</div>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-card" id="summary-card" style="display:none;">
+          <div class="summary-title">สรุปค่าใช้จ่าย</div>
+          <div class="summary-row"><span class="summary-key">ค่าเช่า</span><span class="summary-val" id="sum-rent">—</span></div>
+          <div class="summary-row"><span class="summary-key">ค่าน้ำ</span><span class="summary-val" id="sum-water">—</span></div>
+          <div class="summary-row"><span class="summary-key">ค่าไฟ</span><span class="summary-val" id="sum-elec">—</span></div>
+          <div class="summary-total-row">
+            <span class="summary-total-key">รวมทั้งหมด</span>
+            <span class="summary-total-val" id="sum-total">—</span>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    // Bind input events
+    const inputWater = el('input-water');
+    const inputElec = el('input-elec');
+
+    function updateCalc() {
+      const wv = parseFloat(inputWater.value);
+      const ev = parseFloat(inputElec.value);
+      const wHas = !isNaN(wv) && inputWater.value !== '';
+      const eHas = !isNaN(ev) && inputElec.value !== '';
+      const wErr = wHas && wv < prev.water;
+      const eErr = eHas && ev < prev.elec;
+
+      // Water
+      el('water-error').style.display = wErr ? '' : 'none';
+      el('card-water').classList.toggle('error-border', wErr);
+      if (wHas && !wErr) {
+        const units = Math.max(0, wv - prev.water);
+        const amt = units * rates.waterRate;
+        el('water-units-text').textContent = `${units.toFixed(1)} หน่วย`;
+        el('water-amount-text').textContent = `฿${amt.toLocaleString()}`;
+      } else {
+        el('water-units-text').textContent = '— หน่วย';
+        el('water-amount-text').textContent = '— บาท';
+      }
+
+      // Elec
+      el('elec-error').style.display = eErr ? '' : 'none';
+      if (eHas && !eErr) {
+        const units = Math.max(0, ev - prev.elec);
+        const amt = units * rates.electricityRate;
+        el('elec-units-text').textContent = `${units.toFixed(1)} หน่วย`;
+        el('elec-amount-text').textContent = `฿${amt.toLocaleString()}`;
+      } else {
+        el('elec-units-text').textContent = '— หน่วย';
+        el('elec-amount-text').textContent = '— บาท';
+      }
+
+      const canSave = wHas && eHas && !wErr && !eErr;
+
+      // Summary
+      if (canSave) {
+        const wUnits = Math.max(0, wv - prev.water);
+        const eUnits = Math.max(0, ev - prev.elec);
+        const wAmt = wUnits * rates.waterRate;
+        const eAmt = eUnits * rates.electricityRate;
+        const rent = room.baseRent || 0;
+        const total = wAmt + eAmt + rent;
+        el('summary-card').style.display = '';
+        el('sum-rent').textContent = `฿${rent.toLocaleString()}`;
+        el('sum-water').textContent = `฿${wAmt.toLocaleString()} (${wUnits.toFixed(1)} หน่วย)`;
+        el('sum-elec').textContent = `฿${eAmt.toLocaleString()} (${eUnits.toFixed(1)} หน่วย)`;
+        el('sum-total').textContent = `฿${total.toLocaleString()}`;
+      } else {
+        el('summary-card').style.display = 'none';
+      }
+
+      el('btn-save').disabled = !canSave;
+      el('btn-save-next').disabled = !canSave;
+      pendingWater = inputWater.value;
+      pendingElec = inputElec.value;
+    }
+
+    inputWater.addEventListener('input', updateCalc);
+    inputElec.addEventListener('input', updateCalc);
+
+    // Focus states
+    inputWater.addEventListener('focus', () => el('card-water').classList.add('focused'));
+    inputWater.addEventListener('blur', () => el('card-water').classList.remove('focused'));
+    inputElec.addEventListener('focus', () => el('card-elec').classList.add('focused'));
+    inputElec.addEventListener('blur', () => el('card-elec').classList.remove('focused'));
+
+    // Enter key: water → elec → save
+    inputWater.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); inputElec.focus(); inputElec.select(); }
+    });
+    inputElec.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!el('btn-save-next').disabled) el('btn-save-next').click();
+      }
+    });
+
+    // Auto-focus water
+    setTimeout(() => { inputWater.focus(); inputWater.select(); }, 120);
+
+    // Trigger initial calc if values exist
+    if (pendingWater || pendingElec) updateCalc();
+
+    updateProgress();
+  }
+
+  // ── Progress ──────────────────────────────────────────
+  function updateProgress() {
+    const occupied = rooms.filter(r => r.status === 'occupied');
+    const total = rooms.length;
+    const done = recordedRooms.size;
+    el('progress-text').textContent = `${done}/${total}`;
+    el('progress-bar').style.width = total ? `${(done / total) * 100}%` : '0%';
+  }
+
+  // ── Panel ─────────────────────────────────────────────
+  function openPanel() {
+    const list = el('panel-list');
+    list.innerHTML = rooms.map((r, i) => {
+      const rec = recordedRooms.has(r.id);
+      const tenant = r.currentTenantName || 'ห้องว่าง';
+      return `
+        <div class="panel-room-item ${i === currentRoomIndex ? 'active' : ''}" data-idx="${i}">
+          <div class="panel-room-num ${rec ? 'recorded' : ''}">${r.name}</div>
+          <div>
+            <div class="panel-room-name">ห้อง ${r.name}</div>
+            <div class="panel-room-tenant">${tenant}</div>
+          </div>
+          ${rec ? '<div class="panel-room-check"><i class="fa-solid fa-check-circle"></i></div>' : ''}
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('.panel-room-item').forEach(item => {
+      item.addEventListener('click', () => {
+        currentRoomIndex = parseInt(item.dataset.idx);
+        renderRoom(currentRoomIndex);
+        closePanel();
+      });
+    });
+
+    el('panel-overlay').classList.add('open');
+    el('room-panel').classList.add('open');
+  }
+
+  function closePanel() {
+    el('panel-overlay').classList.remove('open');
+    el('room-panel').classList.remove('open');
+  }
+
+  // ── Month Prompt ───────────────────────────────────────
+  function promptChangeMonth() {
+    const mk = prompt('ระบุเดือน (รูปแบบ YYYY-MM เช่น 2025-07):', monthKey);
+    if (mk && /^\d{4}-\d{2}$/.test(mk)) {
+      monthKey = mk;
+      el('topbar-month').textContent = thaiMonth(monthKey);
+      localStorage.setItem('METER_APP_MONTH', monthKey);
+      // Re-fetch invoices for the new month
+      el('room-content').style.display = 'none';
+      el('empty-state').style.display = '';
+      currentRoomIndex = -1;
+      (async () => {
+        await fetchData();
+        toast(`เปลี่ยนเป็นเดือน ${thaiMonth(monthKey)}`, 'info');
+        updateProgress();
+      })();
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────
+  async function init() {
+    loadCreds();
+    monthKey = localStorage.getItem('METER_APP_MONTH') || currMonth();
+
+    // Check URL params
+    const params = new URLSearchParams(location.search);
+    if (params.get('supabaseUrl')) {
+      supabaseUrl = params.get('supabaseUrl');
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_SUPABASE_URL', supabaseUrl);
+    }
+    if (params.get('apiKey')) {
+      apiKey = params.get('apiKey');
+      localStorage.setItem('SOMBAT_APARTMENT_SAVED_TENANT_API_KEY', apiKey);
+    }
+    if (params.get('month')) monthKey = params.get('month');
+
+    // Fallback defaults
+    if (!supabaseUrl) supabaseUrl = 'https://bdeowpdjgiambqatdilh.supabase.co';
+    if (!apiKey) apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZW93cGRqZ2lvbWJxYXRkaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzA3MjAsImV4cCI6MjEwMTI0NjcyMH0.XBvQzG4aChKQT-kWpHrb2Y1xtCgOwB_M9Ej-NYelgPY';
+
+    if (!currentUser) {
+      el('loading-screen').style.display = 'none';
+      el('login-screen').style.display = '';
+      return;
+    }
+
+    await startApp();
+  }
+
+  async function startApp() {
+    try {
+      await fetchData();
+    } catch (e) {
+      toast('โหลดข้อมูลไม่สำเร็จ: ' + e.message, 'error', 5000);
+    }
+
+    el('loading-screen').style.display = 'none';
+    el('login-screen').style.display = 'none';
+    el('app').style.display = '';
+    el('topbar-month').textContent = thaiMonth(monthKey);
+
+    updateProgress();
+    el('empty-state').style.display = '';
+    el('room-content').style.display = 'none';
+
+    // Events
+    el('btn-room-list').onclick = openPanel;
+    el('panel-overlay').onclick = closePanel;
+
+    el('btn-skip').onclick = () => {
+      if (currentRoomIndex < rooms.length - 1) {
+        currentRoomIndex++;
+        renderRoom(currentRoomIndex);
+      } else {
+        toast('นี่คือห้องสุดท้ายแล้ว', 'info');
+      }
+    };
+
+    el('btn-save').onclick = async () => {
+      await doSave(false);
+    };
+
+    el('btn-save-next').onclick = async () => {
+      await doSave(true);
+    };
+  }
+
+  async function doSave(goNext) {
+    if (saving) return;
+    const room = rooms[currentRoomIndex];
+    if (!room) return;
+    const wv = parseFloat(el('input-water').value);
+    const ev = parseFloat(el('input-elec').value);
+    if (isNaN(wv) || isNaN(ev)) return;
+    const prev = getPrev(room);
+    if (wv < prev.water || ev < prev.elec) {
+      toast('ค่ามิเตอร์ต้องไม่น้อยกว่าค่าก่อนหน้า', 'error');
+      return;
+    }
+
+    saving = true;
+    el('btn-save').disabled = true;
+    el('btn-save-next').disabled = true;
+    el('btn-save').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+    try {
+      await saveMeter(room, wv, ev);
+      toast(`✅ บันทึกห้อง ${room.name} สำเร็จ`, 'success');
+      updateProgress();
+
+      if (goNext) {
+        if (currentRoomIndex < rooms.length - 1) {
+          currentRoomIndex++;
+          // Brief delay so toast is visible
+          setTimeout(() => renderRoom(currentRoomIndex), 350);
+        } else {
+          toast('🎉 จดมิเตอร์ครบทุกห้องแล้ว!', 'success', 4000);
+          el('btn-save').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึก';
+          el('btn-save').disabled = false;
+          el('btn-save-next').disabled = false;
+        }
+      } else {
+        el('btn-save').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึก';
+        el('btn-save').disabled = false;
+        el('btn-save-next').disabled = false;
+      }
+    } catch (e) {
+      toast('บันทึกไม่สำเร็จ: ' + e.message, 'error', 4000);
+      el('btn-save').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึก';
+      el('btn-save').disabled = false;
+      el('btn-save-next').disabled = false;
+    } finally {
+      saving = false;
+    }
+  }
+
+  // ── Login ─────────────────────────────────────────────
+  function bindLogin() {
+    const btn = el('btn-login');
+    const form = [el('login-user'), el('login-pass')];
+
+    async function doLogin() {
+      const username = el('login-user').value.trim();
+      const password = el('login-pass').value;
+      if (!username || !password) return;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังเข้าสู่ระบบ...';
+      el('login-err').style.display = 'none';
+      try {
+        const user = await loginUser(username, password);
+        saveSession(user);
+        el('login-screen').style.display = 'none';
+        el('loading-screen').style.display = '';
+        await startApp();
+      } catch (e) {
+        el('login-err').textContent = e.message;
+        el('login-err').style.display = '';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ';
+      }
+    }
+
+    btn.onclick = doLogin;
+    form.forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); }));
+  }
+
+  return { init, bindLogin };
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+  App.bindLogin();
+  App.init();
+});
+</script>
+</body>
+</html>
