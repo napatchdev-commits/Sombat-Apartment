@@ -1523,13 +1523,21 @@ class LoginComponent {
       { username: 'staff', displayName: 'พนักงานต้อนรับ (Staff)', role: 'staff' }
     ];
 
+    const settings = state.settings || {};
+    const logoIcon = settings.logoIcon || 'fa-house-lock';
+    const logoUrl = settings.logoUrl || '';
+
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`
+      : `<i class="fa-solid ${logoIcon}"></i>`;
+
     return `
       <div class="login-page-container" style="position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%); padding:1.5rem; z-index:99999; overflow-y:auto;">
         <div class="glass-card animate-fade-in" style="width:100%; max-width:440px; border-radius:16px; padding:2.5rem; background:rgba(255,255,255,0.96); box-shadow:0 20px 40px rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); margin:auto;">
           
           <div style="text-align:center; margin-bottom:2rem;">
-            <div style="width:64px; height:64px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:1rem; box-shadow:0 8px 16px rgba(37,99,235,0.3);">
-              <i class="fa-solid fa-house-lock"></i>
+            <div style="width:64px; height:64px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:1rem; box-shadow:0 8px 16px rgba(37,99,235,0.3); overflow:hidden;">
+              ${logoHtml}
             </div>
             <h2 style="font-size:1.5rem; font-weight:700; color:#0f172a; margin-bottom:0.35rem;">${(state.settings && state.settings.apartmentName) || 'หอพักสมบัติ นนทบุรี'}</h2>
             <p style="color:#64748b; font-size:0.9rem;">ระบบบริหารจัดการหอพัก Enterprise</p>
@@ -1678,13 +1686,25 @@ class SidebarComponent {
     const role = user ? user.role : 'staff';
     const items = this.getMenuItems().filter(item => item.roles.includes(role));
 
+    // Get custom logo settings from state
+    const settings = (App.state && App.state.settings) ? App.state.settings : {};
+    const logoIcon = settings.logoIcon || 'fa-house-lock';
+    const logoUrl = settings.logoUrl || '';
+
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`
+      : `<i class="fa-solid ${logoIcon}"></i>`;
+
     return `
       <aside class="app-sidebar" id="app-sidebar">
-        <div class="sidebar-brand">
-          <div class="brand-logo-icon"><i class="fa-solid fa-house-lock"></i></div>
+        <div class="sidebar-brand" id="btn-sidebar-brand-edit" style="cursor:pointer; position:relative; overflow:hidden;" title="คลิกเพื่อเปลี่ยนชื่อหอพัก & โลโก้">
+          <div class="brand-logo-icon" style="overflow:hidden; flex-shrink:0;">${logoHtml}</div>
           <div class="brand-title">
             <h2>${apartmentName}</h2>
             <span>ระบบจัดการห้องเช่า Enterprise</span>
+          </div>
+          <div style="position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:0.8rem; color:rgba(255,255,255,0.45); opacity:0; transition:opacity 0.2s;" class="brand-edit-cog">
+            <i class="fa-solid fa-pen-to-square"></i>
           </div>
         </div>
 
@@ -4215,6 +4235,14 @@ class App {
         return;
       }
 
+      // 2.5 Click on Sidebar Brand to Edit Apartment Name & Logo
+      const sidebarBrand = e.target.closest('#btn-sidebar-brand-edit');
+      if (sidebarBrand) {
+        e.preventDefault();
+        this.openApartmentBrandEditModal();
+        return;
+      }
+
       // 3. User Profile Badge Click
       const profileBadge = e.target.closest('#navbar-user-profile');
       if (profileBadge) {
@@ -4336,6 +4364,180 @@ class App {
       syncBtn.disabled = false;
       syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-primary"></i> <span class="desktop-only">ดึงข้อมูลล่าสุด</span>';
     }
+  }
+
+  static openApartmentBrandEditModal() {
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const settings = this.state.settings || {};
+    const logoIcon = settings.logoIcon || 'fa-house-lock';
+    const logoUrl = settings.logoUrl || '';
+
+    const presetIcons = [
+      'fa-house-lock', 'fa-building', 'fa-hotel', 'fa-key',
+      'fa-shield-halved', 'fa-landmark', 'fa-house', 'fa-crown',
+      'fa-city', 'fa-sign-hanging', 'fa-lightbulb', 'fa-star'
+    ];
+
+    dialog.innerHTML = `
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-pen-to-square text-primary"></i> แก้ไขชื่อหอพัก & โลโก้</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem; max-height:80vh; overflow-y:auto;">
+        <form id="form-brand-edit-quick">
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label style="font-weight:700;"><i class="fa-solid fa-building text-primary"></i> ชื่อหอพัก / สถานประกอบการ *</label>
+            <input type="text" id="brand-apt-name" class="form-control" value="${settings.apartmentName || 'หอพักสมบัติ นนทบุรี'}" required style="padding:0.6rem 0.85rem; font-size:1rem; font-weight:600;">
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1rem; margin-bottom:1.25rem;">
+            <label style="font-weight:700; display:block; margin-bottom:0.75rem; color:#1e293b;">
+              <i class="fa-solid fa-circle-nodes text-primary"></i> โหมดสัญลักษณ์/โลโก้ที่แสดง
+            </label>
+            <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+              <label style="flex:1; padding:0.6rem 0.85rem; border:1px solid #cbd5e1; border-radius:8px; display:inline-flex; align-items:center; gap:0.5rem; cursor:pointer; background:#fff; font-weight:600;">
+                <input type="radio" name="logo-mode" value="icon" ${!logoUrl ? 'checked' : ''} id="radio-logo-icon"> ⚡ เลือกไอคอนระบบ
+              </label>
+              <label style="flex:1; padding:0.6rem 0.85rem; border:1px solid #cbd5e1; border-radius:8px; display:inline-flex; align-items:center; gap:0.5rem; cursor:pointer; background:#fff; font-weight:600;">
+                <input type="radio" name="logo-mode" value="image" ${logoUrl ? 'checked' : ''} id="radio-logo-image"> 🖼️ อัปโหลดรูปภาพ
+              </label>
+            </div>
+
+            <!-- โหมดไอคอน -->
+            <div id="section-logo-preset-icon" style="display:${!logoUrl ? 'block' : 'none'};">
+              <label style="font-size:0.85rem; color:#64748b; font-weight:600; display:block; margin-bottom:0.5rem;">เลือกไอคอนที่ต้องการ:</label>
+              <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:0.6rem; text-align:center;">
+                ${presetIcons.map(ic => `
+                  <div class="preset-icon-box ${logoIcon === ic ? 'active' : ''}" data-icon="${ic}" style="border:2px solid ${logoIcon === ic ? 'var(--primary)' : '#e2e8f0'}; background:#fff; border-radius:8px; padding:0.6rem 0.4rem; cursor:pointer; transition:all 0.2s;">
+                    <i class="fa-solid ${ic}" style="font-size:1.35rem; color:${logoIcon === ic ? 'var(--primary)' : '#475569'};"></i>
+                    <div style="font-size:0.65rem; margin-top:0.3rem; color:#94a3b8; word-break:break-all;">${ic.replace('fa-', '')}</div>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="form-group" style="margin-top:0.75rem;">
+                <label style="font-size:0.82rem; font-weight:600; color:#475569;">หรือกรอกรหัส FontAwesome Icon อื่นๆ (เช่น fa-house-user):</label>
+                <input type="text" id="brand-custom-icon" class="form-control" value="${logoIcon}" style="padding:0.45rem 0.65rem; font-size:0.88rem;">
+              </div>
+            </div>
+
+            <!-- โหมดรูปภาพอัปโหลด -->
+            <div id="section-logo-upload-image" style="display:${logoUrl ? 'block' : 'none'};">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:0.85rem; color:#64748b; font-weight:600; display:block; margin-bottom:0.4rem;">อัปโหลดไฟล์รูปภาพโลโก้ (PNG/JPG/WEBP):</label>
+                <input type="file" id="brand-logo-file-input" class="form-control" accept="image/*" style="padding:0.35rem; font-size:0.88rem;">
+              </div>
+              <div class="form-group" style="margin-top:0.75rem;">
+                <label style="font-size:0.85rem; color:#64748b; font-weight:600; display:block; margin-bottom:0.4rem;">หรือใส่ URL รูปภาพโดยตรง (ถ้ามี):</label>
+                <input type="url" id="brand-logo-url-input" class="form-control" value="${logoUrl}" placeholder="https://example.com/logo.png" style="padding:0.45rem 0.65rem; font-size:0.88rem;">
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" style="padding:0.75rem; font-weight:700;"><i class="fa-solid fa-save"></i> บันทึกข้อมูลและโลโก้</button>
+        </form>
+      </div>
+
+      <style>
+        .preset-icon-box:hover {
+          border-color: var(--primary) !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        .preset-icon-box.active {
+          background: #eff6ff !important;
+        }
+      </style>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+    const radioIcon = dialog.querySelector('#radio-logo-icon');
+    const radioImage = dialog.querySelector('#radio-logo-image');
+    const sectionIcon = dialog.querySelector('#section-logo-preset-icon');
+    const sectionImage = dialog.querySelector('#section-logo-upload-image');
+
+    radioIcon.addEventListener('change', () => {
+      sectionIcon.style.display = 'block';
+      sectionImage.style.display = 'none';
+    });
+    radioImage.addEventListener('change', () => {
+      sectionIcon.style.display = 'none';
+      sectionImage.style.display = 'block';
+    });
+
+    let selectedIcon = logoIcon;
+    dialog.querySelectorAll('.preset-icon-box').forEach(box => {
+      box.addEventListener('click', () => {
+        dialog.querySelectorAll('.preset-icon-box').forEach(b => {
+          b.classList.remove('active');
+          b.style.borderColor = '#e2e8f0';
+          b.querySelector('i').style.color = '#475569';
+        });
+        box.classList.add('active');
+        box.style.borderColor = 'var(--primary)';
+        box.querySelector('i').style.color = 'var(--primary)';
+        selectedIcon = box.getAttribute('data-icon');
+        dialog.querySelector('#brand-custom-icon').value = selectedIcon;
+      });
+    });
+
+    dialog.querySelector('#form-brand-edit-quick').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+      const name = dialog.querySelector('#brand-apt-name').value.trim();
+      const isIconMode = radioIcon.checked;
+      let finalIcon = dialog.querySelector('#brand-custom-icon').value.trim() || 'fa-house-lock';
+      let finalUrl = '';
+
+      if (!isIconMode) {
+        finalIcon = '';
+        const fileInput = dialog.querySelector('#brand-logo-file-input');
+        const urlInput = dialog.querySelector('#brand-logo-url-input');
+        
+        if (fileInput.files.length > 0) {
+          try {
+            const hasUrl = DBService.getSavedSupabaseUrl();
+            const hasKey = DBService.getSavedApiKey();
+            if (hasUrl && hasKey) {
+              finalUrl = await DBService.uploadFileToStorage(fileInput.files[0], 'logo');
+            } else {
+              const reader = new FileReader();
+              finalUrl = await new Promise((resolve, reject) => {
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (err) => reject(err);
+                reader.readAsDataURL(fileInput.files[0]);
+              });
+            }
+          } catch (err) {
+            alert('อ่านไฟล์รูปภาพหรืออัปโหลดไม่สำเร็จ: ' + err.message);
+          }
+        } else {
+          finalUrl = urlInput.value.trim();
+        }
+        
+        if (!finalUrl && logoUrl) {
+          finalUrl = logoUrl;
+        }
+      }
+
+      if (!this.state.settings) this.state.settings = {};
+      this.state.settings.apartmentName = name;
+      this.state.settings.logoIcon = finalIcon;
+      this.state.settings.logoUrl = finalUrl;
+
+      const settingAptNameInput = document.getElementById('setting-apt-name');
+      if (settingAptNameInput) settingAptNameInput.value = name;
+
+      DBService.saveState(this.state);
+      modal.classList.remove('active');
+      this.renderShell();
+      this.switchTab(this.activeTab);
+    });
   }
 
   static openUserProfileModal(currentUser) {
