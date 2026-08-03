@@ -33,7 +33,12 @@ const TENANT_PORTAL_URL = Deno.env.get("TENANT_PORTAL_URL") ||
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    },
   });
 }
 
@@ -193,6 +198,16 @@ async function verifyLineSignature(req: Request, rawBody: string) {
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      },
+    });
+  }
+
   if (req.method !== "POST") {
     return json({ status: "error", message: "Method not allowed" }, 405);
   }
