@@ -945,7 +945,7 @@ class DBService {
     const singleCfgs = this.getSingletonConfigs();
     const snapshot = this.loadSnapshot();
     const newSnapshot = {};
-    const requests = [];
+    const mainRequests = [];
 
     for (const [category, cfg] of Object.entries(tableCfgs)) {
       const rows = Array.isArray(state[category]) ? state[category] : [];
@@ -974,7 +974,7 @@ class DBService {
         .filter(Boolean);
 
       if (upserts.length > 0) {
-        requests.push(
+        mainRequests.push(
           fetch(`${baseUrl}/rest/v1/${cfg.table}?on_conflict=${cfg.onConflict}`, {
             method: 'POST', headers, body: JSON.stringify(upserts)
           }).then(async r => {
@@ -984,7 +984,7 @@ class DBService {
       }
       if (deleteIds.length > 0) {
         const idList = deleteIds.map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
-        requests.push(
+        mainRequests.push(
           fetch(`${baseUrl}/rest/v1/${cfg.table}?id=in.(${idList})`, {
             method: 'DELETE', headers
           }).then(async r => {
@@ -993,6 +993,14 @@ class DBService {
         );
       }
     }
+
+    // ต้องรอให้ตารางหลัก (โดยเฉพาะ tenants) บันทึกเสร็จก่อน เพราะ tenant_documents /
+    // tenant_deposit_deductions มี foreign key อ้างถึง tenants.id — ถ้ายิงพร้อมกันหมด
+    // (Promise.all เดียว) จะมีโอกาสที่ request เขียนเอกสารไปถึงก่อนที่แถวผู้เช่าใหม่จะถูกสร้าง
+    // แล้วชน foreign key constraint (23503) แบบที่เจอตอนเพิ่มผู้เช่าใหม่พร้อมแนบเอกสารในครั้งเดียว
+    await Promise.all(mainRequests);
+
+    const requests = [];
 
     // เอกสารผู้เช่า / รายการหักมัดจำ ซ้อนอยู่ใน tenant.documents และ tenant.deposit.deductions
     // -> แผ่ออกมาเป็นแถวแบนแล้วซิงก์ลงตารางของตัวเอง เช่นเดียวกับ category อื่น ๆ
