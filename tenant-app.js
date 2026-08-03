@@ -1312,11 +1312,15 @@ class MyBillsApp {
     const dialog = modal.querySelector('.modal-dialog');
 
     const amountToPay = inv.outstandingAmount || inv.totalAmount;
-    const promptPayId = (this.state.settings && this.state.settings.promptPayId) || '0805991691';
-    const qrPayload = PromptPayService.generatePayload(promptPayId, amountToPay);
+    const settings = this.state.settings || {};
+    // ห้ามใช้เลขพร้อมเพย์ตัวอย่าง/เดโมเป็น fallback เด็ดขาด — ถ้าแอดมินยังไม่ตั้งค่าจริง
+    // ให้ถือว่าไม่มีเลขพร้อมเพย์ แล้วซ่อน QR พร้อมแจ้งให้ติดต่อแอดมินแทน
+    const promptPayId = settings.promptPayId || '';
+    const qrPayload = promptPayId ? PromptPayService.generatePayload(promptPayId, amountToPay) : '';
     
-    // PromptPay QR image using public API
-    const qrImgUrl = `https://promptpay.io/${promptPayId}/${amountToPay}.png`;
+    // PromptPay QR image using public API (สร้างเฉพาะกรณีมีเลขพร้อมเพย์จริงจากการตั้งค่าเท่านั้น)
+    const qrImgUrl = promptPayId ? `https://promptpay.io/${promptPayId}/${amountToPay}.png` : '';
+    const hasBankInfo = !!(settings.bankName || settings.bankAccountNo);
 
     const renderPaymentContent = () => {
       dialog.innerHTML = `
@@ -1351,17 +1355,29 @@ class MyBillsApp {
 
           ${MyBillsApp.currentPayMethod === 'transfer' ? `
             <!-- Transfer View (Matches iOS Mockup) -->
-            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:0.75rem; text-align:center; font-size:0.8rem; color:#166534; margin-bottom:1rem; line-height:1.5;">
-              🏦 <strong>บัญชีรับเงิน:</strong> ธ.กรุงศรีอยุธยา (BAY)<br>
-              เลขบัญชี: <strong style="font-size:0.95rem; color:#2563eb;">240-1-34666-3</strong> | ชื่อบัญชี: <strong>นางสมผิว น้ำวน</strong>
-            </div>
+            <!-- Bank Transfer Info (จากค่าตั้งค่าจริงของแอดมินเท่านั้น ไม่ใช่ข้อมูลตัวอย่าง) -->
+            ${hasBankInfo ? `
+              <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:0.75rem; text-align:center; font-size:0.8rem; color:#166534; margin-bottom:1rem; line-height:1.5;">
+                🏦 <strong>บัญชีรับเงิน:</strong> ${settings.bankName || '-'}<br>
+                เลขบัญชี: <strong style="font-size:0.95rem; color:#2563eb;">${settings.bankAccountNo || '-'}</strong>
+                ${settings.bankAccountName ? ` | ชื่อบัญชี: <strong>${settings.bankAccountName}</strong>` : ''}
+              </div>
+            ` : ''}
 
             <!-- PromptPay QR Code container -->
-            <div class="qr-box" style="margin:0 0 1rem 0; padding:0.85rem;">
-              <div style="font-weight:800; font-size:0.88rem; color:#0f172a;">สแกนเพื่อโอนเงิน (Thai PromptPay QR)</div>
-              <img src="${qrImgUrl}" alt="PromptPay QR Code" style="width:160px; height:160px;" />
-              <div style="font-size:0.75rem; color:#64748b; margin-top:0.25rem;">บันทึกรูปคิวอาร์นี้เพื่อนำไปสแกนในแอปธนาคารของคุณ</div>
-            </div>
+            ${qrImgUrl ? `
+              <div class="qr-box" style="margin:0 0 1rem 0; padding:0.85rem;">
+                <div style="font-weight:800; font-size:0.88rem; color:#0f172a;">สแกนเพื่อโอนเงิน (Thai PromptPay QR)</div>
+                <img src="${qrImgUrl}" alt="PromptPay QR Code" style="width:160px; height:160px;" />
+                <div style="font-size:0.75rem; color:#64748b; margin-top:0.25rem;">บันทึกรูปคิวอาร์นี้เพื่อนำไปสแกนในแอปธนาคารของคุณ</div>
+              </div>
+            ` : `
+              <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:1rem; text-align:center; margin-bottom:1rem;">
+                <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626; font-size:1.5rem; margin-bottom:0.35rem;"></i>
+                <div style="font-weight:700; color:#991b1b; font-size:0.88rem;">ยังไม่ได้ตั้งค่าเลขพร้อมเพย์</div>
+                <div style="font-size:0.8rem; color:#7f1d1d; margin-top:0.25rem;">กรุณาติดต่อผู้ดูแลหอพัก${hasBankInfo ? ' หรือโอนตามเลขบัญชีด้านบน' : ''} เพื่อสอบถามช่องทางชำระเงิน</div>
+              </div>
+            `}
 
             <!-- Slip upload form -->
             <form id="pay-modal-slip-form">
