@@ -1200,7 +1200,9 @@ class DBService {
           fetch(`${baseUrl}/rest/v1/${cfg.table}?select=*`, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error(`โหลดตาราง ${cfg.table} ไม่สำเร็จ: ${r.statusText}`)))
         )),
         Promise.all(singleEntries.map(([, cfg]) =>
-          fetch(`${baseUrl}/rest/v1/${cfg.table}?id=eq.1&select=*`, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error(`โหลด ${cfg.table} ไม่สำเร็จ: ${r.statusText}`)))
+          fetch(`${baseUrl}/rest/v1/${cfg.table}?id=eq.1&select=*`, { headers })
+            .then(r => r.ok ? r.json() : [])
+            .catch(() => [])
         ))
       ]);
 
@@ -4245,9 +4247,13 @@ class App {
     }
 
     // Calculate late fee penalties on startup
-    const initialPenaltiesChanged = this.updateInvoicePenalties(this.state);
-    if (initialPenaltiesChanged) {
-      try { DBService.saveState(this.state, true); } catch (e) {}
+    try {
+      const initialPenaltiesChanged = this.updateInvoicePenalties(this.state);
+      if (initialPenaltiesChanged) {
+        DBService.saveState(this.state, true);
+      }
+    } catch (err) {
+      console.warn('Failed to update penalties on startup:', err);
     }
     loader.style.opacity = '0';
     setTimeout(() => loader.remove(), 300);
