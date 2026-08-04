@@ -1373,4 +1373,14 @@ body.dark .excel-input-error {
     color: #f87171 !important;
 }
 
+/* Hide up/down arrows (spinners) on type="number" inputs globally */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield; /* Firefox */
+}
+
 

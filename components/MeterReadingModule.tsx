@@ -121,6 +121,22 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
     localStorage.setItem('draft_meter_readings', JSON.stringify(draftMeters));
   }, [draftMeters]);
 
+  // Prevent wheel events from changing number input values
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (
+        e.target instanceof HTMLInputElement &&
+        e.target.type === 'number'
+      ) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      document.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
   const handleWaterChange = (val: string) => {
     setWaterCurrInput(val);
     if (selectedRoom) {

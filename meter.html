@@ -1284,6 +1284,13 @@ const App = (() => {
 document.addEventListener('DOMContentLoaded', () => {
   App.bindLogin();
   App.init();
+
+  // Prevent mouse wheel from changing input type=number values
+  document.addEventListener('wheel', (e) => {
+    if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+      e.preventDefault();
+    }
+  }, { passive: false });
 });
 </script>
 </body>

@@ -8511,6 +8511,13 @@ class App {
         }
       });
     });
+
+    // Prevent mouse wheel from changing input type=number values
+    document.addEventListener('wheel', (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+        e.preventDefault();
+      }
+    }, { passive: false });
   }
 
   static openUserModal(userToEdit = null) {
