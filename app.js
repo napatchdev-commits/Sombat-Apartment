@@ -2370,6 +2370,14 @@ class BillingComponent {
     const months = Array.from(new Set(invoices.map(i => i.monthKey))).filter(Boolean).sort((a, b) => b.localeCompare(a));
     const latestMonth = months.length > 0 ? months[0] : '';
 
+    // Sort invoices by month (newest first), then by room number/name in natural order
+    const sortedInvoices = [...invoices].sort((a, b) => {
+      const monthCompare = String(b.monthKey || '').localeCompare(String(a.monthKey || ''));
+      if (monthCompare !== 0) return monthCompare;
+      return DBService.compareRooms({ name: a.roomName }, { name: b.roomName });
+    });
+
+
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
@@ -2415,7 +2423,7 @@ class BillingComponent {
                 </tr>
               </thead>
               <tbody>
-                ${invoices.map(inv => {
+                ${sortedInvoices.map(inv => {
                   const displayStyle = (inv.monthKey === latestMonth || !latestMonth) ? '' : 'none';
                   return `
                     <tr class="billing-table-row" data-month="${inv.monthKey}" style="display: ${displayStyle}">
