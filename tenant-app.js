@@ -297,6 +297,7 @@ class TenantDBService {
             required_amount: parseFloat(paymentData.requiredAmount) || 0,
             fine_amount: parseFloat(paymentData.fineAmount) || 0,
             reference_no: paymentData.referenceNo || null,
+            image_hash: paymentData.imageHash || null,
             verification_status: paymentData.isMismatch ? 'amount_mismatch' : 'pending',
             created_at: new Date().toISOString()
           };
@@ -373,6 +374,7 @@ class MyBillsApp {
   static activeRepairId = null;
   static currentSlipDataUrl = '';
   static currentSlipQrData = '';
+  static currentSlipImageHash = '';
   static currentPayMethod = 'transfer';
   static activeInvoiceNumber = '';
 
@@ -419,6 +421,43 @@ class MyBillsApp {
       }
     }
     return qrString.length > 20 ? qrString.substring(qrString.length - 20) : qrString;
+  }
+
+  // แฮชรูปสลิป (SHA-256) เพื่อใช้เช็คว่าเป็น "รูปเดิมเป๊ะ" ที่เคยส่งมาแล้วหรือไม่
+  // ทำงานได้แม้สลิปไม่มี QR Code ฝังอยู่ในรูป (ต่างจากการเช็คซ้ำแบบเดิมที่พึ่ง QR)
+  static async hashSlipImage(dataUrl) {
+    try {
+      const base64 = String(dataUrl).split(',')[1] || '';
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      console.warn('hashSlipImage error:', e);
+      return null;
+    }
+  }
+
+  // เช็คกับ Supabase ว่าเคยมีคนส่งสลิปรูปเดิม (แฮชตรงกัน) เข้าระบบมาก่อนหรือยัง
+  // (นับเฉพาะสถานะที่ยังถืออยู่/ผ่านแล้ว ไม่นับสลิปที่ถูกปฏิเสธไปแล้ว)
+  static async checkDuplicateSlipImage(imageHash) {
+    if (!imageHash) return null;
+    try {
+      const url = TenantDBService.getSavedSupabaseUrl();
+      const apiKey = TenantDBService.getSavedTenantApiKey();
+      const baseUrl = TenantDBService.getBaseSupabaseUrl(url);
+      const res = await fetch(
+        `${baseUrl}/rest/v1/payment_slips?image_hash=eq.${imageHash}&verification_status=in.(pending,approved,amount_mismatch)&select=id,room_name,verification_status&limit=1`,
+        { headers: { 'apikey': apiKey, 'Authorization': `Bearer ${apiKey}` } }
+      );
+      if (!res.ok) return null;
+      const rows = await res.json();
+      return (rows && rows.length > 0) ? rows[0] : null;
+    } catch (e) {
+      console.warn('checkDuplicateSlipImage error:', e);
+      return null;
+    }
   }
 
   static lineAccount = null;
@@ -1815,6 +1854,8 @@ class MyBillsApp {
     if (!inv) return;
     MyBillsApp.activeInvoiceNumber = inv.invoiceNumber;
     MyBillsApp.currentSlipDataUrl = '';
+    MyBillsApp.currentSlipQrData = '';
+    MyBillsApp.currentSlipImageHash = '';
     MyBillsApp.currentPayMethod = 'transfer';
 
     const modal = document.getElementById('app-modal');
@@ -1989,6 +2030,7 @@ class MyBillsApp {
 
                 MyBillsApp.currentSlipDataUrl = dataUrl;
                 MyBillsApp.currentSlipQrData = qrData || '';
+                MyBillsApp.currentSlipImageHash = await MyBillsApp.hashSlipImage(dataUrl);
                 previewImg.src = dataUrl;
                 previewContainer.style.display = 'block';
               };
@@ -2004,6 +2046,16 @@ class MyBillsApp {
             if (!MyBillsApp.currentSlipDataUrl) {
               alert('กรุณาอัปโหลดรูปภาพสลิปหลักฐานการโอนเงินก่อนกดยืนยันชำระ');
               return;
+            }
+
+            // เช็คว่าเป็น "รูปสลิปเดิม" ที่เคยส่งเข้าระบบมาแล้วหรือไม่ (ก่อนอัปโหลดจริง)
+            if (MyBillsApp.currentSlipImageHash) {
+              const dup = await MyBillsApp.checkDuplicateSlipImage(MyBillsApp.currentSlipImageHash);
+              if (dup) {
+                const statusText = dup.verification_status === 'approved' ? 'อนุมัติแล้ว' : 'รอตรวจสอบ';
+                alert(`⚠️ สลิปรูปนี้เคยถูกส่งเข้าระบบมาแล้ว (ห้อง ${dup.room_name}, สถานะ: ${statusText})\n\nกรุณาอัปโหลดสลิปของรายการโอนเงินใหม่ ไม่สามารถส่งรูปเดิมซ้ำได้`);
+                return;
+              }
             }
 
             const analysisLoader = document.createElement('div');
@@ -2037,7 +2089,8 @@ class MyBillsApp {
                 requiredAmount: inv ? (inv.totalAmount || amountToPay) : amountToPay,
                 amount: amountToPay,
                 fineAmount: inv ? (inv.fineAmount || 0) : 0,
-                referenceNo: MyBillsApp.currentSlipQrData ? MyBillsApp.getRefNo(MyBillsApp.currentSlipQrData) : null
+                referenceNo: MyBillsApp.currentSlipQrData ? MyBillsApp.getRefNo(MyBillsApp.currentSlipQrData) : null,
+                imageHash: MyBillsApp.currentSlipImageHash || null
               });
 
               analysisLoader.remove();

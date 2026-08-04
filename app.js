@@ -1123,6 +1123,7 @@ class DBService {
                  ['referenceNo','reference_no'],['qrTransactionId','qr_transaction_id'],
                  ['senderBank','sender_bank'],['receiverBank','receiver_bank'],
                  ['transactionDate','transaction_date'],['transactionTime','transaction_time'],
+                 ['imageHash','image_hash'],
                  ['verificationStatus','verification_status'],['verifiedBy','verified_by'],
                  ['verifiedAt','verified_at'],['rejectReason','reject_reason'],['createdAt','created_at']]
       }
