@@ -557,8 +557,21 @@ class MyBillsApp {
       invoices: billData.invoices || [],
       tenants: [billData.tenant].filter(Boolean),
       repairs: billData.repairs || [],
-      events: billData.events || []
+      events: billData.events || [],
+      lateFeeSettings: billData.lateFeeSettings || (this.state && this.state.lateFeeSettings) || {
+        dueDay: 5,
+        penaltyPhase1Start: 6,
+        penaltyPhase1End: 15,
+        penaltyPhase1Amount: 200,
+        penaltyPhase2Start: 16,
+        penaltyPhase2End: 31,
+        penaltyPhase2Amount: 300
+      }
     };
+    
+    // Calculate late penalties locally to ensure values are updated in UI
+    this.updateInvoicePenalties(this.state);
+
     this.currentTenant = {
       id: billData.tenant.id,
       name: billData.tenant.name,
@@ -567,6 +580,87 @@ class MyBillsApp {
       email: billData.tenant.email || 'ยังไม่ระบุอีเมล',
       assignedRoomId: billData.tenant.assignedRoomId
     };
+  }
+
+  static calculateLatePenalty(invoice, settings) {
+    if (invoice.status === 'paid' || invoice.status === 'cancelled' || invoice.status === 'refund' || invoice.status === 'pending_verification') {
+      return {
+        amount: Number(invoice.penaltyAmount || 0),
+        rule: invoice.penaltyRule || ''
+      };
+    }
+
+    const dueDay = Number(settings?.dueDay ?? 5);
+    const phase1Start = Number(settings?.penaltyPhase1Start ?? 6);
+    const phase1End = Number(settings?.penaltyPhase1End ?? 15);
+    const phase1Amt = Number(settings?.penaltyPhase1Amount ?? 200);
+    const phase2Start = Number(settings?.penaltyPhase2Start ?? 16);
+    const phase2End = Number(settings?.penaltyPhase2End ?? 31);
+    const phase2Amt = Number(settings?.penaltyPhase2Amount ?? 300);
+
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const dueStr = invoice.dueDate;
+
+    if (!dueStr) {
+      return { amount: 0, rule: '' };
+    }
+
+    if (todayStr <= dueStr) {
+      return { amount: 0, rule: 'ชำระภายในกำหนด' };
+    }
+
+    const [tYear, tMonth, tDay] = todayStr.split('-').map(Number);
+    const [dYear, dMonth, dDay] = dueStr.split('-').map(Number);
+
+    const isLaterMonthOrYear = (tYear > dYear) || (tYear === dYear && tMonth > dMonth);
+
+    if (isLaterMonthOrYear) {
+      return { 
+        amount: phase2Amt, 
+        rule: `ค้างชำระข้ามเดือน (ค่าปรับ ${phase2Amt} บาท)` 
+      };
+    }
+
+    if (tDay >= phase1Start && tDay <= phase1End) {
+      return { 
+        amount: phase1Amt, 
+        rule: `ชำระล่าช้าช่วงที่ 1 (วันที่ ${phase1Start}-${phase1End}: ค่าปรับ ${phase1Amt} บาท)` 
+      };
+    } else if (tDay >= phase2Start) {
+      return { 
+        amount: phase2Amt, 
+        rule: `ชำระล่าช้าช่วงที่ 2 (วันที่ ${phase2Start} เป็นต้นไป: ค่าปรับ ${phase2Amt} บาท)` 
+      };
+    }
+
+    return { amount: phase2Amt, rule: `ชำระล่าช้าเกินกำหนด (ค่าปรับ ${phase2Amt} บาท)` };
+  }
+
+  static updateInvoicePenalties(state) {
+    if (!state || !state.invoices) return false;
+    let changed = false;
+    state.invoices.forEach(inv => {
+      if (inv.status === 'unpaid') {
+        const penalty = this.calculateLatePenalty(inv, state.lateFeeSettings);
+        if (Number(inv.penaltyAmount || 0) !== penalty.amount || inv.penaltyRule !== penalty.rule) {
+          inv.penaltyAmount = penalty.amount;
+          inv.penaltyRule = penalty.rule;
+          inv.penaltyCalculatedAt = new Date().toISOString();
+          
+          const baseTotal = Number(inv.rentAmount || 0) +
+                            Number(inv.waterAmount || 0) +
+                            Number(inv.elecAmount || 0) +
+                            Number(inv.trashFee || 0) +
+                            Number(inv.internetFee || 0) +
+                            Number(inv.commonFee || 0) +
+                            Number(inv.fineAmount || 0);
+          inv.totalAmount = baseTotal + penalty.amount;
+          inv.outstandingAmount = inv.totalAmount - Number(inv.paidAmount || 0);
+          changed = true;
+        }
+      }
+    });
+    return changed;
   }
 
   static switchTab(tabName) {
@@ -2104,8 +2198,20 @@ class MyBillsApp {
               <tr><td style="text-align:center;">2</td><td>ค่าไฟฟ้า (Electricity)</td><td style="text-align:right;">${Formatters.currency(inv.elecAmount || 0)}</td></tr>
               <tr><td style="text-align:center;">3</td><td>ค่าน้ำประปา (Water)</td><td style="text-align:right;">${Formatters.currency(inv.waterAmount || 0)}</td></tr>
               <tr><td style="text-align:center;">4</td><td>ค่าขยะ / สาธารณูปโภค</td><td style="text-align:right;">${Formatters.currency(inv.trashFee !== undefined ? inv.trashFee : 20)}</td></tr>
-              ${inv.fineAmount > 0 ? `<tr><td style="text-align:center;">5</td><td>ค่าปรับชำระล่าช้า</td><td style="text-align:right;">${Formatters.currency(inv.fineAmount)}</td></tr>` : ''}
-              <tr style="background:#f0fdf4; font-weight:bold; color:#15803d;"><td colspan="2" style="text-align:right;">ยอดรวมชำระทั้งสิ้น:</td><td style="text-align:right; font-size:1.05rem;">${Formatters.currency(inv.paidAmount || inv.totalAmount)}</td></tr>
+              ${(inv.internetFee || 0) > 0 ? `<tr><td style="text-align:center;">-</td><td>ค่าอินเทอร์เน็ต</td><td style="text-align:right;">${Formatters.currency(inv.internetFee)}</td></tr>` : ''}
+              ${(inv.commonFee || 0) > 0 ? `<tr><td style="text-align:center;">-</td><td>ค่าส่วนกลาง</td><td style="text-align:right;">${Formatters.currency(inv.commonFee)}</td></tr>` : ''}
+              ${(inv.fineAmount || 0) > 0 ? `<tr><td style="text-align:center;">-</td><td>ค่าปรับ/อื่นๆ (Fine/Others)</td><td style="text-align:right;">${Formatters.currency(inv.fineAmount)}</td></tr>` : ''}
+              <tr style="background:#f8fafc; font-weight:bold; font-size:0.8rem; border-top:1px solid #cbd5e1;">
+                <td colspan="2" style="text-align:right;">ยอดรวมเดิมก่อนปรับ (Base Total):</td>
+                <td style="text-align:right;">${Formatters.currency(Number(inv.rentAmount || 0) + Number(inv.waterAmount || 0) + Number(inv.elecAmount || 0) + Number(inv.trashFee || 0) + Number(inv.internetFee || 0) + Number(inv.commonFee || 0) + Number(inv.fineAmount || 0))}</td>
+              </tr>
+              ${(inv.penaltyAmount || 0) > 0 ? `
+                <tr style="background:#fdf2f2; font-weight:bold; font-size:0.8rem; color:#dc2626;">
+                  <td colspan="2" style="text-align:right;">ค่าปรับชำระล่าช้า (Late Penalty):<div style="font-size:0.65rem; font-weight:normal; color:#ef4444;">${inv.penaltyRule || ''}</div></td>
+                  <td style="text-align:right;">${Formatters.currency(inv.penaltyAmount)}</td>
+                </tr>
+              ` : ''}
+              <tr style="background:#f0fdf4; font-weight:bold; color:#15803d; border-top: 2px double #15803d;"><td colspan="2" style="text-align:right;">ยอดรวมชำระทั้งสิ้น:</td><td style="text-align:right; font-size:1.05rem;">${Formatters.currency(inv.paidAmount || inv.totalAmount)}</td></tr>
             </tbody>
           </table>
 
@@ -2215,18 +2321,46 @@ class MyBillsApp {
                   <td style="text-align:center;">-</td>
                   <td style="text-align:right;"><strong>${Formatters.currency(inv.trashFee !== undefined ? inv.trashFee : 20)}</strong></td>
                 </tr>
-                ${inv.fineAmount > 0 ? `
+                ${(inv.internetFee || 0) > 0 ? `
                   <tr>
-                    <td style="text-align:center;">5</td>
-                    <td style="word-break:break-word;">ค่าปรับชำระล่าช้า</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="word-break:break-word;">ค่าอินเทอร์เน็ต</td>
                     <td style="text-align:center;">-</td>
                     <td style="text-align:center;">-</td>
-                    <td style="text-align:right; color:#dc2626;"><strong>${Formatters.currency(inv.fineAmount)}</strong></td>
+                    <td style="text-align:right;"><strong>${Formatters.currency(inv.internetFee)}</strong></td>
+                  </tr>
+                ` : ''}
+                ${(inv.commonFee || 0) > 0 ? `
+                  <tr>
+                    <td style="text-align:center;">-</td>
+                    <td style="word-break:break-word;">ค่าส่วนกลาง</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:right;"><strong>${Formatters.currency(inv.commonFee)}</strong></td>
+                  </tr>
+                ` : ''}
+                ${(inv.fineAmount || 0) > 0 ? `
+                  <tr>
+                    <td style="text-align:center;">-</td>
+                    <td style="word-break:break-word;">ค่าปรับ/อื่นๆ (Fine/Others)</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:center;">-</td>
+                    <td style="text-align:right;"><strong>${Formatters.currency(inv.fineAmount)}</strong></td>
                   </tr>
                 ` : ''}
               </tbody>
               <tfoot>
-                <tr style="background:#eff6ff; font-weight:800; color:#1e40af;">
+                <tr style="background:#f8fafc; font-weight:bold; font-size:0.72rem; border-top:1px solid #cbd5e1;">
+                  <td colspan="4" style="text-align:right;">ยอดรวมเดิมก่อนปรับ (Base Total):</td>
+                  <td style="text-align:right;">${Formatters.currency(Number(inv.rentAmount || 0) + Number(inv.waterAmount || 0) + Number(inv.elecAmount || 0) + Number(inv.trashFee || 0) + Number(inv.internetFee || 0) + Number(inv.commonFee || 0) + Number(inv.fineAmount || 0))}</td>
+                </tr>
+                ${(inv.penaltyAmount || 0) > 0 ? `
+                  <tr style="background:#fdf2f2; font-weight:bold; font-size:0.72rem; color:#dc2626;">
+                    <td colspan="4" style="text-align:right; color:#dc2626;">ค่าปรับชำระล่าช้า (Late Penalty):<div style="font-size:0.6rem; font-weight:normal; color:#ef4444;">${inv.penaltyRule || ''}</div></td>
+                    <td style="text-align:right; color:#dc2626;">${Formatters.currency(inv.penaltyAmount)}</td>
+                  </tr>
+                ` : ''}
+                <tr style="background:#eff6ff; font-weight:800; color:#1e40af; border-top:2px double #1e40af;">
                   <td colspan="4" style="text-align:right; font-size:0.8rem;">ยอดบิลสุทธิ:</td>
                   <td style="text-align:right; font-size:0.95rem; color:#1d4ed8;">${Formatters.currency(inv.totalAmount)}</td>
                 </tr>

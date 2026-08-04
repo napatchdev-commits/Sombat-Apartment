@@ -209,18 +209,33 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
       );
     }
 
+    const getRoomSortWeight = (roomName: string) => {
+      const name = String(roomName || '').trim();
+      if (/^s/i.test(name)) return 1;
+      const isNamed = /^[^A-Za-z0-9]/i.test(name) || name.startsWith('บ้าน') || name.startsWith('เรือน');
+      if (isNamed) return 3;
+      return 2;
+    };
+
+    const compareRooms = (a: any, b: any) => {
+      const wA = getRoomSortWeight(a.name);
+      const wB = getRoomSortWeight(b.name);
+      if (wA !== wB) return wA - wB;
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+    };
+
     result.sort((a, b) => {
       if (sortBy === 'floor') {
         if (a.floor !== b.floor) return a.floor - b.floor;
-        return a.name.localeCompare(b.name, undefined, { numeric: true });
+        return compareRooms(a, b);
       }
       if (sortBy === 'unread') {
         const aRecorded = checkRoomRecorded(a.id) ? 1 : 0;
         const bRecorded = checkRoomRecorded(b.id) ? 1 : 0;
-        if (aRecorded !== bRecorded) return aRecorded - bRecorded; // Unrecorded first
-        return a.name.localeCompare(b.name, undefined, { numeric: true });
+        if (aRecorded !== bRecorded) return aRecorded - bRecorded;
+        return compareRooms(a, b);
       }
-      return a.name.localeCompare(b.name, undefined, { numeric: true });
+      return compareRooms(a, b);
     });
 
     return result;

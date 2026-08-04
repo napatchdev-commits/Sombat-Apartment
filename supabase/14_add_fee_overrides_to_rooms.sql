@@ -5,10 +5,13 @@
 -- (e.g. turning off trash fees or adding custom common/internet fees per room).
 -- ============================================================================
 
--- 1) Add custom fee override columns to rooms table
+-- 1) Add custom fee override columns and temporary draft meter columns to rooms table
 alter table public.rooms add column if not exists trash_fee numeric;
 alter table public.rooms add column if not exists internet_fee numeric;
 alter table public.rooms add column if not exists common_fee  numeric;
+alter table public.rooms add column if not exists temp_elec_meter numeric;
+alter table public.rooms add column if not exists temp_water_meter numeric;
+alter table public.rooms add column if not exists temp_fine_amount numeric;
 
 -- 2) Update generate_room_invoice RPC function to support room-specific overrides
 create or replace function public.generate_room_invoice(
@@ -87,6 +90,9 @@ begin
   update public.rooms
   set last_elec_meter = p_elec_curr,
       last_water_meter = p_water_curr,
+      temp_elec_meter = null,
+      temp_water_meter = null,
+      temp_fine_amount = null,
       updated_at = now()
   where id = p_room_id;
 

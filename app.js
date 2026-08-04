@@ -644,6 +644,15 @@ class DBService {
         isDemoMode: isDemo
       },
       rates: { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, internetFee: 0, commonFee: 0 },
+      lateFeeSettings: {
+        dueDay: 5,
+        penaltyPhase1Start: 6,
+        penaltyPhase1End: 15,
+        penaltyPhase1Amount: 200,
+        penaltyPhase2Start: 16,
+        penaltyPhase2End: 31,
+        penaltyPhase2Amount: 300
+      },
       users: [
         { id: 'usr_super', username: 'superadmin', displayName: 'สมบัติ น้ำวน', role: 'super_admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
         { id: 'usr_admin', username: 'admin', displayName: 'เจ้าของหอพัก / แอดมิน', role: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' },
@@ -760,6 +769,17 @@ class DBService {
     }
     if (!state) {
       state = this.getInitialState();
+    }
+    if (!state.lateFeeSettings) {
+      state.lateFeeSettings = {
+        dueDay: 5,
+        penaltyPhase1Start: 6,
+        penaltyPhase1End: 15,
+        penaltyPhase1Amount: 200,
+        penaltyPhase2Start: 16,
+        penaltyPhase2End: 31,
+        penaltyPhase2Amount: 300
+      };
     }
     if (!state.rooms || !Array.isArray(state.rooms)) {
       state.rooms = [];
@@ -917,6 +937,105 @@ class DBService {
      ========================================================================== */
   static SNAPSHOT_KEY = 'SOMBAT_APARTMENT_TABLE_SNAPSHOT_V1';
 
+  static calculateLatePenalty(invoice, settings) {
+    if (invoice.status === 'paid' || invoice.status === 'cancelled' || invoice.status === 'refund' || invoice.status === 'pending_verification') {
+      return {
+        amount: Number(invoice.penaltyAmount || 0),
+        rule: invoice.penaltyRule || ''
+      };
+    }
+
+    const dueDay = Number(settings?.dueDay ?? 5);
+    const phase1Start = Number(settings?.penaltyPhase1Start ?? 6);
+    const phase1End = Number(settings?.penaltyPhase1End ?? 15);
+    const phase1Amt = Number(settings?.penaltyPhase1Amount ?? 200);
+    const phase2Start = Number(settings?.penaltyPhase2Start ?? 16);
+    const phase2End = Number(settings?.penaltyPhase2End ?? 31);
+    const phase2Amt = Number(settings?.penaltyPhase2Amount ?? 300);
+
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const dueStr = invoice.dueDate;
+
+    if (!dueStr) {
+      return { amount: 0, rule: '' };
+    }
+
+    if (todayStr <= dueStr) {
+      return { amount: 0, rule: 'ชำระภายในกำหนด' };
+    }
+
+    const [tYear, tMonth, tDay] = todayStr.split('-').map(Number);
+    const [dYear, dMonth, dDay] = dueStr.split('-').map(Number);
+
+    const isLaterMonthOrYear = (tYear > dYear) || (tYear === dYear && tMonth > dMonth);
+
+    if (isLaterMonthOrYear) {
+      return { 
+        amount: phase2Amt, 
+        rule: `ค้างชำระข้ามเดือน (ค่าปรับ ${phase2Amt} บาท)` 
+      };
+    }
+
+    if (tDay >= phase1Start && tDay <= phase1End) {
+      return { 
+        amount: phase1Amt, 
+        rule: `ชำระล่าช้าช่วงที่ 1 (วันที่ ${phase1Start}-${phase1End}: ค่าปรับ ${phase1Amt} บาท)` 
+      };
+    } else if (tDay >= phase2Start) {
+      return { 
+        amount: phase2Amt, 
+        rule: `ชำระล่าช้าช่วงที่ 2 (วันที่ ${phase2Start} เป็นต้นไป: ค่าปรับ ${phase2Amt} บาท)` 
+      };
+    }
+
+    return { amount: phase2Amt, rule: `ชำระล่าช้าเกินกำหนด (ค่าปรับ ${phase2Amt} บาท)` };
+  }
+
+  static updateInvoicePenalties(state) {
+    if (!state || !state.invoices) return false;
+    let changed = false;
+    state.invoices.forEach(inv => {
+      if (inv.status === 'unpaid') {
+        const penalty = this.calculateLatePenalty(inv, state.lateFeeSettings);
+        if (Number(inv.penaltyAmount || 0) !== penalty.amount || inv.penaltyRule !== penalty.rule) {
+          inv.penaltyAmount = penalty.amount;
+          inv.penaltyRule = penalty.rule;
+          inv.penaltyCalculatedAt = new Date().toISOString();
+          
+          const baseTotal = Number(inv.rentAmount || 0) +
+                            Number(inv.waterAmount || 0) +
+                            Number(inv.elecAmount || 0) +
+                            Number(inv.trashFee || 0) +
+                            Number(inv.internetFee || 0) +
+                            Number(inv.commonFee || 0) +
+                            Number(inv.fineAmount || 0);
+          inv.totalAmount = baseTotal + penalty.amount;
+          inv.outstandingAmount = inv.totalAmount - Number(inv.paidAmount || 0);
+          changed = true;
+        }
+      }
+    });
+    return changed;
+  }
+  static getRoomSortWeight(roomName) {
+    const name = String(roomName || '').trim();
+    if (/^s/i.test(name)) {
+      return 1;
+    }
+    const isNamed = /^[^A-Za-z0-9]/i.test(name) || name.startsWith('บ้าน') || name.startsWith('เรือน');
+    if (isNamed) {
+      return 3;
+    }
+    return 2;
+  }
+
+  static compareRooms(a, b) {
+    const wA = App.getRoomSortWeight(a.name);
+    const wB = App.getRoomSortWeight(b.name);
+    if (wA !== wB) return wA - wB;
+    return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+  }
+
   static getTableConfigs() {
     return {
       rooms: {
@@ -924,7 +1043,8 @@ class DBService {
         fields: [['id','id'],['name','name'],['floor','floor'],['typeId','type_id'],['baseRent','base_rent'],
                  ['status','status'],['currentTenantId','current_tenant_id'],['currentTenantName','current_tenant_name'],
                  ['entryDate','entry_date'],['lastWaterMeter','last_water_meter'],['lastElecMeter','last_elec_meter'],
-                 ['trashFee','trash_fee'],['internetFee','internet_fee'],['commonFee','common_fee']]
+                 ['trashFee','trash_fee'],['internetFee','internet_fee'],['commonFee','common_fee'],
+                 ['tempElecMeter','temp_elec_meter'],['tempWaterMeter','temp_water_meter'],['tempFineAmount','temp_fine_amount']]
       },
       tenants: {
         table: 'tenants', onConflict: 'id',
@@ -942,7 +1062,8 @@ class DBService {
                  ['elecPrev','elec_prev'],['elecCurr','elec_curr'],['elecAmount','elec_amount'],['rentAmount','rent_amount'],
                  ['trashFee','trash_fee'],['fineAmount','fine_amount'],['internetFee','internet_fee'],['commonFee','common_fee'],
                  ['totalAmount','total_amount'],['paidAmount','paid_amount'],['outstandingAmount','outstanding_amount'],
-                 ['status','status'],['slipUrl','slip_url']]
+                 ['status','status'],['slipUrl','slip_url'],
+                 ['penaltyAmount','penalty_amount'],['penaltyRule','penalty_rule'],['penaltyCalculatedAt','penalty_calculated_at']]
       },
       repairs: {
         table: 'repairs', onConflict: 'id',
@@ -1022,6 +1143,12 @@ class DBService {
         table: 'rates',
         fields: [['electricityRate','electricity_rate'],['waterRate','water_rate'],['trashFee','trash_fee'],
                  ['internetFee','internet_fee'],['commonFee','common_fee']]
+      },
+      lateFeeSettings: {
+        table: 'late_fee_settings',
+        fields: [['dueDay','due_day'],['penaltyPhase1Start','penalty_phase1_start'],['penaltyPhase1End','penalty_phase1_end'],
+                 ['penaltyPhase1Amount','penalty_phase1_amount'],['penaltyPhase2Start','penalty_phase2_start'],
+                 ['penaltyPhase2End','penalty_phase2_end'],['penaltyPhase2Amount','penalty_phase2_amount']]
       }
     };
   }
@@ -2093,31 +2220,7 @@ class RoomsComponent {
     const rawRooms = state.rooms || [];
     const roomTypes = state.roomTypes || [];
 
-    // Sort rooms according to user requirement:
-    // 1. Rooms starting with 'S' or 's' (S101, S102, S103...) FIRST
-    // 2. Standard letter/numeric rooms (A101, 46/1...) SECOND
-    // 3. Named rooms ("บ้านหลัง...", "แสงเงินแสงทอง", "ทิพย์มงคล"...) LAST
-    const rooms = [...rawRooms].sort((a, b) => {
-      const nameA = String(a.name || '').trim();
-      const nameB = String(b.name || '').trim();
-
-      const isSA = /^s/i.test(nameA);
-      const isSB = /^s/i.test(nameB);
-
-      if (isSA && !isSB) return -1;
-      if (!isSA && isSB) return 1;
-      if (isSA && isSB) {
-        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
-      }
-
-      const isNamedA = /^[^A-Za-z0-9]/i.test(nameA) || nameA.startsWith('บ้าน') || nameA.startsWith('เรือน');
-      const isNamedB = /^[^A-Za-z0-9]/i.test(nameB) || nameB.startsWith('บ้าน') || nameB.startsWith('เรือน');
-
-      if (isNamedA && !isNamedB) return 1;
-      if (!isNamedA && isNamedB) return -1;
-
-      return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
-    });
+    const rooms = [...rawRooms].sort(App.compareRooms);
 
     return `
       <div class="view-container animate-fade-in">
@@ -2813,6 +2916,61 @@ class SettingsComponent {
               </div>
             </div>
 
+            <!-- 5. Late Fee Settings -->
+            <div class="glass-card">
+              <h3><i class="fa-solid fa-clock-rotate-left text-danger"></i> ตั้งค่าค่าปรับชำระเงินล่าช้า (Late Payment Settings)</h3>
+              <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+                กำหนดวันครบกำหนดและค่าปรับสำหรับผู้เช่าที่ชำระค่าเช่าเกินวันที่กำหนด
+              </p>
+              
+              <form id="form-late-fee-settings" style="margin-top:1rem;">
+                <div class="form-group" style="margin-bottom:0.85rem;">
+                  <label style="font-weight:600;"><i class="fa-solid fa-calendar-day text-primary"></i> วันที่ครบกำหนดชำระปกติ (เช่น วันที่ 5):</label>
+                  <input type="number" id="setting-late-due-day" class="form-control" min="1" max="28" value="${state.lateFeeSettings?.dueDay ?? 5}" required style="padding:0.55rem 0.75rem;">
+                </div>
+
+                <div style="border-top:1px dashed #cbd5e1; padding-top:0.75rem; margin-bottom:0.75rem;">
+                  <div style="font-weight:700; font-size:0.9rem; color:var(--primary); margin-bottom:0.5rem;">ค่าปรับช่วงที่ 1 (ชำระล่าช้าเล็กน้อย)</div>
+                  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem;">
+                    <div class="form-group">
+                      <label style="font-size:0.78rem; font-weight:600;">เริ่มต้นวันที่:</label>
+                      <input type="number" id="setting-late-p1-start" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase1Start ?? 6}" style="padding:0.4rem;">
+                    </div>
+                    <div class="form-group">
+                      <label style="font-size:0.78rem; font-weight:600;">สิ้นสุดวันที่:</label>
+                      <input type="number" id="setting-late-p1-end" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase1End ?? 15}" style="padding:0.4rem;">
+                    </div>
+                    <div class="form-group">
+                      <label style="font-size:0.78rem; font-weight:600;">ค่าปรับ (บาท):</label>
+                      <input type="number" id="setting-late-p1-amount" class="form-control" min="0" value="${state.lateFeeSettings?.penaltyPhase1Amount ?? 200}" style="padding:0.4rem;">
+                    </div>
+                  </div>
+                </div>
+
+                <div style="border-top:1px dashed #cbd5e1; padding-top:0.75rem; margin-bottom:0.85rem;">
+                  <div style="font-weight:700; font-size:0.9rem; color:var(--danger); margin-bottom:0.5rem;">ค่าปรับช่วงที่ 2 (ชำระล่าช้าขั้นสูง / ข้ามเดือน)</div>
+                  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem;">
+                    <div class="form-group">
+                      <label style="font-size:0.78rem; font-weight:600;">เริ่มต้นวันที่:</label>
+                      <input type="number" id="setting-late-p2-start" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase2Start ?? 16}" style="padding:0.4rem;">
+                    </div>
+                    <div class="form-group">
+                      <label style="font-size:0.78rem; font-weight:600;">สิ้นสุดวันที่:</label>
+                      <input type="number" id="setting-late-p2-end" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase2End ?? 31}" style="padding:0.4rem;">
+                    </div>
+                    <div class="form-group">
+                      <label style="font-size:0.78rem; font-weight:600;">ค่าปรับ (บาท):</label>
+                      <input type="number" id="setting-late-p2-amount" class="form-control" min="0" value="${state.lateFeeSettings?.penaltyPhase2Amount ?? 300}" style="padding:0.4rem;">
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-danger btn-full" style="padding:0.6rem; font-weight:700; background-color:#dc2626; border-color:#dc2626; color:#ffffff;">
+                  <i class="fa-solid fa-floppy-disk"></i> บันทึกตั้งค่าค่าปรับชำระล่าช้า
+                </button>
+              </form>
+            </div>
+
           </div>
 
           <!-- RIGHT COLUMN -->
@@ -2889,7 +3047,7 @@ class SettingsComponent {
 class MeterEntryComponent {
   static render(state) {
     const rawInvoices = state.invoices || [];
-    const rooms = [...state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+    const rooms = [...state.rooms].sort(App.compareRooms);
 
     const getRoomPrevMeters = (room) => {
       if (!room) return { elecPrev: 0, waterPrev: 0 };
@@ -2930,10 +3088,9 @@ class MeterEntryComponent {
     const renderRows = () => {
       return rooms.map((r, index) => {
         const prev = getRoomPrevMeters(r);
-        const temp = state.tempMeterReadings.find(t => t.roomId === r.id) || {};
-        const elecCurr = temp.elecCurr !== undefined && temp.elecCurr !== null ? temp.elecCurr : '';
-        const waterCurr = temp.waterCurr !== undefined && temp.waterCurr !== null ? temp.waterCurr : '';
-        const fineAmount = temp.fineAmount !== undefined && temp.fineAmount !== null ? temp.fineAmount : 0;
+        const elecCurr = r.tempElecMeter !== undefined && r.tempElecMeter !== null ? r.tempElecMeter : '';
+        const waterCurr = r.tempWaterMeter !== undefined && r.tempWaterMeter !== null ? r.tempWaterMeter : '';
+        const fineAmount = r.tempFineAmount !== undefined && r.tempFineAmount !== null ? r.tempFineAmount : 0;
         
         const elecUnits = elecCurr === '' ? 0 : Math.max(0, parseFloat(elecCurr) - prev.elecPrev);
         const waterUnits = waterCurr === '' ? 0 : Math.max(0, parseFloat(waterCurr) - prev.waterPrev);
@@ -3670,7 +3827,7 @@ class MeterReadingComponent {
     list.sort((a, b) => {
       if (sortBy === 'floor') {
         if (a.floor !== b.floor) return a.floor - b.floor;
-        return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true });
+        return App.compareRooms(a, b);
       }
       if (sortBy === 'unread') {
         const invA = invoices.find(i => i.roomId === a.id && i.monthKey === currentMonthStr);
@@ -3678,9 +3835,9 @@ class MeterReadingComponent {
         const recA = (invA && invA.waterCurr > 0 && invA.elecCurr > 0) ? 1 : 0;
         const recB = (invB && invB.waterCurr > 0 && invB.elecCurr > 0) ? 1 : 0;
         if (recA !== recB) return recA - recB;
-        return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true });
+        return App.compareRooms(a, b);
       }
-      return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true });
+      return App.compareRooms(a, b);
     });
 
     if (list.length === 0) {
@@ -4051,7 +4208,16 @@ class App {
         const localState = DBService.getState();
         const cloudState = await DBService.pullFromSupabase(savedUrl);
         if (cloudState) {
-          cloudState.tempMeterReadings = localState.tempMeterReadings || [];
+          if (localState && localState.rooms) {
+            cloudState.rooms.forEach(cr => {
+              const lr = localState.rooms.find(r => r.id === cr.id);
+              if (lr) {
+                if (cr.tempElecMeter === undefined || cr.tempElecMeter === null) cr.tempElecMeter = lr.tempElecMeter;
+                if (cr.tempWaterMeter === undefined || cr.tempWaterMeter === null) cr.tempWaterMeter = lr.tempWaterMeter;
+                if (cr.tempFineAmount === undefined || cr.tempFineAmount === null) cr.tempFineAmount = lr.tempFineAmount;
+              }
+            });
+          }
           this.state = cloudState;
           console.log('✅ Real-time Cloud state fetched successfully on start');
         } else {
@@ -4078,7 +4244,11 @@ class App {
       this.state.settings.supabaseUrl = savedUrl;
     }
 
-    // Remove loading overlay
+    // Calculate late fee penalties on startup
+    const initialPenaltiesChanged = this.updateInvoicePenalties(this.state);
+    if (initialPenaltiesChanged) {
+      try { DBService.saveState(this.state, true); } catch (e) {}
+    }
     loader.style.opacity = '0';
     setTimeout(() => loader.remove(), 300);
 
@@ -4099,8 +4269,16 @@ class App {
           try {
             const cloudState = await DBService.pullFromSupabase(url);
             if (cloudState) {
-              // Preserve temporary meter readings to avoid mismatching state comparison
-              cloudState.tempMeterReadings = this.state.tempMeterReadings || [];
+              this.updateInvoicePenalties(cloudState);
+              // Merge current active temporary meter readings
+              cloudState.rooms.forEach(cr => {
+                const lr = this.state.rooms?.find(r => r.id === cr.id);
+                if (lr) {
+                  if (cr.tempElecMeter === undefined || cr.tempElecMeter === null) cr.tempElecMeter = lr.tempElecMeter;
+                  if (cr.tempWaterMeter === undefined || cr.tempWaterMeter === null) cr.tempWaterMeter = lr.tempWaterMeter;
+                  if (cr.tempFineAmount === undefined || cr.tempFineAmount === null) cr.tempFineAmount = lr.tempFineAmount;
+                }
+              });
               
               if (JSON.stringify(cloudState) !== JSON.stringify(this.state)) {
                 // If user is editing/typing in any input, textarea, select, or if a modal is open,
@@ -4249,6 +4427,12 @@ class App {
   }
 
   static switchTab(tabId) {
+    if (tabId === 'billing' || tabId === 'slip-verification' || tabId === 'dashboard') {
+      const changed = this.updateInvoicePenalties(this.state);
+      if (changed) {
+        DBService.saveState(this.state, true);
+      }
+    }
     this.activeTab = tabId;
     this.renderShell();
 
@@ -5517,7 +5701,7 @@ class App {
   // --- 2.5 METER ENTRY GRID EVENTS ---
   static bindMeterEntryEvents() {
     const rawInvoices = this.state.invoices || [];
-    const rooms = [...this.state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+    const rooms = [...this.state.rooms].sort(App.compareRooms);
 
     const getRoomPrevMeters = (room) => {
       if (!room) return { elecPrev: 0, waterPrev: 0 };
@@ -5707,25 +5891,20 @@ class App {
 
     const updateTempReadingsInMemory = () => {
       if (!gridBody) return;
-      const temp = [];
       const trs = gridBody.querySelectorAll('tr');
       trs.forEach(tr => {
         const roomId = tr.getAttribute('data-room-id');
         const room = this.state.rooms.find(r => r.id === roomId);
-        const elecCurr = tr.querySelector('.elec-input').value;
-        const waterCurr = tr.querySelector('.water-input').value;
-        const fineAmount = tr.querySelector('.fine-input').value;
-        
-        temp.push({
-          roomId,
-          roomName: room ? room.name : '',
-          elecCurr: elecCurr === '' ? null : parseFloat(elecCurr),
-          waterCurr: waterCurr === '' ? null : parseFloat(waterCurr),
-          fineAmount: parseFloat(fineAmount) || 0,
-          monthKey: monthInput ? monthInput.value : new Date().toISOString().slice(0, 7)
-        });
+        if (room) {
+          const elecCurr = tr.querySelector('.elec-input').value;
+          const waterCurr = tr.querySelector('.water-input').value;
+          const fineAmount = tr.querySelector('.fine-input').value;
+          
+          room.tempElecMeter = elecCurr === '' ? null : parseFloat(elecCurr);
+          room.tempWaterMeter = waterCurr === '' ? null : parseFloat(waterCurr);
+          room.tempFineAmount = fineAmount === '' ? 0 : parseFloat(fineAmount);
+        }
       });
-      this.state.tempMeterReadings = temp;
     };
 
     const debounceSaveState = () => {
@@ -5763,9 +5942,8 @@ class App {
           const col = input.getAttribute('data-col');
           const newVal = input.value;
           
-          if (!this.state.tempMeterReadings) this.state.tempMeterReadings = [];
-          const temp = this.state.tempMeterReadings.find(t => t.roomId === roomId) || {};
-          const oldVal = col === 'elec' ? temp.elecCurr : (col === 'water' ? temp.waterCurr : temp.fineAmount);
+          const room = this.state.rooms.find(r => r.id === roomId);
+          const oldVal = room ? (col === 'elec' ? room.tempElecMeter : (col === 'water' ? room.tempWaterMeter : room.tempFineAmount)) : null;
           
           pushUndo(roomId, col, oldVal, newVal);
           
@@ -5958,15 +6136,14 @@ class App {
           return;
         }
 
-        const readings = this.state.tempMeterReadings || [];
-        const validReadings = readings.filter(r => r.elecCurr !== null && r.waterCurr !== null);
+        const roomsToBill = this.state.rooms.filter(r => r.tempElecMeter !== null && r.tempWaterMeter !== null && r.tempElecMeter !== '' && r.tempWaterMeter !== '');
 
-        if (validReadings.length === 0) {
+        if (roomsToBill.length === 0) {
           alert('กรุณากรอกเลขมิเตอร์น้ำและไฟให้ครบถ้วนอย่างน้อย 1 ห้องก่อนบันทึก');
           return;
         }
 
-        if (!confirm(`ต้องการประมวลผลออกบิลและบันทึกลงฐานข้อมูล Supabase จำนวน ${validReadings.length} ห้อง สำหรับเดือน ${monthKey} ใช่หรือไม่?\n\n(หากระบบตรวจพบว่าบิลห้องดังกล่าวมีอยู่แล้ว จะเป็นการแก้ไขค่าน้ำไฟในบิลเดิมให้เป็นเลขล่าสุด)`)) {
+        if (!confirm(`ต้องการประมวลผลออกบิลและบันทึกลงฐานข้อมูล Supabase จำนวน ${roomsToBill.length} ห้อง สำหรับเดือน ${monthKey} ใช่หรือไม่?\n\n(หากระบบตรวจพบว่าบิลห้องดังกล่าวมีอยู่แล้ว จะเป็นการแก้ไขค่าน้ำไฟในบิลเดิมให้เป็นเลขล่าสุด)`)) {
           return;
         }
 
@@ -5987,23 +6164,20 @@ class App {
         const errorMessages = [];
         let successCount = 0;
 
-        for (let i = 0; i < validReadings.length; i++) {
-          const reading = validReadings[i];
-          const room = this.state.rooms.find(r => r.id === reading.roomId);
-          if (!room) continue;
-
-          document.getElementById('bulk-save-progress').textContent = `กำลังบันทึกห้อง ${room.name} (${i + 1}/${validReadings.length})...`;
+        for (let i = 0; i < roomsToBill.length; i++) {
+          const room = roomsToBill[i];
+          document.getElementById('bulk-save-progress').textContent = `กำลังบันทึกห้อง ${room.name} (${i + 1}/${roomsToBill.length})...`;
 
           const fees = getRoomFees(room, this.state.rates);
           try {
             const result = await DBService.callRpc('generate_room_invoice', {
               p_room_id: room.id,
               p_month_key: monthKey,
-              p_elec_curr: Number(reading.elecCurr),
-              p_water_curr: Number(reading.waterCurr),
+              p_elec_curr: Number(room.tempElecMeter),
+              p_water_curr: Number(room.tempWaterMeter),
               p_issue_date: new Date().toISOString().slice(0, 10),
               p_due_date: dueDate,
-              p_fine_amount: Number(reading.fineAmount || 0),
+              p_fine_amount: Number(room.tempFineAmount || 0),
               p_force: true, // Force update if already exists
               p_internet_fee: fees.internetFee,
               p_common_fee: fees.commonFee
@@ -6011,6 +6185,9 @@ class App {
 
             if (result && result.status === 'success') {
               successCount++;
+              room.tempElecMeter = null;
+              room.tempWaterMeter = null;
+              room.tempFineAmount = null;
             } else {
               errorMessages.push(`ห้อง ${room.name}: ${result ? result.message : 'เกิดข้อผิดพลาดคลาวด์'}`);
             }
@@ -6027,11 +6204,6 @@ class App {
           alert(`บันทึกบิลสำเร็จ ${successCount} ห้อง\n\nพบข้อผิดพลาด:\n${errorMessages.join('\n')}`);
         } else {
           alert(`✅ ประมวลผลออกบิลและบันทึกลงฐานข้อมูล Supabase สำเร็จครบทั้ง ${successCount} ห้องเรียบร้อยแล้ว!`);
-          
-          // Clear temp readings for successfully generated rooms to prevent double submissions
-          this.state.tempMeterReadings = this.state.tempMeterReadings.filter(tr => 
-            !validReadings.some(vr => vr.roomId === tr.roomId)
-          );
           
           await DBService.saveState(this.state);
           window.location.reload(); // Reload to refresh grid & billing list
@@ -6773,39 +6945,71 @@ class App {
                   <td style="text-align:right;">฿${waterRate.toFixed(2)}</td>
                   <td style="text-align:right;"><strong>฿${(inv.waterAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
                 </tr>
-                ${(inv.trashFee !== undefined ? inv.trashFee : 20) > 0 ? `
-                  <tr>
-                    <td style="text-align:center;">4</td>
-                    <td><strong>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</strong></td>
-                    <td style="text-align:center;">-</td>
-                    <td style="text-align:center;">-</td>
-                    <td style="text-align:center;">-</td>
-                    <td style="text-align:right;">-</td>
-                    <td style="text-align:right;"><strong>฿${(inv.trashFee !== undefined ? inv.trashFee : 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
-                  </tr>
-                ` : ''}
-                ${(inv.fineAmount || 0) > 0 ? `
-                  <tr>
-                    <td style="text-align:center;">5</td>
-                    <td><strong class="text-danger">ค่าปรับชำระเกินกำหนด (Overdue Fine)</strong></td>
-                    <td style="text-align:center;">-</td>
-                    <td style="text-align:center;">-</td>
-                    <td style="text-align:center;">-</td>
-                    <td style="text-align:right;">-</td>
-                    <td style="text-align:right;"><strong class="text-danger">฿${inv.fineAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
-                  </tr>
-                ` : ''}
-                <tr style="background:#f1f5f9; font-weight:bold; font-size:1.05rem;">
-                  <td colspan="6" style="text-align:right;">ยอดเงินรวมสุทธิที่ต้องชำระ (Total Net Amount):</td>
-                  <td style="text-align:right; color:var(--primary); font-size:1.15rem;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div style="text-align:right; font-weight:bold; color:#475569; margin-top:0.5rem;">
-            (จำนวนเงินตัวอักษร: ${Formatters.thaiBahtText(inv.totalAmount)})
-          </div>
+                 ${(inv.internetFee || 0) > 0 ? `
+                   <tr>
+                     <td style="text-align:center;">-</td>
+                     <td><strong>ค่าอินเทอร์เน็ต (Internet Fee)</strong></td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:right;">-</td>
+                     <td style="text-align:right;"><strong>฿${inv.internetFee.toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                   </tr>
+                 ` : ''}
+                 ${(inv.commonFee || 0) > 0 ? `
+                   <tr>
+                     <td style="text-align:center;">-</td>
+                     <td><strong>ค่าส่วนกลาง (Common Fee)</strong></td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:right;">-</td>
+                     <td style="text-align:right;"><strong>฿${inv.commonFee.toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                   </tr>
+                 ` : ''}
+                 ${(inv.fineAmount || 0) > 0 ? `
+                   <tr>
+                     <td style="text-align:center;">-</td>
+                     <td><strong>ค่าปรับ/อื่นๆ (Fine/Others)</strong></td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:right;">-</td>
+                     <td style="text-align:right;"><strong>฿${inv.fineAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                   </tr>
+                 ` : ''}
+                 ${(inv.trashFee !== undefined ? inv.trashFee : 20) > 0 ? `
+                   <tr>
+                     <td style="text-align:center;">4</td>
+                     <td><strong>ค่าบริการสาธารณูปโภค / ขยะ (Trash Fee)</strong></td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:center;">-</td>
+                     <td style="text-align:right;">-</td>
+                     <td style="text-align:right;"><strong>฿${(inv.trashFee !== undefined ? inv.trashFee : 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
+                   </tr>
+                 ` : ''}
+                 <tr style="background:#f8fafc; font-weight:bold; font-size:0.95rem; border-top:1px solid #cbd5e1;">
+                   <td colspan="6" style="text-align:right;">ยอดรวมเดิมก่อนปรับ (Base Total):</td>
+                   <td style="text-align:right;">฿${(Number(inv.rentAmount || 0) + Number(inv.waterAmount || 0) + Number(inv.elecAmount || 0) + Number(inv.trashFee || 0) + Number(inv.internetFee || 0) + Number(inv.commonFee || 0) + Number(inv.fineAmount || 0)).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                 </tr>
+                 ${(inv.penaltyAmount || 0) > 0 ? `
+                   <tr style="background:#fdf2f2; font-weight:bold; font-size:0.95rem; color:#dc2626;">
+                     <td colspan="6" style="text-align:right;">ค่าปรับชำระล่าช้า (Late Payment Penalty):<div style="font-size:0.75rem; font-weight:normal; color:#ef4444;">${inv.penaltyRule || ''}</div></td>
+                     <td style="text-align:right;">฿${Number(inv.penaltyAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                   </tr>
+                 ` : ''}
+                 <tr style="background:#f1f5f9; font-weight:bold; font-size:1.05rem; border-top:2px double #475569;">
+                   <td colspan="6" style="text-align:right;">ยอดเงินรวมสุทธิที่ต้องชำระ (Total Net Amount):</td>
+                   <td style="text-align:right; color:var(--primary); font-size:1.15rem;">฿${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                 </tr>
+               </tbody>
+             </table>
+           </div>
+ 
+           <div style="text-align:right; font-weight:bold; color:#475569; margin-top:0.5rem;">
+             (จำนวนเงินตัวอักษร: ${Formatters.thaiBahtText(inv.totalAmount)})
+           </div>
 
           <!-- Official Red Note Box Requested by User -->
           <div class="invoice-red-note-box" style="border: 2px solid #ef4444; background-color: #fef2f2; color: #991b1b; padding: 0.85rem 1.25rem; border-radius: 8px; margin-top: 1.25rem; font-size: 0.95rem; line-height: 1.6; text-align: center;">
@@ -7180,7 +7384,7 @@ class App {
     // Sort and filter rooms: show only preselectedRoom if provided, otherwise all rooms
     const rooms = preselectedRoom 
       ? [preselectedRoom] 
-      : [...this.state.rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+      : [...this.state.rooms].sort(App.compareRooms);
 
     // Build map of previous readings for each room
     const prevReadings = {};
@@ -7220,10 +7424,9 @@ class App {
     const renderExcelRows = () => {
       return rooms.map((r, index) => {
         const prev = prevReadings[r.id];
-        const temp = this.state.tempMeterReadings.find(t => t.roomId === r.id) || {};
-        const elecCurr = temp.elecCurr !== undefined && temp.elecCurr !== null ? temp.elecCurr : '';
-        const waterCurr = temp.waterCurr !== undefined && temp.waterCurr !== null ? temp.waterCurr : '';
-        const fineAmount = temp.fineAmount !== undefined && temp.fineAmount !== null ? temp.fineAmount : 0;
+        const elecCurr = r.tempElecMeter !== undefined && r.tempElecMeter !== null ? r.tempElecMeter : '';
+        const waterCurr = r.tempWaterMeter !== undefined && r.tempWaterMeter !== null ? r.tempWaterMeter : '';
+        const fineAmount = r.tempFineAmount !== undefined && r.tempFineAmount !== null ? r.tempFineAmount : 0;
         const total = calculateRowTotal(r.id, elecCurr, waterCurr, fineAmount);
 
         const isElecError = elecCurr !== '' && parseFloat(elecCurr) < prev.elecPrev;
@@ -7441,25 +7644,20 @@ class App {
     };
 
     const updateTempReadingsInMemory = () => {
-      const temp = [];
       const trs = gridBody.querySelectorAll('tr');
       trs.forEach(tr => {
         const roomId = tr.getAttribute('data-room-id');
         const room = this.state.rooms.find(r => r.id === roomId);
-        const elecCurr = tr.querySelector('.elec-input').value;
-        const waterCurr = tr.querySelector('.water-input').value;
-        const fineAmount = tr.querySelector('.fine-input').value;
-        
-        temp.push({
-          roomId,
-          roomName: room ? room.name : '',
-          elecCurr: elecCurr === '' ? null : parseFloat(elecCurr),
-          waterCurr: waterCurr === '' ? null : parseFloat(waterCurr),
-          fineAmount: parseFloat(fineAmount) || 0,
-          monthKey: monthInput.value
-        });
+        if (room) {
+          const elecCurr = tr.querySelector('.elec-input').value;
+          const waterCurr = tr.querySelector('.water-input').value;
+          const fineAmount = tr.querySelector('.fine-input').value;
+          
+          room.tempElecMeter = elecCurr === '' ? null : parseFloat(elecCurr);
+          room.tempWaterMeter = waterCurr === '' ? null : parseFloat(waterCurr);
+          room.tempFineAmount = fineAmount === '' ? 0 : parseFloat(fineAmount);
+        }
       });
-      this.state.tempMeterReadings = temp;
     };
 
     const debounceSaveState = () => {
@@ -7494,8 +7692,8 @@ class App {
         const col = input.getAttribute('data-col');
         const newVal = input.value;
         
-        const temp = this.state.tempMeterReadings.find(t => t.roomId === roomId) || {};
-        const oldVal = col === 'elec' ? temp.elecCurr : (col === 'water' ? temp.waterCurr : temp.fineAmount);
+        const room = this.state.rooms.find(r => r.id === roomId);
+        const oldVal = room ? (col === 'elec' ? room.tempElecMeter : (col === 'water' ? room.tempWaterMeter : room.tempFineAmount)) : null;
         
         pushUndo(roomId, col, oldVal, newVal);
         
@@ -8571,6 +8769,24 @@ class App {
           resetBtn.disabled = false;
           resetBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> ล้างข้อมูลและรีเซ็ตระบบทั้งหมด';
         }
+      });
+    }
+
+    const lateFeeForm = document.getElementById('form-late-fee-settings');
+    if (lateFeeForm) {
+      lateFeeForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!this.state.lateFeeSettings) this.state.lateFeeSettings = {};
+        this.state.lateFeeSettings.dueDay = parseInt(document.getElementById('setting-late-due-day').value);
+        this.state.lateFeeSettings.penaltyPhase1Start = parseInt(document.getElementById('setting-late-p1-start').value);
+        this.state.lateFeeSettings.penaltyPhase1End = parseInt(document.getElementById('setting-late-p1-end').value);
+        this.state.lateFeeSettings.penaltyPhase1Amount = parseFloat(document.getElementById('setting-late-p1-amount').value);
+        this.state.lateFeeSettings.penaltyPhase2Start = parseInt(document.getElementById('setting-late-p2-start').value);
+        this.state.lateFeeSettings.penaltyPhase2End = parseInt(document.getElementById('setting-late-p2-end').value);
+        this.state.lateFeeSettings.penaltyPhase2Amount = parseFloat(document.getElementById('setting-late-p2-amount').value);
+
+        await DBService.saveState(this.state);
+        alert('🟢 บันทึกตั้งค่าค่าปรับชำระล่าช้าเรียบร้อยแล้ว!');
       });
     }
 
