@@ -135,6 +135,21 @@ const USER_PERMISSIONS = {
   }
 };
 
+// Helper function to resolve fees for a specific room (handling overrides)
+function getRoomFees(room, rates) {
+  if (!room) return { trashFee: 20, commonFee: 0, internetFee: 0 };
+  const trashFee = (room.trashFee !== undefined && room.trashFee !== null && room.trashFee !== "")
+    ? Number(room.trashFee)
+    : (rates && rates.trashFee !== undefined ? Number(rates.trashFee) : 20);
+  const commonFee = (room.commonFee !== undefined && room.commonFee !== null && room.commonFee !== "")
+    ? Number(room.commonFee)
+    : (rates && rates.commonFee !== undefined ? Number(rates.commonFee) : 0);
+  const internetFee = (room.internetFee !== undefined && room.internetFee !== null && room.internetFee !== "")
+    ? Number(room.internetFee)
+    : (room.typeId === 'rt_air' ? (rates && rates.internetFee !== undefined ? Number(rates.internetFee) : 0) : 0);
+  return { trashFee, commonFee, internetFee };
+}
+
 /* ==========================================================================
    2. UTILITY SERVICES (FORMATTERS, THAI BAHT TEXT & VALIDATORS)
    ========================================================================== */
@@ -908,7 +923,8 @@ class DBService {
         table: 'rooms', onConflict: 'id',
         fields: [['id','id'],['name','name'],['floor','floor'],['typeId','type_id'],['baseRent','base_rent'],
                  ['status','status'],['currentTenantId','current_tenant_id'],['currentTenantName','current_tenant_name'],
-                 ['entryDate','entry_date'],['lastWaterMeter','last_water_meter'],['lastElecMeter','last_elec_meter']]
+                 ['entryDate','entry_date'],['lastWaterMeter','last_water_meter'],['lastElecMeter','last_elec_meter'],
+                 ['trashFee','trash_fee'],['internetFee','internet_fee'],['commonFee','common_fee']]
       },
       tenants: {
         table: 'tenants', onConflict: 'id',
@@ -2924,8 +2940,11 @@ class MeterEntryComponent {
         const elecAmt = elecUnits * (state.rates.electricityRate || 8);
         const waterAmt = waterUnits * (state.rates.waterRate || 20);
         const rentAmt = r.baseRent ? Number(r.baseRent) : 2500;
-        const trashFee = (state.rates && state.rates.trashFee !== undefined) ? Number(state.rates.trashFee) : 20;
-        const total = rentAmt + elecAmt + waterAmt + trashFee + parseFloat(fineAmount);
+        const fees = getRoomFees(r, state.rates);
+        const trashFee = fees.trashFee;
+        const internetFee = fees.internetFee;
+        const commonFee = fees.commonFee;
+        const total = rentAmt + elecAmt + waterAmt + trashFee + internetFee + commonFee + parseFloat(fineAmount);
 
         const isElecError = elecCurr !== '' && parseFloat(elecCurr) < prev.elecPrev;
         const isWaterError = waterCurr !== '' && parseFloat(waterCurr) < prev.waterPrev;
@@ -4911,6 +4930,7 @@ class App {
           const waterCurr = Number(reading.waterCurr);
           if (isNaN(elecCurr) || isNaN(waterCurr)) { skipCount++; continue; }
 
+          const fees = getRoomFees(room, this.state.rates);
           let result;
           try {
             result = await DBService.callRpc('generate_room_invoice', {
@@ -4921,7 +4941,9 @@ class App {
               p_issue_date: issueDate,
               p_due_date: dueDate,
               p_fine_amount: Number(reading.fineAmount || 0),
-              p_force: false
+              p_force: false,
+              p_internet_fee: fees.internetFee,
+              p_common_fee: fees.commonFee
             });
           } catch (rpcErr) {
             errorMessages.push(`ห้อง ${room.name}: ${rpcErr.message}`);
@@ -5017,6 +5039,27 @@ class App {
             </select>
           </div>
 
+          <!-- ค่าบริการเฉพาะห้อง -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:0.85rem; margin-bottom:1rem;">
+            <div style="font-weight:700; font-size:0.85rem; color:#475569; margin-bottom:0.5rem;">
+              <i class="fa-solid fa-calculator"></i> ค่าบริการเพิ่มเติมเฉพาะห้อง (เจาะจงเฉพาะห้องนี้ / เว้นว่างหากใช้ราคาปกติ)
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.55rem;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:0.8rem; font-weight:600; color:#334155;">🗑️ ค่าเก็บขยะ:</label>
+                <input type="number" id="rm-trash-fee" class="form-control" value="${(roomToEdit && roomToEdit.trashFee !== undefined && roomToEdit.trashFee !== null) ? roomToEdit.trashFee : ''}" placeholder="ปกติ ${this.state.rates.trashFee || 20}" step="any" style="padding:0.45rem 0.65rem;">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:0.8rem; font-weight:600; color:#334155;">🏢 ค่าส่วนกลาง:</label>
+                <input type="number" id="rm-common-fee" class="form-control" value="${(roomToEdit && roomToEdit.commonFee !== undefined && roomToEdit.commonFee !== null) ? roomToEdit.commonFee : ''}" placeholder="ปกติ ${this.state.rates.commonFee || 0}" step="any" style="padding:0.45rem 0.65rem;">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:0.8rem; font-weight:600; color:#334155;">🌐 ค่าเน็ต:</label>
+                <input type="number" id="rm-internet-fee" class="form-control" value="${(roomToEdit && roomToEdit.internetFee !== undefined && roomToEdit.internetFee !== null) ? roomToEdit.internetFee : ''}" placeholder="ปกติ ${this.state.rates.internetFee || 0}" step="any" style="padding:0.45rem 0.65rem;">
+              </div>
+            </div>
+          </div>
+
           <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:0.85rem; margin-bottom:1rem;">
             <div style="font-weight:700; font-size:0.85rem; color:#0369a1; margin-bottom:0.5rem;">
               <i class="fa-solid fa-gauge"></i> เลขมิเตอร์ตั้งต้น / ครั้งก่อน (สำหรับเริ่มใช้ระบบ)
@@ -5054,6 +5097,14 @@ class App {
       const lastElecMeter = parseFloat(document.getElementById('rm-elec-meter').value) || 0;
       const lastWaterMeter = parseFloat(document.getElementById('rm-water-meter').value) || 0;
 
+      const trashFeeVal = document.getElementById('rm-trash-fee').value;
+      const commonFeeVal = document.getElementById('rm-common-fee').value;
+      const internetFeeVal = document.getElementById('rm-internet-fee').value;
+
+      const trashFee = trashFeeVal !== "" ? parseFloat(trashFeeVal) : null;
+      const commonFee = commonFeeVal !== "" ? parseFloat(commonFeeVal) : null;
+      const internetFee = internetFeeVal !== "" ? parseFloat(internetFeeVal) : null;
+
       if (isEdit) {
         roomToEdit.name = name;
         roomToEdit.floor = floor;
@@ -5062,11 +5113,15 @@ class App {
         roomToEdit.status = status;
         roomToEdit.lastElecMeter = lastElecMeter;
         roomToEdit.lastWaterMeter = lastWaterMeter;
+        roomToEdit.trashFee = trashFee;
+        roomToEdit.commonFee = commonFee;
+        roomToEdit.internetFee = internetFee;
       } else {
         const newRoom = {
           id: 'r_' + Date.now(),
           name, floor, typeId, baseRent, status,
-          lastWaterMeter, lastElecMeter
+          lastWaterMeter, lastElecMeter,
+          trashFee, commonFee, internetFee
         };
         this.state.rooms.push(newRoom);
       }
@@ -5513,9 +5568,12 @@ class App {
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
       const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 2500;
-      const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
+      const fees = getRoomFees(room, this.state.rates);
+      const trashFee = fees.trashFee;
+      const internetFee = fees.internetFee;
+      const commonFee = fees.commonFee;
       const fineAmt = parseFloat(fineAmount) || 0;
-      return rentAmt + elecAmt + waterAmt + trashFee + fineAmt;
+      return rentAmt + elecAmt + waterAmt + trashFee + internetFee + commonFee + fineAmt;
     };
 
     const gridBody = document.getElementById('excel-grid-body');
@@ -7036,9 +7094,10 @@ class App {
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
       const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
-      const trashFee = (this.state.rates && this.state.rates.trashFee !== undefined) ? Number(this.state.rates.trashFee) : 20;
-      const internetFee = room.typeId === 'rt_air' ? (Number(this.state.rates.internetFee) || 0) : 0;
-      const commonFee = Number(this.state.rates.commonFee) || 0;
+      const fees = getRoomFees(room, this.state.rates);
+      const trashFee = fees.trashFee;
+      const internetFee = fees.internetFee;
+      const commonFee = fees.commonFee;
       const fineAmt = parseFloat(fineAmount) || 0;
       return rentAmt + elecAmt + waterAmt + trashFee + internetFee + commonFee + fineAmt;
     };
@@ -7504,8 +7563,7 @@ class App {
           const elecCurr = parseFloat(elecCurrVal) || 0;
           const waterCurr = parseFloat(waterCurrVal) || 0;
           const fineAmt = parseFloat(fineVal) || 0;
-          const internetFee = room.typeId === 'rt_air' ? (Number(this.state.rates.internetFee) || 0) : 0;
-          const commonFee = Number(this.state.rates.commonFee) || 0;
+          const fees = getRoomFees(room, this.state.rates);
 
           let result;
           try {
@@ -7518,8 +7576,8 @@ class App {
               p_due_date: dueDate,
               p_fine_amount: fineAmt,
               p_force: forceOverride,
-              p_internet_fee: internetFee,
-              p_common_fee: commonFee
+              p_internet_fee: fees.internetFee,
+              p_common_fee: fees.commonFee
             });
           } catch (rpcErr) {
             errorMessages.push(`ห้อง ${room.name}: ${rpcErr.message}`);
