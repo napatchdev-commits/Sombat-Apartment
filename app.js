@@ -2433,9 +2433,15 @@ class BillingComponent {
                     <td><strong>${inv.tenantName}</strong></td>
                     <td><strong class="text-primary">${Formatters.currency(inv.totalAmount)}</strong></td>
                     <td>
-                      <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : (inv.status === 'pending' ? 'btn-warning' : 'btn-danger')} btn-toggle-pay-status" data-id="${inv.id}">
-                        ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : (inv.status === 'pending' ? '🟡 รอตรวจสอบ' : '🔴 ค้างชำระ')}
-                      </button>
+                      ${inv.status === 'pending_verification' ? `
+                        <button class="btn btn-xs btn-goto-slip-verification" data-room="${inv.roomName}" style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-weight:700;">
+                          🧾 รอตรวจสอบสลิป
+                        </button>
+                      ` : `
+                        <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : (inv.status === 'pending' ? 'btn-warning' : 'btn-danger')} btn-toggle-pay-status" data-id="${inv.id}">
+                          ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : (inv.status === 'pending' ? '🟡 รอตรวจสอบ' : '🔴 ค้างชำระ')}
+                        </button>
+                      `}
                       ${inv.slipUrl && (inv.slipUrl === 'cash' || inv.slipUrl.startsWith('http') || inv.slipUrl.startsWith('data:')) ? (inv.slipUrl === 'cash' ? `
                         <span class="badge-pill" style="margin-top:0.35rem; display:block; text-align:center; font-size:0.72rem; background-color:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-weight:700; padding:2px 4px; border-radius:4px;">
                           💵 ชำระเงินสด
@@ -6271,6 +6277,17 @@ class App {
         });
       });
     }
+
+    document.querySelectorAll('.btn-goto-slip-verification').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const roomName = e.currentTarget.getAttribute('data-room') || '';
+        // บิลที่มีสถานะ "รอตรวจสอบสลิป" ต้องไปอนุมัติ/ปฏิเสธที่หน้าตรวจสอบสลิปเท่านั้น
+        // ไม่ให้กดยืนยันตรงจากหน้าออกบิล เพื่อให้แอดมินได้เห็นรูปสลิปและเทียบยอดก่อนเสมอ
+        SlipVerificationComponent.activeFilter = 'pending';
+        SlipVerificationComponent.searchQuery = roomName;
+        this.switchTab('slip-verification');
+      });
+    });
 
     document.querySelectorAll('.btn-toggle-pay-status').forEach(btn => {
       btn.addEventListener('click', (e) => {

@@ -286,9 +286,9 @@ class TenantDBService {
         try {
           const slipRecord = {
             id: `slip_${paymentData.roomId}_${Date.now()}`,
-            invoice_id: paymentData.invoiceId || paymentData.invoiceNumber,
-            tenant_id: paymentData.tenantId || '',
-            room_id: paymentData.roomId,
+            invoice_id: paymentData.invoiceId || null,
+            tenant_id: paymentData.tenantId || null,
+            room_id: paymentData.roomId || null,
             room_name: paymentData.roomName || 'ห้องพัก',
             tenant_name: paymentData.tenantName || 'ผู้เช่า',
             month_key: paymentData.monthKey || new Date().toISOString().slice(0,7),
@@ -302,15 +302,24 @@ class TenantDBService {
             created_at: new Date().toISOString()
           };
 
-          await fetch(`${baseUrl}/rest/v1/payment_slips`, {
+          const slipRes = await fetch(`${baseUrl}/rest/v1/payment_slips`, {
             method: 'POST',
             headers: {
               'apikey': apiKey,
               'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
             },
             body: JSON.stringify(slipRecord)
           });
+
+          if (!slipRes.ok) {
+            // เดิมโค้ดจุดนี้ไม่เช็ค response เลย (fetch ไม่ throw error ตอน HTTP 4xx/5xx)
+            // ทำให้ต่อให้ insert ไม่ผ่าน (เช่น foreign key ผิด, คอลัมน์ไม่ตรง, RLS บล็อก)
+            // ก็จะไม่มีใครรู้เลย - สลิปหายไปเงียบๆ ไม่ขึ้นในหน้า Slip Verification ของแอดมิน
+            const errText = await slipRes.text().catch(() => '');
+            console.error('บันทึกตาราง payment_slips ไม่สำเร็จ:', slipRes.status, errText);
+          }
         } catch (slipErr) {
           console.warn('Post to payment_slips table warning:', slipErr);
         }
@@ -1044,6 +1053,11 @@ class MyBillsApp {
     const unpaidCount = sortedInvoices.filter(i => i.status !== 'paid' && i.status !== 'pending').length;
     const activeRepairsCount = (this.state.repairs || []).filter(r => r.status !== 'completed' && r.status !== 'เสร็จสิ้น').length;
 
+    // ยอดค้างชำระสะสมทั้งหมด (รวมทุกบิลที่ยังไม่จ่าย ไม่ใช่แค่บิลล่าสุดที่โชว์ในการ์ดด้านบน)
+    // แสดงเฉพาะตอนที่มีบิลค้างมากกว่า 1 ใบ เพื่อไม่ให้ซ้ำซ้อนกับยอดในการ์ดหลักตอนมีแค่ใบเดียว
+    const overdueInvoices = sortedInvoices.filter(i => i.status !== 'paid' && i.status !== 'pending');
+    const overdueTotal = overdueInvoices.reduce((sum, i) => sum + Number((i.outstandingAmount !== undefined && i.outstandingAmount !== null) ? i.outstandingAmount : (i.totalAmount || 0)), 0);
+
     let cardBgClass = '';
     let cardStyle = '';
     if (isPaid) {
@@ -1121,6 +1135,24 @@ class MyBillsApp {
             </button>
           </div>
         </div>
+
+        ${overdueInvoices.length > 1 ? `
+          <!-- ยอดค้างชำระสะสมทั้งหมด (รวมทุกเดือนที่ยังไม่จ่าย) -->
+          <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:14px; padding:0.85rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+              <div style="width:36px; height:36px; border-radius:10px; background:#fee2e2; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i class="fa-solid fa-layer-group" style="color:#dc2626;"></i>
+              </div>
+              <div>
+                <div style="font-size:0.78rem; font-weight:700; color:#991b1b;">ยอดค้างสะสมทั้งหมด (${overdueInvoices.length} บิล)</div>
+                <div style="font-size:0.72rem; color:#b91c1c;">รวมบิลค้างชำระทุกเดือน กดปุ่ม "บิลทั้งหมด" ด้านล่างเพื่อดูรายละเอียดแต่ละใบ</div>
+              </div>
+            </div>
+            <div style="font-size:1.05rem; font-weight:800; color:#dc2626; white-space:nowrap;">
+              ${Formatters.currency(overdueTotal)}
+            </div>
+          </div>
+        ` : ''}
 
         <!-- 2-Column Grid Menu (8 items) -->
         <div class="menu-grid-2col">
@@ -1909,8 +1941,13 @@ class MyBillsApp {
             ${hasBankInfo ? `
               <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:0.75rem; text-align:center; font-size:0.8rem; color:#166534; margin-bottom:1rem; line-height:1.5;">
                 🏦 <strong>บัญชีรับเงิน:</strong> ${settings.bankName || '-'}<br>
-                เลขบัญชี: <strong style="font-size:0.95rem; color:#2563eb;">${settings.bankAccountNo || '-'}</strong>
-                ${settings.bankAccountName ? ` | ชื่อบัญชี: <strong>${settings.bankAccountName}</strong>` : ''}
+                เลขบัญชี: <strong id="pay-modal-bank-acc-no" style="font-size:0.95rem; color:#2563eb; letter-spacing:0.5px;">${settings.bankAccountNo || '-'}</strong>
+                ${settings.bankAccountNo ? `
+                  <button type="button" id="pay-modal-copy-acc-btn" data-acc="${settings.bankAccountNo}" title="คัดลอกเลขบัญชี" style="display:inline-flex; align-items:center; gap:0.25rem; margin-left:0.4rem; padding:0.15rem 0.5rem; font-size:0.72rem; font-weight:700; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; cursor:pointer; vertical-align:middle;">
+                    <i class="fa-regular fa-copy"></i> คัดลอก
+                  </button>
+                ` : ''}
+                ${settings.bankAccountName ? `<br>ชื่อบัญชี: <strong>${settings.bankAccountName}</strong>` : ''}
               </div>
             ` : ''}
 
@@ -1928,6 +1965,13 @@ class MyBillsApp {
                 <div style="font-size:0.8rem; color:#7f1d1d; margin-top:0.25rem;">กรุณาติดต่อผู้ดูแลหอพัก${hasBankInfo ? ' หรือโอนตามเลขบัญชีด้านบน' : ''} เพื่อสอบถามช่องทางชำระเงิน</div>
               </div>
             `}
+
+            <!-- หมายเหตุสำคัญสำหรับผู้เช่า -->
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:0.65rem 0.85rem; margin-bottom:1rem; font-size:0.78rem; color:#92400e; line-height:1.6;">
+              <div><strong>หมายเหตุ:</strong></div>
+              <div>1. กรุณาแนบสลิปโอนเงินทุกครั้ง</div>
+              <div>2. หากชำระเกินวันที่กำหนดมีค่าปรับเริ่มต้น 200 บาท</div>
+            </div>
 
             <!-- Slip upload form -->
             <form id="pay-modal-slip-form">
@@ -1965,6 +2009,37 @@ class MyBillsApp {
 
       // Bind events inside renderPaymentContent
       modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+      const copyAccBtn = document.getElementById('pay-modal-copy-acc-btn');
+      if (copyAccBtn) {
+        copyAccBtn.addEventListener('click', async () => {
+          const accNo = copyAccBtn.getAttribute('data-acc') || '';
+          try {
+            await navigator.clipboard.writeText(accNo);
+          } catch (e) {
+            // เผื่อเบราว์เซอร์เก่า/ไม่รองรับ clipboard API ให้ fallback เป็นวิธี select+copy แบบเดิม
+            const tmp = document.createElement('textarea');
+            tmp.value = accNo;
+            tmp.style.position = 'fixed';
+            tmp.style.opacity = '0';
+            document.body.appendChild(tmp);
+            tmp.select();
+            try { document.execCommand('copy'); } catch (e2) {}
+            document.body.removeChild(tmp);
+          }
+          const originalHtml = copyAccBtn.innerHTML;
+          copyAccBtn.innerHTML = '<i class="fa-solid fa-check"></i> คัดลอกแล้ว';
+          copyAccBtn.style.color = '#059669';
+          copyAccBtn.style.background = '#ecfdf5';
+          copyAccBtn.style.borderColor = '#a7f3d0';
+          setTimeout(() => {
+            copyAccBtn.innerHTML = originalHtml;
+            copyAccBtn.style.color = '#2563eb';
+            copyAccBtn.style.background = '#eff6ff';
+            copyAccBtn.style.borderColor = '#bfdbfe';
+          }, 1500);
+        });
+      }
       
       const tabTransfer = document.getElementById('pay-modal-transfer');
       const tabCash = document.getElementById('pay-modal-cash');
@@ -2081,6 +2156,7 @@ class MyBillsApp {
                 roomId: tenant.assignedRoomId,
                 roomName: inv ? (inv.roomName || tenant.assignedRoomId) : tenant.assignedRoomId,
                 tenantName: tenant.name,
+                tenantId: tenant.id,
                 invoiceId: inv ? inv.id : MyBillsApp.activeInvoiceNumber,
                 invoiceNumber: MyBillsApp.activeInvoiceNumber,
                 monthKey: inv ? inv.monthKey : new Date().toISOString().slice(0,7),
@@ -2323,7 +2399,7 @@ class MyBillsApp {
 
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; background:#f8fafc; padding:0.75rem; border-radius:8px; margin-bottom:1rem; font-size:0.82rem; line-height:1.4;">
             <div>ห้องพัก (Room): <strong style="color:#2563eb;">ห้อง ${inv.roomName}</strong></div>
-            <div>ชื่อผู้เช่า (Tenant): <strong>${inv.tenantName}</strong></div>
+            <div>ชื่อผู้เช่า (Tenant): <strong>${inv.tenantName || (MyBillsApp.currentTenant ? MyBillsApp.currentTenant.name : '-')}</strong></div>
             <div>ออกบิลเมื่อ (Issue): <strong>${Formatters.thaiDate(inv.issueDate)}</strong></div>
             <div>ครบกำหนด (Due): <strong style="color:#dc2626;">${Formatters.thaiDate(inv.dueDate)}</strong></div>
           </div>
@@ -2413,6 +2489,12 @@ class MyBillsApp {
                 </tr>
               </tfoot>
             </table>
+          </div>
+
+          <div style="border-top:1px dashed #cbd5e1; padding-top:0.6rem; font-size:0.72rem; color:#92400e; line-height:1.6;">
+            <strong>หมายเหตุ:</strong><br>
+            1. กรุณาแนบสลิปโอนเงินทุกครั้ง<br>
+            2. หากชำระเกินวันที่กำหนดมีค่าปรับเริ่มต้น 200 บาท
           </div>
         </div>
 
