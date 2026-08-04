@@ -970,7 +970,7 @@ class MyBillsApp {
 
     if (!latestInvoice) {
       const monthKey = new Date().toISOString().slice(0, 7);
-      const rentAmt = room.baseRent || 2500;
+      const rentAmt = (room.baseRent !== undefined && room.baseRent !== null && room.baseRent !== '') ? Number(room.baseRent) : 2500;
       const elecAmt = 520;
       const waterAmt = 200;
       const trashAmt = 20;

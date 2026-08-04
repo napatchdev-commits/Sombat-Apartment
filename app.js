@@ -1017,6 +1017,17 @@ class DBService {
     });
     return changed;
   }
+  static getRoomRent(room) {
+    if (!room) return 0;
+    if (room.status === 'vacant' || room.status === 'reserved') {
+      return 0;
+    }
+    if (room.baseRent !== undefined && room.baseRent !== null && room.baseRent !== '') {
+      return Number(room.baseRent);
+    }
+    return room.floor === 2 ? 3500 : 2500;
+  }
+
   static getRoomSortWeight(roomName) {
     const name = String(roomName || '').trim();
     if (!name) return 2;
@@ -3104,7 +3115,7 @@ class MeterEntryComponent {
         const waterUnits = waterCurr === '' ? 0 : Math.max(0, parseFloat(waterCurr) - prev.waterPrev);
         const elecAmt = elecUnits * (state.rates.electricityRate || 8);
         const waterAmt = waterUnits * (state.rates.waterRate || 20);
-        const rentAmt = r.baseRent ? Number(r.baseRent) : 2500;
+        const rentAmt = (r.baseRent !== undefined && r.baseRent !== null && r.baseRent !== '') ? Number(r.baseRent) : 2500;
         const fees = getRoomFees(r, state.rates);
         const trashFee = fees.trashFee;
         const internetFee = fees.internetFee;
@@ -9027,7 +9038,8 @@ class App {
     const dialog = modal.querySelector('.modal-dialog');
 
     const isEdit = !!tenantToEdit;
-    const defaultRent = tenantToEdit ? (this.state.rooms.find(r => r.id === tenantToEdit.assignedRoomId)?.baseRent || 3500) : 3500;
+    const defaultRentRoom = tenantToEdit ? this.state.rooms.find(r => r.id === tenantToEdit.assignedRoomId) : null;
+    const defaultRent = tenantToEdit ? ((defaultRentRoom?.baseRent !== undefined && defaultRentRoom?.baseRent !== null && defaultRentRoom?.baseRent !== '') ? Number(defaultRentRoom.baseRent) : 3500) : 3500;
     const defaultDeposit = tenantToEdit ? (tenantToEdit.depositAmount || tenantToEdit.deposit?.initialBail || 7000) : 7000;
 
     dialog.innerHTML = `
