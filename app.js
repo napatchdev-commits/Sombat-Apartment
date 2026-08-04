@@ -5555,6 +5555,7 @@ class App {
 
     const undoStack = [];
     const editHistory = [];
+    let autoSaveTimeout = null;
 
     const calculateRowTotal = (roomId, elecCurr, waterCurr, fineAmount) => {
       const room = this.state.rooms.find(r => r.id === roomId);
@@ -5701,8 +5702,7 @@ class App {
       totalCell.textContent = `฿${total.toLocaleString()}`;
     };
 
-    let autoSaveTimeout = null;
-    const saveTempReadingsToState = () => {
+    const updateTempReadingsInMemory = () => {
       if (!gridBody) return;
       const temp = [];
       const trs = gridBody.querySelectorAll('tr');
@@ -5722,9 +5722,10 @@ class App {
           monthKey: monthInput ? monthInput.value : new Date().toISOString().slice(0, 7)
         });
       });
-
       this.state.tempMeterReadings = temp;
+    };
 
+    const debounceSaveState = () => {
       if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
       autoSaveTimeout = setTimeout(() => {
         DBService.saveState(this.state, true).then(() => {
@@ -5736,6 +5737,11 @@ class App {
           }
         });
       }, 1500);
+    };
+
+    const saveTempReadingsToState = () => {
+      updateTempReadingsInMemory();
+      debounceSaveState();
     };
 
     if (gridBody) {
@@ -5770,6 +5776,8 @@ class App {
       gridBody.addEventListener('input', (e) => {
         if (e.target.classList.contains('excel-input')) {
           updateRowLive(e.target.closest('tr'));
+          updateTempReadingsInMemory();
+          debounceSaveState();
         }
       });
 
@@ -7080,6 +7088,7 @@ class App {
     // History stack and undo stack
     const undoStack = [];
     const editHistory = [];
+    let autoSaveTimeout = null;
 
     // Helper to calculate total amount for a row
     const calculateRowTotal = (roomId, elecCurr, waterCurr, fineAmount) => {
@@ -7325,8 +7334,7 @@ class App {
       totalCell.textContent = `฿${total.toLocaleString()}`;
     };
 
-    let autoSaveTimeout = null;
-    const saveTempReadingsToState = () => {
+    const updateTempReadingsInMemory = () => {
       const temp = [];
       const trs = gridBody.querySelectorAll('tr');
       trs.forEach(tr => {
@@ -7345,9 +7353,10 @@ class App {
           monthKey: monthInput.value
         });
       });
-
       this.state.tempMeterReadings = temp;
+    };
 
+    const debounceSaveState = () => {
       if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
       autoSaveTimeout = setTimeout(() => {
         DBService.saveState(this.state, true).then(() => {
@@ -7357,6 +7366,11 @@ class App {
           }, 2000);
         });
       }, 1500);
+    };
+
+    const saveTempReadingsToState = () => {
+      updateTempReadingsInMemory();
+      debounceSaveState();
     };
 
     gridBody.addEventListener('focusin', (e) => {
@@ -7389,6 +7403,8 @@ class App {
     gridBody.addEventListener('input', (e) => {
       if (e.target.classList.contains('excel-input')) {
         updateRowLive(e.target.closest('tr'));
+        updateTempReadingsInMemory();
+        debounceSaveState();
       }
     });
 

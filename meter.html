@@ -579,6 +579,20 @@ const App = (() => {
 
   const rates = { electricityRate: 8, waterRate: 20 };
 
+  let draftMeters = {};
+
+  function loadDrafts() {
+    try {
+      draftMeters = JSON.parse(localStorage.getItem('METER_APP_DRAFTS') || '{}');
+    } catch {
+      draftMeters = {};
+    }
+  }
+
+  function saveDrafts() {
+    localStorage.setItem('METER_APP_DRAFTS', JSON.stringify(draftMeters));
+  }
+
   // ── DOM refs ───────────────────────────────────────────
   const el = id => document.getElementById(id);
 
@@ -832,8 +846,9 @@ const App = (() => {
     const isOccupied = room.status === 'occupied' && room.currentTenantName;
     const isRecorded = recordedRooms.has(room.id);
 
-    pendingWater = inv && inv.waterCurr > 0 ? String(inv.waterCurr) : '';
-    pendingElec = inv && inv.elecCurr > 0 ? String(inv.elecCurr) : '';
+    const draft = draftMeters[room.id] || {};
+    pendingWater = draft.water !== undefined ? draft.water : (inv && inv.waterCurr > 0 ? String(inv.waterCurr) : '');
+    pendingElec = draft.elec !== undefined ? draft.elec : (inv && inv.elecCurr > 0 ? String(inv.elecCurr) : '');
 
     el('topbar-title').textContent = `ห้อง ${room.name}`;
     el('topbar-sub').innerHTML = `
@@ -1009,6 +1024,10 @@ const App = (() => {
       el('btn-save-next').disabled = !canSave;
       pendingWater = inputWater.value;
       pendingElec = inputElec.value;
+
+      // Update draft in memory and localStorage
+      draftMeters[room.id] = { water: pendingWater, elec: pendingElec };
+      saveDrafts();
     }
 
     inputWater.addEventListener('input', updateCalc);
@@ -1106,6 +1125,7 @@ const App = (() => {
   // ── Init ──────────────────────────────────────────────
   async function init() {
     loadCreds();
+    loadDrafts();
     monthKey = localStorage.getItem('METER_APP_MONTH') || currMonth();
 
     // Check URL params
@@ -1194,6 +1214,11 @@ const App = (() => {
 
     try {
       await saveMeter(room, wv, ev);
+
+      // Clear draft on successful save
+      delete draftMeters[room.id];
+      saveDrafts();
+
       toast(`✅ บันทึกห้อง ${room.name} สำเร็จ`, 'success');
       updateProgress();
 

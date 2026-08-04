@@ -102,6 +102,66 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
   const [elecCurrInput, setElecCurrInput] = useState<string>('');
   const [notesInput, setNotesInput] = useState<string>('');
   const [isEditing, setIsEditing] = useState<boolean>(false);
+
+  // Draft state to store typed meter readings per room (loaded from localStorage for unmount persistence)
+  const [draftMeters, setDraftMeters] = useState<Record<string, { water: string; elec: string; notes: string }>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('draft_meter_readings');
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        console.error('Failed to parse draft meters:', e);
+      }
+    }
+    return {};
+  });
+
+  // Sync drafts to localStorage on change
+  useEffect(() => {
+    localStorage.setItem('draft_meter_readings', JSON.stringify(draftMeters));
+  }, [draftMeters]);
+
+  const handleWaterChange = (val: string) => {
+    setWaterCurrInput(val);
+    if (selectedRoom) {
+      setDraftMeters(prev => ({
+        ...prev,
+        [selectedRoom.id]: {
+          water: val,
+          elec: elecCurrInput,
+          notes: notesInput
+        }
+      }));
+    }
+  };
+
+  const handleElecChange = (val: string) => {
+    setElecCurrInput(val);
+    if (selectedRoom) {
+      setDraftMeters(prev => ({
+        ...prev,
+        [selectedRoom.id]: {
+          water: waterCurrInput,
+          elec: val,
+          notes: notesInput
+        }
+      }));
+    }
+  };
+
+  const handleNotesChange = (val: string) => {
+    setNotesInput(val);
+    if (selectedRoom) {
+      setDraftMeters(prev => ({
+        ...prev,
+        [selectedRoom.id]: {
+          water: waterCurrInput,
+          elec: elecCurrInput,
+          notes: val
+        }
+      }));
+    }
+  };
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -156,14 +216,23 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
     
+    const draft = draftMeters[room.id];
     const inv = invoices.find(i => i.roomId === room.id && i.monthKey === currentMonthStr);
-    if (inv && inv.waterCurr > 0 && inv.elecCurr > 0) {
+    
+    if (draft) {
+      setWaterCurrInput(draft.water);
+      setElecCurrInput(draft.elec);
+      setNotesInput(draft.notes);
+      setIsEditing(true);
+    } else if (inv && inv.waterCurr > 0 && inv.elecCurr > 0) {
       setWaterCurrInput(String(inv.waterCurr));
       setElecCurrInput(String(inv.elecCurr));
+      setNotesInput(inv.notes || '');
       setIsEditing(false); // Locked until user clicks "แก้ไขมิเตอร์"
     } else {
       setWaterCurrInput('');
       setElecCurrInput('');
+      setNotesInput('');
       setIsEditing(true);
     }
   };
@@ -228,6 +297,13 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
         totalAmount: newTotal,
         notes: notesInput.trim(),
         isEdit: Boolean(currentInvoice.waterCurr > 0 && currentInvoice.elecCurr > 0)
+      });
+
+      // Clear draft for this room upon successful save
+      setDraftMeters(prev => {
+        const next = { ...prev };
+        delete next[selectedRoom.id];
+        return next;
       });
 
       setSuccessMessage('✅ บันทึกเลขมิเตอร์น้ำ-ไฟเรียบร้อยแล้ว!');
@@ -398,7 +474,7 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
                       className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       placeholder="กรอกเลขมิเตอร์น้ำ..."
                       value={waterCurrInput}
-                      onChange={e => setWaterCurrInput(e.target.value)}
+                      onChange={e => handleWaterChange(e.target.value)}
                     />
                   </div>
 
@@ -414,7 +490,7 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
                       className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       placeholder="กรอกเลขมิเตอร์ไฟ..."
                       value={elecCurrInput}
-                      onChange={e => setElecCurrInput(e.target.value)}
+                      onChange={e => handleElecChange(e.target.value)}
                     />
                   </div>
 
@@ -428,7 +504,7 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
                       className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       placeholder="เช่น แจ้งเปลี่ยนมิเตอร์ใหม่..."
                       value={notesInput}
-                      onChange={e => setNotesInput(e.target.value)}
+                      onChange={e => handleNotesChange(e.target.value)}
                     />
                   </div>
                 </div>
