@@ -209,8 +209,15 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
       );
     }
 
+    const cleanRoomName = (roomName: string) => {
+      let name = String(roomName || '').trim();
+      name = name.replace(/^(?:ห้องพัก|ห้อง)\s*/, '');
+      return name.trim();
+    };
+
     const getRoomSortWeight = (roomName: string) => {
-      const name = String(roomName || '').trim();
+      const name = cleanRoomName(roomName);
+      if (!name) return 2;
       if (/^s/i.test(name)) return 1;
       const isNamed = /^[^A-Za-z0-9]/i.test(name) || name.startsWith('บ้าน') || name.startsWith('เรือน');
       if (isNamed) return 3;
@@ -218,10 +225,12 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
     };
 
     const compareRooms = (a: any, b: any) => {
-      const wA = getRoomSortWeight(a.name);
-      const wB = getRoomSortWeight(b.name);
+      const nameA = cleanRoomName(a.name);
+      const nameB = cleanRoomName(b.name);
+      const wA = getRoomSortWeight(nameA);
+      const wB = getRoomSortWeight(nameB);
       if (wA !== wB) return wA - wB;
-      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+      return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
     };
 
     result.sort((a, b) => {
