@@ -4076,10 +4076,30 @@ class App {
         if (url && AuthService.getCurrentUser()) {
           try {
             const cloudState = await DBService.pullFromSupabase(url);
-            if (cloudState && JSON.stringify(cloudState) !== JSON.stringify(this.state)) {
-              this.state = cloudState;
-              this.switchTab(this.activeTab);
-              console.log('✅ Live sync from Supabase');
+            if (cloudState) {
+              // Preserve temporary meter readings to avoid mismatching state comparison
+              cloudState.tempMeterReadings = this.state.tempMeterReadings || [];
+              
+              if (JSON.stringify(cloudState) !== JSON.stringify(this.state)) {
+                // If user is editing/typing in any input, textarea, select, or if a modal is open,
+                // update state without calling switchTab to prevent losing input focus/cursor.
+                const focused = document.activeElement;
+                const isEditing = focused && (
+                  focused.tagName === 'INPUT' || 
+                  focused.tagName === 'TEXTAREA' || 
+                  focused.tagName === 'SELECT'
+                );
+                const isModalOpen = document.getElementById('app-modal')?.classList.contains('active');
+                
+                if (isEditing || isModalOpen) {
+                  this.state = cloudState;
+                  console.log('✅ Live sync: updated state in background (re-render skipped because user is typing or modal is open)');
+                } else {
+                  this.state = cloudState;
+                  this.switchTab(this.activeTab);
+                  console.log('✅ Live sync from Supabase (view re-rendered)');
+                }
+              }
             }
           } catch (e) {
             console.warn('Live background sync failed:', e);
@@ -5781,7 +5801,14 @@ class App {
         });
 
         saveTempReadingsToState();
-        alert('📋 วางข้อมูลจาก Excel เรียบร้อยแล้ว!');
+        if (indicator) {
+          indicator.innerHTML = '<i class="fa-solid fa-clipboard-check"></i> วางข้อมูลจาก Excel เรียบร้อยแล้ว!';
+          indicator.style.display = 'inline-block';
+          setTimeout(() => {
+            indicator.style.display = 'none';
+            indicator.innerHTML = '<i class="fa-solid fa-circle-check"></i> บันทึกอัตโนมัติเรียบร้อย';
+          }, 3000);
+        }
       });
     }
 
@@ -7392,7 +7419,14 @@ class App {
       });
 
       saveTempReadingsToState();
-      alert('📋 วางข้อมูลจาก Excel เรียบร้อยแล้ว!');
+      if (indicator) {
+        indicator.innerHTML = '<i class="fa-solid fa-clipboard-check"></i> วางข้อมูลจาก Excel เรียบร้อยแล้ว!';
+        indicator.style.display = 'inline-block';
+        setTimeout(() => {
+          indicator.style.display = 'none';
+          indicator.innerHTML = '<i class="fa-solid fa-circle-check"></i> บันทึกอัตโนมัติเรียบร้อย';
+        }, 3000);
+      }
     });
 
     undoBtn.addEventListener('click', (e) => {
