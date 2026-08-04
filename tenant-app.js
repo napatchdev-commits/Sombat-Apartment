@@ -1978,23 +1978,17 @@ class MyBillsApp {
                   dropAreaText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-success" style="font-size:1.5rem;"></i><br><strong style="color:var(--success);">กำลังตรวจสอบคิวอาร์โค้ดสลิป...</strong>';
                 }
 
+                // พยายามอ่าน QR Code ในรูปสลิป (ถ้ามี) เพื่อใช้ตรวจสลิปซ้ำเพิ่มเติมเท่านั้น
+                // ไม่ใช่เงื่อนไขบังคับ เพราะสลิปโอนเงินจากแอปธนาคารส่วนใหญ่ไม่มีรูป QR
+                // ฝังอยู่ในภาพ (ต่างจาก QR พร้อมเพย์สำหรับจ่ายเงิน) การบังคับหา QR ทำให้
+                // ผู้เช่าอัปโหลดสลิปจริงไม่ได้เกือบทุกครั้ง
                 const qrData = await MyBillsApp.decodeQR(dataUrl);
                 if (dropAreaText) {
                   dropAreaText.innerHTML = originalText;
                 }
 
-                if (!qrData) {
-                  alert('⚠️ ตรวจสอบไม่พบ "QR Code สลิปธนาคาร" บนรูปภาพนี้!\n\nกรุณาอัปโหลดรูปภาพสลิปโอนเงินของจริงจากแอปธนาคาร (ที่มี QR Code แสดงชัดเจน) เพื่อใช้สำหรับส่งหลักฐานชำระเงินตามระบบรักษาความปลอดภัยครับ');
-                  MyBillsApp.currentSlipDataUrl = '';
-                  MyBillsApp.currentSlipQrData = '';
-                  previewImg.src = '';
-                  previewContainer.style.display = 'none';
-                  fileInput.value = '';
-                  return;
-                }
-
                 MyBillsApp.currentSlipDataUrl = dataUrl;
-                MyBillsApp.currentSlipQrData = qrData;
+                MyBillsApp.currentSlipQrData = qrData || '';
                 previewImg.src = dataUrl;
                 previewContainer.style.display = 'block';
               };
