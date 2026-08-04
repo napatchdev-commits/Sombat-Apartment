@@ -1285,12 +1285,12 @@ document.addEventListener('DOMContentLoaded', () => {
   App.bindLogin();
   App.init();
 
-  // Prevent mouse wheel from changing input type=number values
+  // Prevent mouse wheel from changing input type=number values (using capture phase to intercept before target receives it)
   document.addEventListener('wheel', (e) => {
     if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
       e.preventDefault();
     }
-  }, { passive: false });
+  }, { passive: false, capture: true });
 });
 </script>
 </body>

@@ -3006,7 +3006,8 @@ class MeterEntryComponent {
             <button class="btn btn-secondary" id="btn-excel-undo" title="ย้อนกลับการแก้ไข (Ctrl+Z)" disabled>
               <i class="fa-solid fa-arrow-rotate-left"></i> ย้อนกลับ (Undo)
             </button>
-            <button class="btn btn-primary" id="btn-excel-save-all"><i class="fa-solid fa-save"></i> บันทึกข้อมูลทั้งหมด</button>
+            <button class="btn btn-primary" id="btn-excel-save-all" title="บันทึกข้อมูลแบบร่างชั่วคราวเก็บไว้ในเครื่อง"><i class="fa-solid fa-floppy-disk"></i> บันทึกร่างชั่วคราว</button>
+            <button class="btn btn-success" id="btn-excel-save-to-db" title="ประมวลผลออกบิลและบันทึกค่าน้ำค่าไฟเข้าสู่ฐานข้อมูล Supabase ทันที" style="background-color:#10b981; border-color:#10b981;"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและออกบิลลงคลาวด์</button>
           </div>
         </div>
 
@@ -4047,12 +4048,14 @@ class App {
 
     if (savedUrl) {
       try {
+        const localState = DBService.getState();
         const cloudState = await DBService.pullFromSupabase(savedUrl);
         if (cloudState) {
+          cloudState.tempMeterReadings = localState.tempMeterReadings || [];
           this.state = cloudState;
           console.log('✅ Real-time Cloud state fetched successfully on start');
         } else {
-          this.state = DBService.getState();
+          this.state = localState;
         }
       } catch (err) {
         console.warn('Startup pull warning, falling back to local cache:', err);
@@ -5781,6 +5784,12 @@ class App {
         }
       });
 
+      gridBody.addEventListener('wheel', (e) => {
+        if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+          e.preventDefault();
+        }
+      }, { passive: false });
+
       gridBody.addEventListener('keydown', (e) => {
         if (!e.target.classList.contains('excel-input')) return;
         
@@ -5918,17 +5927,114 @@ class App {
         e.preventDefault();
         
         saveAllBtn.disabled = true;
-        saveAllBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...';
+        saveAllBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกร่าง...';
         
         try {
           saveTempReadingsToState();
           await DBService.saveState(this.state);
-          alert('✅ บันทึกข้อมูลค่าน้ำไฟล่าสุดลงคลาวด์เรียบร้อยแล้ว!');
+          alert('✅ บันทึกข้อมูลแบบร่างลงในเบราว์เซอร์นี้เรียบร้อยแล้ว!');
         } catch (err) {
           alert('❌ เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + err.message);
         } finally {
           saveAllBtn.disabled = false;
-          saveAllBtn.innerHTML = '<i class="fa-solid fa-save"></i> บันทึกข้อมูลทั้งหมด';
+          saveAllBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกร่างชั่วคราว';
+        }
+      });
+    }
+
+    // Save directly to Supabase DB and generate bills button
+    const saveToDbBtn = document.getElementById('btn-excel-save-to-db');
+    if (saveToDbBtn) {
+      saveToDbBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        const monthInput = document.getElementById('excel-bill-month');
+        const dueDateInput = document.getElementById('excel-due-date');
+        const monthKey = monthInput ? monthInput.value : new Date().toISOString().slice(0, 7);
+        const dueDate = dueDateInput ? dueDateInput.value : '';
+        
+        if (!monthKey || !dueDate) {
+          alert('กรุณาระบุรอบเดือนและกำหนดชำระเงินก่อนบันทึกออกบิล');
+          return;
+        }
+
+        const readings = this.state.tempMeterReadings || [];
+        const validReadings = readings.filter(r => r.elecCurr !== null && r.waterCurr !== null);
+
+        if (validReadings.length === 0) {
+          alert('กรุณากรอกเลขมิเตอร์น้ำและไฟให้ครบถ้วนอย่างน้อย 1 ห้องก่อนบันทึก');
+          return;
+        }
+
+        if (!confirm(`ต้องการประมวลผลออกบิลและบันทึกลงฐานข้อมูล Supabase จำนวน ${validReadings.length} ห้อง สำหรับเดือน ${monthKey} ใช่หรือไม่?\n\n(หากระบบตรวจพบว่าบิลห้องดังกล่าวมีอยู่แล้ว จะเป็นการแก้ไขค่าน้ำไฟในบิลเดิมให้เป็นเลขล่าสุด)`)) {
+          return;
+        }
+
+        saveToDbBtn.disabled = true;
+        saveToDbBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกบิลลงคลาวด์...';
+
+        // Show blocking sync loader
+        const syncLoader = document.createElement('div');
+        syncLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.75); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; backdrop-filter:blur(4px);';
+        syncLoader.innerHTML = `
+          <div style="width:45px; height:45px; border:4px solid #334155; border-top-color:#10b981; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem;"></div>
+          <div style="font-weight:700; font-size:1.15rem; margin-bottom:0.25rem;">กำลังบันทึกบิลลงฐานข้อมูล Supabase...</div>
+          <div style="font-size:0.88rem; color:#cbd5e1;" id="bulk-save-progress">ประมวลผลห้องพัก...</div>
+          <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+        `;
+        document.body.appendChild(syncLoader);
+
+        const errorMessages = [];
+        let successCount = 0;
+
+        for (let i = 0; i < validReadings.length; i++) {
+          const reading = validReadings[i];
+          const room = this.state.rooms.find(r => r.id === reading.roomId);
+          if (!room) continue;
+
+          document.getElementById('bulk-save-progress').textContent = `กำลังบันทึกห้อง ${room.name} (${i + 1}/${validReadings.length})...`;
+
+          const fees = getRoomFees(room, this.state.rates);
+          try {
+            const result = await DBService.callRpc('generate_room_invoice', {
+              p_room_id: room.id,
+              p_month_key: monthKey,
+              p_elec_curr: Number(reading.elecCurr),
+              p_water_curr: Number(reading.waterCurr),
+              p_issue_date: new Date().toISOString().slice(0, 10),
+              p_due_date: dueDate,
+              p_fine_amount: Number(reading.fineAmount || 0),
+              p_force: true, // Force update if already exists
+              p_internet_fee: fees.internetFee,
+              p_common_fee: fees.commonFee
+            });
+
+            if (result && result.status === 'success') {
+              successCount++;
+            } else {
+              errorMessages.push(`ห้อง ${room.name}: ${result ? result.message : 'เกิดข้อผิดพลาดคลาวด์'}`);
+            }
+          } catch (rpcErr) {
+            errorMessages.push(`ห้อง ${room.name}: ${rpcErr.message}`);
+          }
+        }
+
+        syncLoader.remove();
+        saveToDbBtn.disabled = false;
+        saveToDbBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและออกบิลลงคลาวด์';
+
+        if (errorMessages.length > 0) {
+          alert(`บันทึกบิลสำเร็จ ${successCount} ห้อง\n\nพบข้อผิดพลาด:\n${errorMessages.join('\n')}`);
+        } else {
+          alert(`✅ ประมวลผลออกบิลและบันทึกลงฐานข้อมูล Supabase สำเร็จครบทั้ง ${successCount} ห้องเรียบร้อยแล้ว!`);
+          
+          // Clear temp readings for successfully generated rooms to prevent double submissions
+          this.state.tempMeterReadings = this.state.tempMeterReadings.filter(tr => 
+            !validReadings.some(vr => vr.roomId === tr.roomId)
+          );
+          
+          await DBService.saveState(this.state);
+          window.location.reload(); // Reload to refresh grid & billing list
         }
       });
     }
@@ -7408,6 +7514,12 @@ class App {
       }
     });
 
+    gridBody.addEventListener('wheel', (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
     gridBody.addEventListener('keydown', (e) => {
       if (!e.target.classList.contains('excel-input')) return;
       
@@ -8512,12 +8624,12 @@ class App {
       });
     });
 
-    // Prevent mouse wheel from changing input type=number values
+    // Prevent mouse wheel from changing input type=number values (using capture phase to intercept before target receives it)
     document.addEventListener('wheel', (e) => {
       if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
         e.preventDefault();
       }
-    }, { passive: false });
+    }, { passive: false, capture: true });
   }
 
   static openUserModal(userToEdit = null) {

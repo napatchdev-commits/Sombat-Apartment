@@ -121,7 +121,7 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
     localStorage.setItem('draft_meter_readings', JSON.stringify(draftMeters));
   }, [draftMeters]);
 
-  // Prevent wheel events from changing number input values
+  // Prevent wheel events from changing number input values (using capture phase)
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (
@@ -131,9 +131,9 @@ export const MeterReadingModule: React.FC<MeterReadingModuleProps> = ({
         e.preventDefault();
       }
     };
-    document.addEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     return () => {
-      document.removeEventListener('wheel', handleWheel);
+      document.removeEventListener('wheel', handleWheel, { capture: true });
     };
   }, []);
 
