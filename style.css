@@ -869,13 +869,12 @@ body {
         margin: 10mm 15mm;
     }
 
-    body * {
-        visibility: hidden !important;
+    #app-root {
+        display: none !important;
     }
     
     #app-modal {
         display: none !important;
-        visibility: hidden !important;
     }
 
     #print-receipt-area, #print-receipt-area * {
@@ -1066,6 +1065,10 @@ body {
 
 /* Perfect 100% Fit Print Engine */
 @media print {
+    #app-modal {
+        display: block !important;
+    }
+
     #modal-printable-bill-area, #modal-printable-bill-area * {
         visibility: visible !important;
     }
