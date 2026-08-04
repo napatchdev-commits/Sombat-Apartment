@@ -1028,8 +1028,14 @@ class DBService {
     return room.floor === 2 ? 3500 : 2500;
   }
 
+  static cleanRoomName(roomName) {
+    let name = String(roomName || '').trim();
+    name = name.replace(/^(?:ห้องพัก|ห้อง)\s*/, '');
+    return name.trim();
+  }
+
   static getRoomSortWeight(roomName) {
-    const name = String(roomName || '').trim();
+    const name = DBService.cleanRoomName(roomName);
     if (!name) return 2;
     if (/^s/i.test(name)) {
       return 1;
@@ -1045,8 +1051,8 @@ class DBService {
     if (!a && !b) return 0;
     if (!a) return 1;
     if (!b) return -1;
-    const nameA = String(a.name || '').trim();
-    const nameB = String(b.name || '').trim();
+    const nameA = DBService.cleanRoomName(a.name);
+    const nameB = DBService.cleanRoomName(b.name);
     const wA = DBService.getRoomSortWeight(nameA);
     const wB = DBService.getRoomSortWeight(nameB);
     if (wA !== wB) return wA - wB;
@@ -2060,7 +2066,14 @@ class DashboardComponent {
 
 class ContractsComponent {
   static render(state) {
-    const tenants = state.tenants;
+    const tenants = [...state.tenants].sort((a, b) => {
+      const roomA = state.rooms.find(r => r.id === a.assignedRoomId);
+      const roomB = state.rooms.find(r => r.id === b.assignedRoomId);
+      if (!roomA && !roomB) return 0;
+      if (!roomA) return 1;
+      if (!roomB) return -1;
+      return DBService.compareRooms(roomA, roomB);
+    });
     const rooms = state.rooms;
 
     const contracts = tenants.map(t => {
@@ -2168,7 +2181,14 @@ class ContractsComponent {
 class TenantsComponent {
   static render(state) {
     if (!state.tenants) state.tenants = [];
-    const tenants = state.tenants;
+    const tenants = [...state.tenants].sort((a, b) => {
+      const roomA = state.rooms?.find(r => r.id === a.assignedRoomId);
+      const roomB = state.rooms?.find(r => r.id === b.assignedRoomId);
+      if (!roomA && !roomB) return 0;
+      if (!roomA) return 1;
+      if (!roomB) return -1;
+      return DBService.compareRooms(roomA, roomB);
+    });
 
     return `
       <div class="view-container animate-fade-in">
@@ -3130,7 +3150,7 @@ class MeterEntryComponent {
         const waterUnits = waterCurr === '' ? 0 : Math.max(0, parseFloat(waterCurr) - prev.waterPrev);
         const elecAmt = elecUnits * (state.rates.electricityRate || 8);
         const waterAmt = waterUnits * (state.rates.waterRate || 20);
-        const rentAmt = (r.baseRent !== undefined && r.baseRent !== null && r.baseRent !== '') ? Number(r.baseRent) : 2500;
+        const rentAmt = DBService.getRoomRent(r);
         const fees = getRoomFees(r, state.rates);
         const trashFee = fees.trashFee;
         const internetFee = fees.internetFee;
@@ -5793,7 +5813,7 @@ class App {
       const waterUnits = Math.max(0, (parseFloat(waterCurr) || 0) - waterPrev);
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
-      const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 2500;
+      const rentAmt = DBService.getRoomRent(room);
       const fees = getRoomFees(room, this.state.rates);
       const trashFee = fees.trashFee;
       const internetFee = fees.internetFee;
@@ -7461,7 +7481,7 @@ class App {
       const waterUnits = Math.max(0, (parseFloat(waterCurr) || 0) - waterPrev);
       const elecAmt = elecUnits * (this.state.rates.electricityRate || 8);
       const waterAmt = waterUnits * (this.state.rates.waterRate || 20);
-      const rentAmt = (room.baseRent !== undefined && room.baseRent !== '') ? Number(room.baseRent) : 3500;
+      const rentAmt = DBService.getRoomRent(room);
       const fees = getRoomFees(room, this.state.rates);
       const trashFee = fees.trashFee;
       const internetFee = fees.internetFee;
