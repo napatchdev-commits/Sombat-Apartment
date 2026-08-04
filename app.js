@@ -2064,7 +2064,7 @@ class ContractsComponent {
 
       return {
         id: 'ctr_' + t.id,
-        contractNumber: `CTR-2026-${(t.id || '').replace(/^tenant_|^t_/i, '').substring(0, 6).toUpperCase()}`,
+        contractNumber: `CTR-2026-${(t.id || '').replace(/^tenant_|^t_/i, '').slice(-6).toUpperCase()}`,
         tenantId: t.id,
         tenantName: t.name,
         idCard: t.idCard,
