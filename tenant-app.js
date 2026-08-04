@@ -2148,6 +2148,7 @@ class MyBillsApp {
             const tenant = MyBillsApp.currentTenant;
             const invoicesList = MyBillsApp.state.invoices || [];
             const invIdx = invoicesList.findIndex(i => i.invoiceNumber === MyBillsApp.activeInvoiceNumber);
+            const inv = invIdx !== -1 ? invoicesList[invIdx] : null;
 
             try {
               const result = await TenantDBService.submitPayment({
@@ -2217,6 +2218,7 @@ class MyBillsApp {
             const tenant = MyBillsApp.currentTenant;
             const invoicesList = MyBillsApp.state.invoices || [];
             const invIdx = invoicesList.findIndex(i => i.invoiceNumber === MyBillsApp.activeInvoiceNumber);
+            const inv = invIdx !== -1 ? invoicesList[invIdx] : null;
 
             try {
               const result = await TenantDBService.submitPayment({
