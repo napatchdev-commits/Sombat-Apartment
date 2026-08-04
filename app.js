@@ -1019,6 +1019,7 @@ class DBService {
   }
   static getRoomSortWeight(roomName) {
     const name = String(roomName || '').trim();
+    if (!name) return 2;
     if (/^s/i.test(name)) {
       return 1;
     }
@@ -1030,10 +1031,15 @@ class DBService {
   }
 
   static compareRooms(a, b) {
-    const wA = App.getRoomSortWeight(a.name);
-    const wB = App.getRoomSortWeight(b.name);
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
+    const nameA = String(a.name || '').trim();
+    const nameB = String(b.name || '').trim();
+    const wA = DBService.getRoomSortWeight(nameA);
+    const wB = DBService.getRoomSortWeight(nameB);
     if (wA !== wB) return wA - wB;
-    return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+    return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
   }
 
   static getTableConfigs() {
@@ -2058,7 +2064,7 @@ class ContractsComponent {
 
       return {
         id: 'ctr_' + t.id,
-        contractNumber: `CTR-2026-${t.id.substring(0, 4).toUpperCase()}`,
+        contractNumber: `CTR-2026-${(t.id || '').replace(/^tenant_|^t_/i, '').substring(0, 6).toUpperCase()}`,
         tenantId: t.id,
         tenantName: t.name,
         idCard: t.idCard,
@@ -2222,7 +2228,7 @@ class RoomsComponent {
     const rawRooms = state.rooms || [];
     const roomTypes = state.roomTypes || [];
 
-    const rooms = [...rawRooms].sort(App.compareRooms);
+    const rooms = [...rawRooms].sort(DBService.compareRooms);
 
     return `
       <div class="view-container animate-fade-in">
@@ -3049,7 +3055,7 @@ class SettingsComponent {
 class MeterEntryComponent {
   static render(state) {
     const rawInvoices = state.invoices || [];
-    const rooms = [...state.rooms].sort(App.compareRooms);
+    const rooms = [...state.rooms].sort(DBService.compareRooms);
 
     const getRoomPrevMeters = (room) => {
       if (!room) return { elecPrev: 0, waterPrev: 0 };
@@ -3829,7 +3835,7 @@ class MeterReadingComponent {
     list.sort((a, b) => {
       if (sortBy === 'floor') {
         if (a.floor !== b.floor) return a.floor - b.floor;
-        return App.compareRooms(a, b);
+        return DBService.compareRooms(a, b);
       }
       if (sortBy === 'unread') {
         const invA = invoices.find(i => i.roomId === a.id && i.monthKey === currentMonthStr);
@@ -3837,9 +3843,9 @@ class MeterReadingComponent {
         const recA = (invA && invA.waterCurr > 0 && invA.elecCurr > 0) ? 1 : 0;
         const recB = (invB && invB.waterCurr > 0 && invB.elecCurr > 0) ? 1 : 0;
         if (recA !== recB) return recA - recB;
-        return App.compareRooms(a, b);
+        return DBService.compareRooms(a, b);
       }
-      return App.compareRooms(a, b);
+      return DBService.compareRooms(a, b);
     });
 
     if (list.length === 0) {
@@ -4248,7 +4254,7 @@ class App {
 
     // Calculate late fee penalties on startup
     try {
-      const initialPenaltiesChanged = this.updateInvoicePenalties(this.state);
+      const initialPenaltiesChanged = DBService.updateInvoicePenalties(this.state);
       if (initialPenaltiesChanged) {
         DBService.saveState(this.state, true);
       }
@@ -4275,7 +4281,7 @@ class App {
           try {
             const cloudState = await DBService.pullFromSupabase(url);
             if (cloudState) {
-              this.updateInvoicePenalties(cloudState);
+              DBService.updateInvoicePenalties(cloudState);
               // Merge current active temporary meter readings
               cloudState.rooms.forEach(cr => {
                 const lr = this.state.rooms?.find(r => r.id === cr.id);
@@ -4434,7 +4440,7 @@ class App {
 
   static switchTab(tabId) {
     if (tabId === 'billing' || tabId === 'slip-verification' || tabId === 'dashboard') {
-      const changed = this.updateInvoicePenalties(this.state);
+      const changed = DBService.updateInvoicePenalties(this.state);
       if (changed) {
         DBService.saveState(this.state, true);
       }
@@ -5707,7 +5713,7 @@ class App {
   // --- 2.5 METER ENTRY GRID EVENTS ---
   static bindMeterEntryEvents() {
     const rawInvoices = this.state.invoices || [];
-    const rooms = [...this.state.rooms].sort(App.compareRooms);
+    const rooms = [...this.state.rooms].sort(DBService.compareRooms);
 
     const getRoomPrevMeters = (room) => {
       if (!room) return { elecPrev: 0, waterPrev: 0 };
@@ -7390,7 +7396,7 @@ class App {
     // Sort and filter rooms: show only preselectedRoom if provided, otherwise all rooms
     const rooms = preselectedRoom 
       ? [preselectedRoom] 
-      : [...this.state.rooms].sort(App.compareRooms);
+      : [...this.state.rooms].sort(DBService.compareRooms);
 
     // Build map of previous readings for each room
     const prevReadings = {};
