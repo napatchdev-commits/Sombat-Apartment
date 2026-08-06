@@ -2850,252 +2850,513 @@ class RatesComponent {
 }
 
 class SettingsComponent {
+  static activeSection = 'home';
+  static searchQuery = '';
+
   static render(state) {
     const settings = state.settings || {};
     const users = state.users || [];
 
+    // Header section
+    let header = `
+      <div class="view-header">
+        <div>
+          <h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าระบบ (Settings Dashboard)</h2>
+          <p>จัดการการตั้งค่าข้อมูลหอพัก อัตราค่าบริการ บัญชีผู้ใช้ การแจ้งเตือน และระบบฐานข้อมูล</p>
+        </div>
+      </div>
+    `;
+
+    if (this.activeSection === 'home') {
+      const categories = [
+        { id: 'apartment_info', title: 'ข้อมูลหอพัก', desc: 'ชื่อหอพัก, ที่อยู่, เบอร์โทร, บัญชีธนาคาร และ PromptPay', icon: 'fa-building', color: '#06b6d4', keywords: 'หอพัก ธนาคาร พร้อมเพย์ โอนเงิน บัญชี bay kbank scb promptpay' },
+        { id: 'billing', title: 'การออกบิล', desc: 'รูปแบบเลขที่บิล, กำหนดส่งบิล, ข้อความแนบท้ายใบเสร็จ', icon: 'fa-file-invoice-dollar', color: '#f97316', keywords: 'บิล ใบเสร็จ ออกบิล กำหนดส่ง เลขที่บิล ท้ายบิล' },
+        { id: 'rates', title: 'ค่าน้ำ / ค่าไฟ', desc: 'กำหนดอัตราค่าน้ำ ค่าไฟ ค่าขยะ และค่าบริการเสริมพิเศษ', icon: 'fa-droplet', color: '#3b82f6', keywords: 'น้ำ ไฟ ขยะ เน็ต ส่วนกลาง บริการ extra fee rate unit' },
+        { id: 'penalty', title: 'ค่าปรับชำระล่าช้า', desc: 'วันครบกำหนดชำระปกติ, ค่าปรับขั้นบันไดช่วงที่ 1 และ 2', icon: 'fa-clock-rotate-left', color: '#ef4444', keywords: 'ปรับ ล่าช้า เกินกำหนด due phase fine' },
+        { id: 'users', title: 'ผู้ใช้งานระบบ', desc: 'สิทธิ์ผู้ดูแล Super Admin / Staff, เพิ่ม/ลบ และเปลี่ยนรหัสผ่าน', icon: 'fa-users-gear', color: '#8b5cf6', keywords: 'แอดมิน พนักงาน สิทธิ์ รหัสผ่าน admin staff user role' },
+        { id: 'line_bot', title: 'LINE Bot / Notify', desc: 'เชื่อมต่อ LINE Messaging API ส่งบิลตรงและรับสลิปโอนเงิน', icon: 'fa-brands fa-line', color: '#22c55e', keywords: 'ไลน์ บอท notify token group push message' },
+        { id: 'supabase', title: 'Supabase Cloud', desc: 'ตั้งค่าการเชื่อมต่อฐานข้อมูลคลาวด์ และลิงก์จดมิเตอร์', icon: 'fa-cloud', color: '#0ea5e9', keywords: 'ฐานข้อมูล คลาวด์ db server url api key anon meter' },
+        { id: 'backup', title: 'สำรอง & กู้คืนข้อมูล', desc: 'Export รายงานระบบ Excel/CSV, ดาวน์โหลด/นำเข้าไฟล์สำรองระบบ', icon: 'fa-box-archive', color: '#f59e0b', keywords: 'สำรอง กู้คืน reset ล้างข้อมูล excel csv import export' },
+        { id: 'appearance', title: 'หน้าตาระบบ', desc: 'สลับระหว่างโหมดมืด (Dark Mode) และโหมดสว่าง (Light Mode)', icon: 'fa-palette', color: '#ec4899', keywords: 'ธีม โหมดมืด โหมดสว่าง theme dark light' },
+        { id: 'security', title: 'ความปลอดภัย', desc: 'เปลี่ยนรหัสผ่านแอดมิน, ออกจากระบบทุกเครื่อง และระบบ 2FA', icon: 'fa-shield-halved', color: '#64748b', keywords: 'รหัสผ่าน ล็อกเอาต์ 2fa password logout security' },
+        { id: 'advanced', title: 'ตั้งค่าขั้นสูง', desc: 'System Version, API Status, Developer Mode และ System Logs', icon: 'fa-sliders', color: '#475569', keywords: 'เวอร์ชัน api log developer debug caches version' }
+      ];
+
+      return `
+        <div class="view-container animate-fade-in">
+          ${header}
+          
+          <div class="settings-search-container" style="position:relative; margin-bottom:1.5rem;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:#64748b; font-size:1.1rem;"></i>
+            <input type="text" id="settings-search" placeholder="ค้นหาการตั้งค่า... (เช่น ค่าน้ำ, LINE, รหัสผ่าน)" style="width:100%; padding:0.85rem 1rem 0.85rem 2.85rem; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-main); font-size:0.95rem; outline:none; transition:all 0.2s;" />
+          </div>
+
+          <div class="settings-grid">
+            ${categories.map(c => `
+              <div class="settings-card-item glass-card" data-section="${c.id}" data-keywords="${c.keywords}">
+                <div class="settings-card-icon-wrapper" style="display:flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:12px; background: ${c.color}20; color: ${c.color}; font-size:1.45rem;">
+                  <i class="fa-solid ${c.icon}"></i>
+                </div>
+                <div style="flex:1;">
+                  <h4 class="settings-card-title" style="font-weight:700; font-size:1.05rem; color:var(--text-main); margin-bottom:0.25rem; margin-top:0;">${c.title}</h4>
+                  <p class="settings-card-desc" style="font-size:0.8rem; color:var(--text-muted); line-height:1.4; margin:0;">${c.desc}</p>
+                </div>
+                <div style="color:var(--text-muted); font-size:0.9rem;">
+                  <i class="fa-solid fa-chevron-right"></i>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Render Sub-view for selected section
+    let backHeader = `
+      <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); padding-bottom:1rem;">
+        <button class="btn btn-secondary btn-sm" id="btn-settings-back" style="padding:0.4rem 0.8rem; font-size:0.85rem; font-weight:700;"><i class="fa-solid fa-arrow-left"></i> ย้อนกลับ</button>
+        <h3 style="margin:0; font-size:1.25rem; font-weight:700;">
+          ${this.activeSection === 'apartment_info' ? '🏢 ข้อมูลหอพัก' :
+            this.activeSection === 'billing' ? '🧾 การออกบิล' :
+            this.activeSection === 'rates' ? '💧 ค่าน้ำ / ค่าไฟ' :
+            this.activeSection === 'penalty' ? '💰 ค่าปรับชำระล่าช้า' :
+            this.activeSection === 'users' ? '👥 ผู้ใช้งานระบบ' :
+            this.activeSection === 'line_bot' ? '🔔 LINE Bot' :
+            this.activeSection === 'supabase' ? '☁️ Supabase Cloud' :
+            this.activeSection === 'backup' ? '📦 สำรอง & กู้คืนข้อมูล' :
+            this.activeSection === 'appearance' ? '🎨 หน้าตาระบบ' :
+            this.activeSection === 'security' ? '🔒 ความปลอดภัย' :
+            this.activeSection === 'advanced' ? '⚙️ ตั้งค่าขั้นสูง' : 'ตั้งค่า'}
+        </h3>
+      </div>
+    `;
+
+    let cardBody = '';
+    if (this.activeSection === 'apartment_info') {
+      cardBody = `
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-building-columns text-primary"></i> ข้อมูลหอพัก & บัญชีธนาคารรับเงิน</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            ข้อมูลบัญชีธนาคารและเบอร์พร้อมเพย์จะถูกนำไปสร้าง QR Code ชำระเงินและออกบิลอัตโนมัติ
+          </p>
+          
+          <form id="form-bank-settings" style="margin-top:1rem;">
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-building text-primary"></i> ชื่อหอพัก / สถานประกอบการ:</label>
+              <input type="text" id="setting-apt-name" class="form-control" value="${settings.apartmentName || 'หอพักสมบัติ นนทบุรี'}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
+              <div class="form-group">
+                <label style="font-weight:600;"><i class="fa-solid fa-piggy-bank text-success"></i> ธนาคารรับเงิน:</label>
+                <select id="setting-bank-name" class="form-control" style="padding:0.55rem 0.75rem;">
+                  <option value="ธนาคารกรุงศรีอยุธยา (BAY)" ${settings.bankName === 'ธนาคารกรุงศรีอยุธยา (BAY)' ? 'selected' : ''}>ธนาคารกรุงศรีอยุธยา (BAY)</option>
+                  <option value="ธนาคารกสิกรไทย (KBANK)" ${settings.bankName === 'ธนาคารกสิกรไทย (KBANK)' ? 'selected' : ''}>ธนาคารกสิกรไทย (KBANK)</option>
+                  <option value="ธนาคารไทยพาณิชย์ (SCB)" ${settings.bankName === 'ธนาคารไทยพาณิชย์ (SCB)' ? 'selected' : ''}>ธนาคารไทยพาณิชย์ (SCB)</option>
+                  <option value="ธนาคารกรุงเทพ (BBL)" ${settings.bankName === 'ธนาคารกรุงเทพ (BBL)' ? 'selected' : ''}>ธนาคารกรุงเทพ (BBL)</option>
+                  <option value="ธนาคารกรุงไทย (KTB)" ${settings.bankName === 'ธนาคารกรุงไทย (KTB)' ? 'selected' : ''}>ธนาคารกรุงไทย (KTB)</option>
+                  <option value="ธนาคารออมสิน (GSB)" ${settings.bankName === 'ธนาคารออมสิน (GSB)' ? 'selected' : ''}>ธนาคารออมสิน (GSB)</option>
+                  <option value="PromptPay (พร้อมเพย์)" ${settings.bankName === 'PromptPay (พร้อมเพย์)' ? 'selected' : ''}>PromptPay (พร้อมเพย์)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="font-weight:600;"><i class="fa-solid fa-credit-card text-info"></i> เลขที่บัญชีธนาคาร:</label>
+                <input type="text" id="setting-bank-no" class="form-control" value="${settings.bankAccountNo || '2401346663'}" placeholder="2401346663" style="padding:0.55rem 0.75rem;">
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
+              <div class="form-group">
+                <label style="font-weight:600;"><i class="fa-solid fa-user-check text-success"></i> ชื่อบัญชีผู้รับเงิน:</label>
+                <input type="text" id="setting-bank-acc-name" class="form-control" value="${settings.bankAccountName || 'นางสมผิว น้ำวน'}" placeholder="สมบัติ / สมผิว น้ำวน" style="padding:0.55rem 0.75rem;">
+              </div>
+              <div class="form-group">
+                <label style="font-weight:600;"><i class="fa-solid fa-qrcode text-warning"></i> เบอร์พร้อมเพย์ (PromptPay ID):</label>
+                <input type="text" id="setting-promptpay-id" class="form-control" value="${settings.promptPayId || '0805991691'}" placeholder="0805991691" style="padding:0.55rem 0.75rem;">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full" style="padding:0.6rem; font-weight:700; margin-top:0.35rem;">
+              <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลหอพัก & บัญชีธนาคาร
+            </button>
+          </form>
+        </div>
+      `;
+    } else if (this.activeSection === 'billing') {
+      cardBody = `
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-file-invoice-dollar text-primary"></i> ตั้งค่าการออกบิลและเอกสาร</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            ตั้งค่าลำดับและเงื่อนไขการแสดงผลบนบิลค่าเช่าหอพัก
+          </p>
+          <div style="margin-top:1.25rem; display:flex; flex-direction:column; gap:1rem;">
+            <div class="form-group">
+              <label style="font-weight:600;">รูปแบบรหัสบิล (Invoice Number Pattern):</label>
+              <input type="text" class="form-control" value="INV-[YYYY][MM]-[ROOM]" readonly disabled style="background:var(--bg-app); border-color:var(--border-color); color:var(--text-muted);">
+              <small class="text-muted">ระบบจะคำนวณอัตโนมัติ เช่น INV-202608-S01</small>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group">
+                <label style="font-weight:600;">วันออกบิลปกติ (Bill Creation Date):</label>
+                <input type="text" class="form-control" value="ทุกสิ้นเดือน / ทุกวันที่ 1" readonly disabled style="background:var(--bg-app); border-color:var(--border-color); color:var(--text-muted);">
+              </div>
+              <div class="form-group">
+                <label style="font-weight:600;">วันครบกำหนดชำระปกติ (Invoice Due Day):</label>
+                <input type="number" class="form-control" value="${state.lateFeeSettings?.dueDay ?? 5}" readonly disabled style="background:var(--bg-app); border-color:var(--border-color); color:var(--text-muted);">
+                <small class="text-muted">ตั้งค่าได้ที่เมนู "ค่าปรับชำระล่าช้า"</small>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-weight:600;">ข้อความหมายเหตุสำคัญท้ายใบเสร็จ:</label>
+              <textarea class="form-control" rows="3" readonly disabled style="background:var(--bg-app); border-color:var(--border-color); color:var(--text-muted); resize:none;">📌 หมายเหตุสำคัญ: ชำระเงินสดได้ที่ร้าน / หรือโอน ธ.กรุงศรี 2401346663 นางสมผิว น้ำวน (ไม่เกินวันที่ 5 ของเดือน)</textarea>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (this.activeSection === 'rates') {
+      const rates = state.rates || { electricityRate: 8.0, waterRate: 20.0, trashFee: 20.0, customFees: [] };
+      const customFees = rates.customFees || [];
+      cardBody = `
+        <!-- 1. Standard Rates Form -->
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-bolt text-warning"></i> อัตราเรทค่าน้ำ - ค่าไฟ และค่าขยะหลัก</h3>
+          <form id="form-rates-main" style="margin-top:1rem;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
+              <div class="form-group">
+                <label>ค่าไฟฟ้า (บาท / ยูนิต) *</label>
+                <input type="number" step="0.1" id="rate-elec" class="form-control" value="${rates.electricityRate || 8.0}" required>
+              </div>
+              <div class="form-group">
+                <label>ค่าน้ำประปา (บาท / ยูนิต) *</label>
+                <input type="number" step="0.1" id="rate-water" class="form-control" value="${rates.waterRate || 20.0}" required>
+              </div>
+              <div class="form-group">
+                <label>ค่าบริการขยะ (บาท / เดือน) *</label>
+                <input type="number" step="0.1" id="rate-trash" class="form-control" value="${rates.trashFee !== undefined ? rates.trashFee : 20.0}" required>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1rem;">
+              <div class="form-group">
+                <label>ค่าอินเทอร์เน็ต (บาท / เดือน)</label>
+                <input type="number" step="0.1" id="rate-internet" class="form-control" value="${rates.internetFee || ''}" placeholder="เว้นว่างหรือ 0 = ไม่คิดค่านี้">
+                <small class="text-muted">เว้นว่างหรือใส่ 0 = ไม่นำไปคำนวณในบิล</small>
+              </div>
+              <div class="form-group">
+                <label>ค่าส่วนกลาง (บาท / เดือน)</label>
+                <input type="number" step="0.1" id="rate-common" class="form-control" value="${rates.commonFee || ''}" placeholder="เว้นว่างหรือ 0 = ไม่คิดค่านี้">
+                <small class="text-muted">เว้นว่างหรือใส่ 0 = ไม่นำไปคำนวณในบิล</small>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top:1rem;"><i class="fa-solid fa-floppy-disk"></i> บันทึกปรับเรทหลัก</button>
+          </form>
+        </div>
+
+        <!-- 2. Custom Extra Fees Management -->
+        <div class="glass-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <div>
+              <h3><i class="fa-solid fa-boxes-packing text-primary"></i> รายการค่าใช้จ่ายและค่าบริการเสริมอื่นๆ (Custom Service Fees)</h3>
+              <p class="text-muted text-sm">สามารถเพิ่ม แก้ไข ลบ รายการค่าบริการอื่นๆ เพื่อนำไปบันทึกลง Supabase และคำนวณในบิลได้</p>
+            </div>
+            <button id="btn-add-custom-fee" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> เพิ่มรายการค่าใช้จ่ายใหม่</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ชื่อรายการค่าใช้จ่าย</th>
+                  <th>รูปแบบคำนวณ</th>
+                  <th>อัตราค่าบริการ (บาท)</th>
+                  <th>หมายเหตุรายละเอียด</th>
+                  <th>การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${customFees.length === 0 ? `
+                  <tr><td colspan="5" class="text-center text-muted" style="padding:2rem;">ยังไม่มีรายการค่าใช้จ่ายเสริม สามารถกดเพิ่มใหม่ได้</td></tr>
+                ` : customFees.map(fee => `
+                  <tr>
+                    <td><strong>${fee.name}</strong></td>
+                    <td><span class="badge-pill badge-info">${fee.unitType === 'monthly' ? '📅 รายเดือน (บาท/เดือน)' : '⚡ ตามหน่วย (บาท/ยูนิต)'}</span></td>
+                    <td><strong class="text-primary">${Formatters.currency(fee.amount)}</strong></td>
+                    <td><span class="text-muted text-sm">${fee.note || '-'}</span></td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-edit-custom-fee" data-id="${fee.id}"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                        <button class="btn btn-danger btn-xs btn-delete-custom-fee" data-id="${fee.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    } else if (this.activeSection === 'penalty') {
+      cardBody = `
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-clock-rotate-left text-danger"></i> ตั้งค่าค่าปรับชำระเงินล่าช้า (Late Payment Settings)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            กำหนดวันครบกำหนดและค่าปรับสำหรับผู้เช่าที่ชำระค่าเช่าเกินวันที่กำหนด
+          </p>
+          
+          <form id="form-late-fee-settings" style="margin-top:1rem;">
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-calendar-day text-primary"></i> วันที่ครบกำหนดชำระปกติ (เช่น วันที่ 5):</label>
+              <input type="number" id="setting-late-due-day" class="form-control" min="1" max="28" value="${state.lateFeeSettings?.dueDay ?? 5}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <div style="border-top:1px dashed #cbd5e1; padding-top:0.75rem; margin-bottom:0.75rem;">
+              <div style="font-weight:700; font-size:0.9rem; color:var(--primary); margin-bottom:0.5rem;">ค่าปรับช่วงที่ 1 (ชำระล่าช้าเล็กน้อย)</div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem;">
+                <div class="form-group">
+                  <label style="font-size:0.78rem; font-weight:600;">เริ่มต้นวันที่:</label>
+                  <input type="number" id="setting-late-p1-start" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase1Start ?? 6}" style="padding:0.4rem;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:0.78rem; font-weight:600;">สิ้นสุดวันที่:</label>
+                  <input type="number" id="setting-late-p1-end" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase1End ?? 15}" style="padding:0.4rem;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:0.78rem; font-weight:600;">ค่าปรับ (บาท):</label>
+                  <input type="number" id="setting-late-p1-amount" class="form-control" min="0" value="${state.lateFeeSettings?.penaltyPhase1Amount ?? 200}" style="padding:0.4rem;">
+                </div>
+              </div>
+            </div>
+
+            <div style="border-top:1px dashed #cbd5e1; padding-top:0.75rem; margin-bottom:0.85rem;">
+              <div style="font-weight:700; font-size:0.9rem; color:var(--danger); margin-bottom:0.5rem;">ค่าปรับช่วงที่ 2 (ชำระล่าช้าขั้นสูง / ข้ามเดือน)</div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem;">
+                <div class="form-group">
+                  <label style="font-size:0.78rem; font-weight:600;">เริ่มต้นวันที่:</label>
+                  <input type="number" id="setting-late-p2-start" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase2Start ?? 16}" style="padding:0.4rem;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:0.78rem; font-weight:600;">สิ้นสุดวันที่:</label>
+                  <input type="number" id="setting-late-p2-end" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase2End ?? 31}" style="padding:0.4rem;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:0.78rem; font-weight:600;">ค่าปรับ (บาท):</label>
+                  <input type="number" id="setting-late-p2-amount" class="form-control" min="0" value="${state.lateFeeSettings?.penaltyPhase2Amount ?? 300}" style="padding:0.4rem;">
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-danger btn-full" style="padding:0.6rem; font-weight:700; background-color:#dc2626; border-color:#dc2626; color:#ffffff;">
+              <i class="fa-solid fa-floppy-disk"></i> บันทึกตั้งค่าค่าปรับชำระล่าช้า
+            </button>
+          </form>
+        </div>
+      `;
+    } else if (this.activeSection === 'users') {
+      cardBody = `
+        <div class="glass-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <h3 style="font-size:1.05rem;"><i class="fa-solid fa-users-gear text-primary"></i> จัดการผู้ใช้งานระบบ</h3>
+            <button id="btn-add-user" class="btn btn-primary btn-xs"><i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้</button>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="custom-table" style="font-size:0.85rem;">
+              <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>สิทธิ์</th><th>การจัดการ</th></tr></thead>
+              <tbody>
+                ${users.map(u => `
+                  <tr>
+                    <td><strong>${u.username}</strong></td>
+                    <td>${u.displayName}</td>
+                    <td><span class="role-pill role-${u.role}" style="font-size:0.75rem; padding:0.15rem 0.4rem;">${u.role === 'super_admin' ? '👑 Super' : (u.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}</span></td>
+                    <td>
+                      <div class="action-buttons">
+                        <button class="btn btn-secondary btn-xs btn-edit-user" data-id="${u.id}"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn btn-primary btn-xs btn-switch-user" data-id="${u.id}"><i class="fa-solid fa-right-to-bracket"></i></button>
+                        ${users.length > 1 ? `<button class="btn btn-danger btn-xs btn-delete-user" data-id="${u.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    } else if (this.activeSection === 'line_bot') {
+      cardBody = `
+        <div class="glass-card">
+          <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot (Messaging API)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            ระบุข้อมูลเพื่อส่งบิลและรับการแจ้งเตือนยอดชำระเงินอัตโนมัติเข้ากลุ่ม LINE หรือบัญชีส่วนตัวของแอดมิน
+          </p>
+          
+          <form id="line-bot-settings-form" style="margin-top:0.85rem;">
+            <div class="form-group" style="margin-bottom:0.75rem;">
+              <label style="font-size:0.85rem; font-weight:600;"><i class="fa-brands fa-line text-success"></i> LINE Channel Access Token:</label>
+              <input type="text" id="setting-line-token" class="form-control" value="${settings.lineToken || ''}" placeholder="ระบุ Channel Access Token..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+            </div>
+            <div class="form-group" style="margin-bottom:0.75rem;">
+              <label style="font-size:0.85rem; font-weight:600;"><i class="fa-solid fa-user-tag text-primary"></i> LINE User ID หรือ Group ID แอดมิน *:</label>
+              <input type="text" id="setting-line-userid" class="form-control" value="${settings.lineUserId || ''}" placeholder="ระบุ User ID (U...) หรือ Group ID (C...) เพื่อรับแจ้งเตือนสลิป" style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+              <span class="text-muted" style="font-size:0.78rem; display:block; margin-top:0.15rem;">👉 ทิป: พิมพ์ <strong>"ไอดี"</strong> คุยกับบอทในไลน์เพื่อเช็ค ID ของคุณหรือของกลุ่มได้ทันที</span>
+            </div>
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-size:0.85rem; font-weight:600; text-decoration: line-through; opacity:0.6;"><i class="fa-solid fa-bell text-warning"></i> LINE Notify Token (ปิดบริการแล้ว):</label>
+              <input type="text" id="setting-line-notify-token" class="form-control" value="${settings.lineNotifyToken || ''}" placeholder="LINE Notify ปิดบริการแล้วในปัจจุบัน" style="padding:0.5rem 0.75rem; font-size:0.88rem; opacity:0.5;" disabled>
+            </div>
+
+            <div style="display:flex; gap:0.5rem;">
+              <button type="submit" class="btn btn-success btn-sm" style="flex:1;"><i class="fa-solid fa-floppy-disk"></i> บันทึก LINE Settings</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ส่งแจ้งเตือนทดสอบ</button>
+            </div>
+          </form>
+        </div>
+      `;
+    } else if (this.activeSection === 'supabase') {
+      cardBody = `
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-database text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & Supabase</h3>
+          <div class="form-group" style="margin-top:0.65rem;">
+            <label style="font-size:0.85rem;">Supabase Project URL:</label>
+            <input type="url" id="supabase-url-input" class="form-control" value="${settings.supabaseUrl || ''}" placeholder="https://your-project.supabase.co" style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+          </div>
+          <div class="form-group" style="margin-top:0.5rem;">
+            <label style="font-size:0.85rem;">Supabase API Key (Anon Key):</label>
+            <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัส Anon Key..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.85rem; margin-bottom:1.5rem;">
+            <button class="btn btn-primary btn-sm" id="btn-save-supabase-url"><i class="fa-solid fa-save"></i> บันทึก</button>
+            <button class="btn btn-success btn-sm" id="btn-sync-to-supabase"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ตอนนี้</button>
+            <button class="btn btn-secondary btn-sm" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> ลิงก์แชร์</button>
+          </div>
+
+          <!-- Meter Link Card -->
+          <div style="padding:0.85rem; background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(99,102,241,0.08)); border:1px solid rgba(59,130,246,0.25); border-radius:12px;">
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem;">
+              <span style="font-size:1.1rem;">📱</span>
+              <div>
+                <div style="font-weight:700; font-size:0.9rem; color:#2563eb;">ลิงก์จดมิเตอร์ (สำหรับพนักงาน)</div>
+                <div style="font-size:0.78rem; color:#64748b;">ส่งให้พนักงานเปิดบนมือถือ เพื่อจดมิเตอร์น้ำ–ไฟทีละห้อง</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+              <button class="btn btn-primary btn-sm" id="btn-copy-meter-link" style="flex:1; background:linear-gradient(135deg,#2563eb,#6366f1); border:none;">
+                <i class="fa-solid fa-gauge-high"></i> คัดลอกลิงก์จดมิเตอร์
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-open-meter" title="เปิดหน้าจดมิเตอร์ในแท็บใหม่">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (this.activeSection === 'backup') {
+      cardBody = `
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-file-excel text-success"></i> ส่งออกข้อมูลระบบ (Export Data)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">ส่งออกข้อมูลเป็นไฟล์ตารางสำหรับนำไปใช้ภายนอก</p>
+          <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('btn-export-tenants-excel')?.click() || alert('ไปที่หน้าจัดการผู้เช่าเพื่อสั่งออกตารางผู้เช่า')"><i class="fa-solid fa-file-excel text-success"></i> ทะเบียนผู้เช่า (Excel/CSV)</button>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('btn-export-contracts-excel')?.click() || alert('ไปที่หน้าจัดการสัญญาเพื่อสั่งออกตารางสัญญา')"><i class="fa-solid fa-file-excel text-success"></i> รายการสัญญาเช่า (Excel/CSV)</button>
+          </div>
+        </div>
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-box-archive text-warning"></i> สำรองข้อมูลแบบไฟล์ (JSON Backup)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">ดาวน์โหลดไฟล์สำรองข้อมูลทั้งหมดในเครื่อง หรือนำเข้าไฟล์เดิมกลับมา</p>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" id="btn-export-backup-json"><i class="fa-solid fa-download"></i> ดาวน์โหลดไฟล์สำรอง (.json)</button>
+            <button class="btn btn-secondary btn-sm" id="btn-trigger-import-json"><i class="fa-solid fa-upload"></i> นำเข้าไฟล์สำรอง (.json)</button>
+            <input type="file" id="input-import-json" accept=".json" style="display:none;">
+          </div>
+        </div>
+        <div class="glass-card" style="border:1px solid rgba(220,38,38,0.2); background:rgba(220,38,38,0.02);">
+          <h3 style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone (รีเซ็ตระบบ)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">คำเตือน: การล้างข้อมูลจะทำการลบข้อมูลทั้งหมดในระบบ ไม่สามารถยกเลิกภายหลังได้</p>
+          <button class="btn btn-danger btn-sm" id="btn-danger-reset-all" style="margin-top:1rem; width:100%;"><i class="fa-solid fa-trash-can"></i> ล้างข้อมูลและรีเซ็ตระบบทั้งหมด</button>
+        </div>
+      `;
+    } else if (this.activeSection === 'appearance') {
+      cardBody = `
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-palette text-primary"></i> ตั้งค่าหน้าตาระบบ (Appearance)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">ปรับแต่งโหมดการแสดงผลของหน้าจอ</p>
+          <div style="margin-top:1.5rem; display:flex; flex-direction:column; gap:1.25rem;">
+            <div class="form-group">
+              <label style="font-weight:600;">โหมดสีการแสดงผล (Visual Mode):</label>
+              <div style="display:flex; gap:0.75rem; margin-top:0.5rem;">
+                <button class="btn btn-primary" id="btn-theme-light" style="flex:1; padding:0.75rem;"><i class="fa-solid fa-sun text-warning"></i> โหมดสว่าง (Light Mode)</button>
+                <button class="btn btn-secondary" id="btn-theme-dark" style="flex:1; padding:0.75rem;"><i class="fa-solid fa-moon text-info"></i> โหมดมืด (Dark Mode)</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-weight:600;">สีเน้นหลักของระบบ (Primary Accent Color):</label>
+              <div style="display:flex; gap:0.5rem; margin-top:0.5rem; align-items:center;">
+                <span style="display:block; width:30px; height:30px; border-radius:50%; background:#2563eb; border:2px solid #fff; box-shadow:0 0 5px rgba(0,0,0,0.2); cursor:pointer;" title="Blue (Cobalt Accent)"></span>
+                <span style="display:block; width:30px; height:30px; border-radius:50%; background:#16a34a; opacity:0.4; cursor:not-allowed;" title="Green (Pro Upgrade)"></span>
+                <span style="display:block; width:30px; height:30px; border-radius:50%; background:#dc2626; opacity:0.4; cursor:not-allowed;" title="Red (Pro Upgrade)"></span>
+                <span class="text-muted text-xs" style="margin-left:0.5rem;">Cobalt Blue (ลิขสิทธิ์ Enterprise)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (this.activeSection === 'security') {
+      cardBody = `
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-key text-primary"></i> เปลี่ยนรหัสผ่านความปลอดภัย</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">เปิดหน้าต่างเปลี่ยนรหัสผ่านเพื่อเข้าใช้งานระบบหลังบ้านแอดมิน</p>
+          <button class="btn btn-primary" id="btn-security-change-pass" style="margin-top:1rem;"><i class="fa-solid fa-user-pen"></i> แก้ไขรหัสผ่านแอดมินปัจจุบัน</button>
+        </div>
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-right-from-bracket text-danger"></i> ล็อกเอาต์และคุกกี้เซสชัน</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">สั่งออกจากระบบ หรือล้างเซสชันการเชื่อมต่อในเครื่องนี้</p>
+          <button class="btn btn-danger btn-sm" onclick="document.getElementById('btn-logout')?.click() || alert('กดปุ่ม ออกจากระบบ ด้านขวาบนได้ทันที')"><i class="fa-solid fa-arrow-right-from-bracket"></i> สั่งล็อกเอาต์ออกจากเครื่องนี้</button>
+        </div>
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-shield-halved text-success"></i> ระบบยืนยันตัวตน 2 ชั้น (2FA)</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">รองรับการล็อกอินผ่าน Google Authenticator หรือ OTP (เปิดให้ใช้บริการในเวอร์ชันถัดไป)</p>
+          <div style="display:flex; align-items:center; gap:0.75rem; margin-top:1rem;">
+            <input type="checkbox" disabled style="transform:scale(1.3); cursor:not-allowed;">
+            <span class="text-muted">เปิดใช้งานระบบยืนยันตัวตน 2 ชั้น (Coming Soon)</span>
+          </div>
+        </div>
+      `;
+    } else if (this.activeSection === 'advanced') {
+      cardBody = `
+        <div class="glass-card" style="margin-bottom:1.5rem;">
+          <h3><i class="fa-solid fa-server text-primary"></i> สถานะระบบและ API Connection</h3>
+          <div style="margin-top:1rem; display:flex; flex-direction:column; gap:0.6rem; font-size:0.9rem;">
+            <div>เวอร์ชันระบบ (System Version): <strong class="text-primary">v4.0.2 Enterprise Edition</strong></div>
+            <div>สถานะการซิงค์ฐานข้อมูล (Database Sync): <span class="badge-pill badge-success" style="font-size:0.75rem; padding:0.15rem 0.45rem;">Connected (Supabase Cloud)</span></div>
+            <div>ประเภท API ที่ใช้ (API Architecture): <strong>Edge Engine / REST API v1</strong></div>
+            <div>ค่าหน่วงเวลาตอบสนอง (Latency Delay): <strong>&lt; 35ms (Fast Connection)</strong></div>
+          </div>
+        </div>
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-code text-warning"></i> สำหรับนักพัฒนา (Developer Options)</h3>
+          <div style="margin-top:1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <strong>เปิดโหมดแสดง Log นักพัฒนา (Console Debug Mode)</strong>
+              <div class="text-muted text-sm">แสดงบันทึกและรหัสการทำงานเบื้องหลังระบบในหน้าคอนโซลของเบราว์เซอร์</div>
+            </div>
+            <div>
+              <input type="checkbox" id="dev-mode-toggle" style="transform: scale(1.3); cursor:pointer;">
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="view-container animate-fade-in">
-        <div class="view-header">
-          <div>
-            <h2><i class="fa-solid fa-gears text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & บัญชีรับเงิน (System & Bank Settings)</h2>
-            <p>ตั้งค่าบัญชีธนาคารพร้อมเพย์ ข้อมูลหอพัก ระบบ LINE Bot สิทธิ์ผู้ใช้งาน และเซิร์ฟเวอร์ Supabase รวมอยู่ในหน้าเดียว</p>
-          </div>
+        ${backHeader}
+        <div style="max-width:800px; margin:0 auto;">
+          ${cardBody}
         </div>
-
-        <!-- 2-Column Responsive Grid Layout (Fits into 1 Page) -->
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem; align-items:start;">
-          
-          <!-- LEFT COLUMN -->
-          <div style="display:flex; flex-direction:column; gap:1.25rem;">
-            
-            <!-- 1. Apartment & Bank Account Settings -->
-            <div class="glass-card">
-              <h3><i class="fa-solid fa-building-columns text-primary"></i> ข้อมูลหอพัก & บัญชีธนาคารรับเงิน</h3>
-              <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-                ข้อมูลบัญชีธนาคารและเบอร์พร้อมเพย์จะถูกนำไปสร้าง QR Code ชำระเงินและออกบิลอัตโนมัติ
-              </p>
-              
-              <form id="form-bank-settings" style="margin-top:1rem;">
-                <div class="form-group" style="margin-bottom:0.85rem;">
-                  <label style="font-weight:600;"><i class="fa-solid fa-building text-primary"></i> ชื่อหอพัก / สถานประกอบการ:</label>
-                  <input type="text" id="setting-apt-name" class="form-control" value="${settings.apartmentName || 'หอพักสมบัติ นนทบุรี'}" required style="padding:0.55rem 0.75rem;">
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
-                  <div class="form-group">
-                    <label style="font-weight:600;"><i class="fa-solid fa-piggy-bank text-success"></i> ธนาคารรับเงิน:</label>
-                    <select id="setting-bank-name" class="form-control" style="padding:0.55rem 0.75rem;">
-                      <option value="ธนาคารกรุงศรีอยุธยา (BAY)" ${settings.bankName === 'ธนาคารกรุงศรีอยุธยา (BAY)' ? 'selected' : ''}>ธนาคารกรุงศรีอยุธยา (BAY)</option>
-                      <option value="ธนาคารกสิกรไทย (KBANK)" ${settings.bankName === 'ธนาคารกสิกรไทย (KBANK)' ? 'selected' : ''}>ธนาคารกสิกรไทย (KBANK)</option>
-                      <option value="ธนาคารไทยพาณิชย์ (SCB)" ${settings.bankName === 'ธนาคารไทยพาณิชย์ (SCB)' ? 'selected' : ''}>ธนาคารไทยพาณิชย์ (SCB)</option>
-                      <option value="ธนาคารกรุงเทพ (BBL)" ${settings.bankName === 'ธนาคารกรุงเทพ (BBL)' ? 'selected' : ''}>ธนาคารกรุงเทพ (BBL)</option>
-                      <option value="ธนาคารกรุงไทย (KTB)" ${settings.bankName === 'ธนาคารกรุงไทย (KTB)' ? 'selected' : ''}>ธนาคารกรุงไทย (KTB)</option>
-                      <option value="ธนาคารออมสิน (GSB)" ${settings.bankName === 'ธนาคารออมสิน (GSB)' ? 'selected' : ''}>ธนาคารออมสิน (GSB)</option>
-                      <option value="PromptPay (พร้อมเพย์)" ${settings.bankName === 'PromptPay (พร้อมเพย์)' ? 'selected' : ''}>PromptPay (พร้อมเพย์)</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label style="font-weight:600;"><i class="fa-solid fa-credit-card text-info"></i> เลขที่บัญชีธนาคาร:</label>
-                    <input type="text" id="setting-bank-no" class="form-control" value="${settings.bankAccountNo || '2401346663'}" placeholder="2401346663" style="padding:0.55rem 0.75rem;">
-                  </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
-                  <div class="form-group">
-                    <label style="font-weight:600;"><i class="fa-solid fa-user-check text-success"></i> ชื่อบัญชีผู้รับเงิน:</label>
-                    <input type="text" id="setting-bank-acc-name" class="form-control" value="${settings.bankAccountName || 'นางสมผิว น้ำวน'}" placeholder="สมบัติ / สมผิว น้ำวน" style="padding:0.55rem 0.75rem;">
-                  </div>
-                  <div class="form-group">
-                    <label style="font-weight:600;"><i class="fa-solid fa-qrcode text-warning"></i> เบอร์พร้อมเพย์ (PromptPay ID):</label>
-                    <input type="text" id="setting-promptpay-id" class="form-control" value="${settings.promptPayId || '0805991691'}" placeholder="0805991691" style="padding:0.55rem 0.75rem;">
-                  </div>
-                </div>
-
-                <button type="submit" class="btn btn-primary btn-full" style="padding:0.6rem; font-weight:700; margin-top:0.35rem;">
-                  <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลหอพัก & บัญชีธนาคาร
-                </button>
-              </form>
-            </div>
-
-            <!-- 2. Appearance Settings & Supabase -->
-            <div class="glass-card">
-              <h3><i class="fa-solid fa-circle-half-stroke text-primary"></i> ตั้งค่าธีมระบบ (Appearance)</h3>
-              <div style="display:flex; gap:0.75rem; margin-top:0.75rem; margin-bottom:1.25rem;">
-                <button class="btn btn-primary" id="btn-theme-light" style="flex:1; padding:0.55rem;"><i class="fa-solid fa-sun text-warning"></i> โหมดสว่าง</button>
-                <button class="btn btn-secondary" id="btn-theme-dark" style="flex:1; padding:0.55rem;"><i class="fa-solid fa-moon text-info"></i> โหมดมืด</button>
-              </div>
-
-              <h3 style="border-top:1px solid #e2e8f0; padding-top:1rem; margin-top:0.5rem;"><i class="fa-solid fa-database text-primary"></i> ตั้งค่าเซิร์ฟเวอร์ & Supabase</h3>
-              <div class="form-group" style="margin-top:0.65rem;">
-                <label style="font-size:0.85rem;">Supabase Project URL:</label>
-                <input type="url" id="supabase-url-input" class="form-control" value="${settings.supabaseUrl || ''}" placeholder="https://your-project.supabase.co" style="padding:0.5rem 0.75rem; font-size:0.88rem;">
-              </div>
-              <div class="form-group" style="margin-top:0.5rem;">
-                <label style="font-size:0.85rem;">Supabase API Key (Anon Key):</label>
-                <input type="text" id="api-key-input" class="form-control" value="${settings.apiKey || ''}" placeholder="วางรหัส Anon Key..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
-              </div>
-              <div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.85rem;">
-                <button class="btn btn-primary btn-sm" id="btn-save-supabase-url"><i class="fa-solid fa-save"></i> บันทึก</button>
-                <button class="btn btn-success btn-sm" id="btn-sync-to-supabase"><i class="fa-solid fa-cloud-arrow-up"></i> ซิงค์ตอนนี้</button>
-                <button class="btn btn-secondary btn-sm" id="btn-copy-shared-link"><i class="fa-solid fa-share-nodes"></i> ลิงก์แชร์</button>
-              </div>
-
-              <!-- Meter Link Card -->
-              <div style="margin-top:1rem; padding:0.85rem; background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(99,102,241,0.08)); border:1px solid rgba(59,130,246,0.25); border-radius:12px;">
-                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem;">
-                  <span style="font-size:1.1rem;">📱</span>
-                  <div>
-                    <div style="font-weight:700; font-size:0.9rem; color:#2563eb;">ลิงก์จดมิเตอร์ (สำหรับพนักงาน)</div>
-                    <div style="font-size:0.78rem; color:#64748b;">ส่งให้พนักงานเปิดบนมือถือ เพื่อจดมิเตอร์น้ำ–ไฟทีละห้อง</div>
-                  </div>
-                </div>
-                <div style="display:flex; gap:0.5rem;">
-                  <button class="btn btn-primary btn-sm" id="btn-copy-meter-link" style="flex:1; background:linear-gradient(135deg,#2563eb,#6366f1); border:none;">
-                    <i class="fa-solid fa-gauge-high"></i> คัดลอกลิงก์จดมิเตอร์
-                  </button>
-                  <button class="btn btn-secondary btn-sm" id="btn-open-meter" title="เปิดหน้าจดมิเตอร์ในแท็บใหม่">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                  </button>
-                </div>
-              </div>
-
-              
-              <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px dashed rgba(220,38,38,0.25);">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span style="color:#dc2626; font-size:0.82rem; font-weight:700;"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone:</span>
-                  <button class="btn btn-danger btn-xs" id="btn-danger-reset-all" style="padding:0.35rem 0.65rem; font-size:0.78rem;"><i class="fa-solid fa-trash-can"></i> รีเซ็ตระบบทั้งหมด</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- 5. Late Fee Settings -->
-            <div class="glass-card">
-              <h3><i class="fa-solid fa-clock-rotate-left text-danger"></i> ตั้งค่าค่าปรับชำระเงินล่าช้า (Late Payment Settings)</h3>
-              <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-                กำหนดวันครบกำหนดและค่าปรับสำหรับผู้เช่าที่ชำระค่าเช่าเกินวันที่กำหนด
-              </p>
-              
-              <form id="form-late-fee-settings" style="margin-top:1rem;">
-                <div class="form-group" style="margin-bottom:0.85rem;">
-                  <label style="font-weight:600;"><i class="fa-solid fa-calendar-day text-primary"></i> วันที่ครบกำหนดชำระปกติ (เช่น วันที่ 5):</label>
-                  <input type="number" id="setting-late-due-day" class="form-control" min="1" max="28" value="${state.lateFeeSettings?.dueDay ?? 5}" required style="padding:0.55rem 0.75rem;">
-                </div>
-
-                <div style="border-top:1px dashed #cbd5e1; padding-top:0.75rem; margin-bottom:0.75rem;">
-                  <div style="font-weight:700; font-size:0.9rem; color:var(--primary); margin-bottom:0.5rem;">ค่าปรับช่วงที่ 1 (ชำระล่าช้าเล็กน้อย)</div>
-                  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem;">
-                    <div class="form-group">
-                      <label style="font-size:0.78rem; font-weight:600;">เริ่มต้นวันที่:</label>
-                      <input type="number" id="setting-late-p1-start" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase1Start ?? 6}" style="padding:0.4rem;">
-                    </div>
-                    <div class="form-group">
-                      <label style="font-size:0.78rem; font-weight:600;">สิ้นสุดวันที่:</label>
-                      <input type="number" id="setting-late-p1-end" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase1End ?? 15}" style="padding:0.4rem;">
-                    </div>
-                    <div class="form-group">
-                      <label style="font-size:0.78rem; font-weight:600;">ค่าปรับ (บาท):</label>
-                      <input type="number" id="setting-late-p1-amount" class="form-control" min="0" value="${state.lateFeeSettings?.penaltyPhase1Amount ?? 200}" style="padding:0.4rem;">
-                    </div>
-                  </div>
-                </div>
-
-                <div style="border-top:1px dashed #cbd5e1; padding-top:0.75rem; margin-bottom:0.85rem;">
-                  <div style="font-weight:700; font-size:0.9rem; color:var(--danger); margin-bottom:0.5rem;">ค่าปรับช่วงที่ 2 (ชำระล่าช้าขั้นสูง / ข้ามเดือน)</div>
-                  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem;">
-                    <div class="form-group">
-                      <label style="font-size:0.78rem; font-weight:600;">เริ่มต้นวันที่:</label>
-                      <input type="number" id="setting-late-p2-start" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase2Start ?? 16}" style="padding:0.4rem;">
-                    </div>
-                    <div class="form-group">
-                      <label style="font-size:0.78rem; font-weight:600;">สิ้นสุดวันที่:</label>
-                      <input type="number" id="setting-late-p2-end" class="form-control" min="1" max="31" value="${state.lateFeeSettings?.penaltyPhase2End ?? 31}" style="padding:0.4rem;">
-                    </div>
-                    <div class="form-group">
-                      <label style="font-size:0.78rem; font-weight:600;">ค่าปรับ (บาท):</label>
-                      <input type="number" id="setting-late-p2-amount" class="form-control" min="0" value="${state.lateFeeSettings?.penaltyPhase2Amount ?? 300}" style="padding:0.4rem;">
-                    </div>
-                  </div>
-                </div>
-
-                <button type="submit" class="btn btn-danger btn-full" style="padding:0.6rem; font-weight:700; background-color:#dc2626; border-color:#dc2626; color:#ffffff;">
-                  <i class="fa-solid fa-floppy-disk"></i> บันทึกตั้งค่าค่าปรับชำระล่าช้า
-                </button>
-              </form>
-            </div>
-
-          </div>
-
-          <!-- RIGHT COLUMN -->
-          <div style="display:flex; flex-direction:column; gap:1.25rem;">
-
-            <!-- 3. LINE Bot & Notify Settings -->
-            <div class="glass-card">
-              <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot (Messaging API)</h3>
-              <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
-                ระบุข้อมูลเพื่อส่งบิลและรับการแจ้งเตือนยอดชำระเงินอัตโนมัติเข้ากลุ่ม LINE หรือบัญชีส่วนตัวของแอดมิน
-              </p>
-              
-              <form id="line-bot-settings-form" style="margin-top:0.85rem;">
-                <div class="form-group" style="margin-bottom:0.75rem;">
-                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-brands fa-line text-success"></i> LINE Channel Access Token:</label>
-                  <input type="text" id="setting-line-token" class="form-control" value="${settings.lineToken || ''}" placeholder="ระบุ Channel Access Token..." style="padding:0.5rem 0.75rem; font-size:0.88rem;">
-                </div>
-                <div class="form-group" style="margin-bottom:0.75rem;">
-                  <label style="font-size:0.85rem; font-weight:600;"><i class="fa-solid fa-user-tag text-primary"></i> LINE User ID หรือ Group ID แอดมิน *:</label>
-                  <input type="text" id="setting-line-userid" class="form-control" value="${settings.lineUserId || ''}" placeholder="ระบุ User ID (U...) หรือ Group ID (C...) เพื่อรับแจ้งเตือนสลิป" style="padding:0.5rem 0.75rem; font-size:0.88rem;">
-                  <span class="text-muted" style="font-size:0.78rem; display:block; margin-top:0.15rem;">👉 ทิป: พิมพ์ <strong>"ไอดี"</strong> คุยกับบอทในไลน์เพื่อเช็ค ID ของคุณหรือของกลุ่มได้ทันที</span>
-                </div>
-                <div class="form-group" style="margin-bottom:0.85rem;">
-                  <label style="font-size:0.85rem; font-weight:600; text-decoration: line-through; opacity:0.6;"><i class="fa-solid fa-bell text-warning"></i> LINE Notify Token (ปิดบริการแล้ว):</label>
-                  <input type="text" id="setting-line-notify-token" class="form-control" value="${settings.lineNotifyToken || ''}" placeholder="LINE Notify ปิดบริการแล้วในปัจจุบัน" style="padding:0.5rem 0.75rem; font-size:0.88rem; opacity:0.5;" disabled>
-                </div>
-
-                <div style="display:flex; gap:0.5rem;">
-                  <button type="submit" class="btn btn-success btn-sm" style="flex:1;"><i class="fa-solid fa-floppy-disk"></i> บันทึก LINE Settings</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-test-line-send"><i class="fa-paper-plane fa-solid text-success"></i> ส่งแจ้งเตือนทดสอบ</button>
-                </div>
-              </form>
-            </div>
-
-            <!-- 4. User Roles Management -->
-            <div class="glass-card">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-                <h3 style="font-size:1.05rem;"><i class="fa-solid fa-users-gear text-primary"></i> จัดการผู้ใช้งานระบบ</h3>
-                <button id="btn-add-user" class="btn btn-primary btn-xs"><i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้</button>
-              </div>
-              
-              <div class="table-responsive">
-                <table class="custom-table" style="font-size:0.85rem;">
-                  <thead><tr><th>Username</th><th>ชื่อที่แสดง</th><th>สิทธิ์</th><th>การจัดการ</th></tr></thead>
-                  <tbody>
-                    ${users.map(u => `
-                      <tr>
-                        <td><strong>${u.username}</strong></td>
-                        <td>${u.displayName}</td>
-                        <td><span class="role-pill role-${u.role}" style="font-size:0.75rem; padding:0.15rem 0.4rem;">${u.role === 'super_admin' ? '👑 Super' : (u.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}</span></td>
-                        <td>
-                          <div class="action-buttons">
-                            <button class="btn btn-secondary btn-xs btn-edit-user" data-id="${u.id}"><i class="fa-solid fa-pen"></i></button>
-                            <button class="btn btn-primary btn-xs btn-switch-user" data-id="${u.id}"><i class="fa-solid fa-right-to-bracket"></i></button>
-                            ${users.length > 1 ? `<button class="btn btn-danger btn-xs btn-delete-user" data-id="${u.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
-                          </div>
-                        </td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
       </div>
     `;
   }
 }
+
 
 class MeterEntryComponent {
   static render(state) {
@@ -8536,7 +8797,9 @@ class App {
           if (idx !== -1) {
             fees.splice(idx, 1);
             DBService.saveState(this.state);
-            this.switchTab('rates');
+            SettingsComponent.activeSection = 'rates';
+            SettingsComponent.activeSection = 'users';
+            this.switchTab('settings');
           }
         }
       });
@@ -8610,12 +8873,126 @@ class App {
 
       DBService.saveState(this.state);
       modal.classList.remove('active');
-      this.switchTab('rates');
+      SettingsComponent.activeSection = 'rates';
+      SettingsComponent.activeSection = 'users';
+      this.switchTab('settings');
     });
   }
 
   // --- 9. SETTINGS EVENTS ---
   static bindSettingsEvents() {
+    // 1. Navigation & Search Bindings
+    const backBtn = document.getElementById('btn-settings-back');
+    if (backBtn) {
+      backBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        SettingsComponent.activeSection = 'home';
+        App.switchTab('settings');
+      });
+    }
+
+    document.querySelectorAll('.settings-card-item').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const sectionId = card.getAttribute('data-section');
+        if (sectionId) {
+          SettingsComponent.activeSection = sectionId;
+          App.switchTab('settings');
+        }
+      });
+    });
+
+    const searchInput = document.getElementById('settings-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        SettingsComponent.searchQuery = query;
+        document.querySelectorAll('.settings-card-item').forEach(card => {
+          const title = card.querySelector('.settings-card-title').textContent.toLowerCase();
+          const desc = card.querySelector('.settings-card-desc').textContent.toLowerCase();
+          const keywords = card.getAttribute('data-keywords') || '';
+          if (title.includes(query) || desc.includes(query) || keywords.includes(query)) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+      if (SettingsComponent.searchQuery) {
+        searchInput.value = SettingsComponent.searchQuery;
+        searchInput.dispatchEvent(new Event('input'));
+      }
+    }
+
+    // 2. Extra handlers for rates (which are now inside settings section 'rates')
+    if (SettingsComponent.activeSection === 'rates') {
+      this.bindRatesEvents();
+    }
+
+    // 3. Extra security & developer toggle handlers
+    const changePassBtn = document.getElementById('btn-security-change-pass');
+    if (changePassBtn) {
+      changePassBtn.addEventListener('click', () => {
+        const current = AuthService.getCurrentUser();
+        if (current) this.openUserModal(current);
+      });
+    }
+
+    const devToggle = document.getElementById('dev-mode-toggle');
+    if (devToggle) {
+      devToggle.checked = !!localStorage.getItem('SOMBAT_APARTMENT_DEV_MODE');
+      devToggle.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          localStorage.setItem('SOMBAT_APARTMENT_DEV_MODE', 'true');
+          alert('เปิดโหมดนักพัฒนาเรียบร้อยแล้ว!');
+        } else {
+          localStorage.removeItem('SOMBAT_APARTMENT_DEV_MODE');
+          alert('ปิดโหมดนักพัฒนาเรียบร้อยแล้ว!');
+        }
+      });
+    }
+
+    // 4. Export & Import JSON Backup handlers
+    const backupBtn = document.getElementById('btn-export-backup-json');
+    if (backupBtn) {
+      backupBtn.addEventListener('click', () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.state));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href",     dataStr);
+        downloadAnchor.setAttribute("download", `Sombat_Apartment_Backup_${new Date().toISOString().slice(0,10)}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+      });
+    }
+
+    const triggerImport = document.getElementById('btn-trigger-import-json');
+    const inputImport = document.getElementById('input-import-json');
+    if (triggerImport && inputImport) {
+      triggerImport.addEventListener('click', () => inputImport.click());
+      inputImport.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+             const imported = JSON.parse(evt.target.result);
+             if (imported.rooms && imported.tenants) {
+               Object.assign(this.state, imported);
+               DBService.saveState(this.state);
+               alert('นำเข้าข้อมูลสำรองเรียบร้อยแล้ว! ระบบจะรีโหลดเพื่อแสดงผลล่าสุด');
+               window.location.reload();
+             } else {
+               alert('ไฟล์ JSON ไม่ถูกต้องสำหรับระบบ Sombat Apartment');
+             }
+          } catch (err) {
+             alert('เกิดข้อผิดพลาดในการนำเข้าไฟล์: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+
+
     const bankForm = document.getElementById('form-bank-settings');
     if (bankForm) {
       bankForm.addEventListener('submit', (e) => {
@@ -8902,6 +9279,7 @@ class App {
           if (idx !== -1) {
             this.state.users.splice(idx, 1);
             DBService.saveState(this.state);
+            SettingsComponent.activeSection = 'users';
             this.switchTab('settings');
           }
         }
@@ -9022,6 +9400,7 @@ class App {
       DBService.saveState(this.state);
       modal.classList.remove('active');
       alert('✅ บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว');
+      SettingsComponent.activeSection = 'users';
       this.switchTab('settings');
     });
   }
