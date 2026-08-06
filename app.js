@@ -876,7 +876,7 @@ class DBService {
 
   /* อัปโหลดไฟล์ขึ้น Supabase Storage (bucket: tenant-documents) แทนการฝัง base64
      ใช้แพทเทิร์นเดียวกับฝั่งผู้เช่า (uploadBase64ToStorage ใน tenant-app.js) */
-  static async uploadFileToStorage(file, pathPrefix = 'doc') {
+  static async uploadFileToStorage(file, folderPath = 'doc') {
     if (!file) return null;
     const url = this.getSavedSupabaseUrl();
     const apiKey = this.getSavedApiKey();
@@ -885,27 +885,64 @@ class DBService {
     }
     const baseUrl = this.getBaseSupabaseUrl(url);
     const safeName = (file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-    const filename = `${pathPrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${safeName}`;
-    const uploadUrl = `${baseUrl}/storage/v1/object/tenant-documents/${filename}`;
+    const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${safeName}`;
+    const cleanFolder = folderPath.replace(/\/+$/, '').replace(/^\/+/, '');
+    const objectPath = cleanFolder ? `${cleanFolder}/${filename}` : filename;
+    const uploadUrl = `${baseUrl}/storage/v1/object/tenant-documents/${objectPath}`;
 
-    const res = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'apikey': apiKey,
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': file.type || 'application/octet-stream'
-      },
-      body: file
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`อัปโหลดไฟล์ "${file.name}" ไม่สำเร็จ: ${txt || res.statusText}`);
+    try {
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+      });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        let errorData = null;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {}
+
+        const status = res.status;
+        const message = errorData ? (errorData.message || errorData.error) : errorText;
+        const errorCode = errorData ? errorData.code : 'Unknown';
+
+        // 11. เพิ่ม Error Log ให้ละเอียดใน Console
+        console.error('❌ Supabase Storage Upload Error Details:', {
+          status: status,
+          message: message,
+          error: errorCode,
+          bucket: 'tenant-documents',
+          path: objectPath,
+          filename: file.name,
+          size: file.size,
+          contentType: file.type || 'application/octet-stream'
+        });
+
+        // 12. ปรับข้อความแจ้งเตือนให้เข้าใจง่าย
+        if (status === 403 || message.includes('row-level security') || errorCode === 'AccessDenied') {
+          throw new Error('ไม่มีสิทธิ์อัปโหลดไฟล์ (403 Unauthorized) กรุณาตรวจสอบ Storage RLS Policy หรือตรวจสอบว่าสร้าง Storage bucket ชื่อ "tenant-documents" และตั้งค่าเป็น public แล้ว');
+        } else if (status === 404) {
+          throw new Error('ไม่พบข้อมูลปลายทาง (404 Not Found) กรุณาตรวจสอบว่าสร้าง Storage bucket ชื่อ "tenant-documents" เรียบร้อยแล้ว');
+        } else {
+          throw new Error(message || `เกิดข้อผิดพลาดรหัส ${status}`);
+        }
+      }
+      return `${baseUrl}/storage/v1/object/public/tenant-documents/${objectPath}`;
+    } catch (err) {
+      if (err.message.includes('ไม่มีสิทธิ์อัปโหลด') || err.message.includes('ไม่พบข้อมูลปลายทาง')) {
+        throw err;
+      }
+      console.error('❌ Network or Upload exception:', err);
+      throw new Error(`การเชื่อมต่อล้มเหลวหรือไม่สามารถอัปโหลดได้: ${err.message}`);
     }
-    return `${baseUrl}/storage/v1/object/public/tenant-documents/${filename}`;
   }
 
-  /* เรียก Postgres RPC function ผ่าน PostgREST (/rest/v1/rpc/<fn>) ด้วย anon key ของแอดมิน
-     ใช้แพทเทิร์นเดียวกับที่ tenant-app.js ใช้เรียก submit_tenant_payment / submit_tenant_repair */
+
   static async callRpc(fnName, params = {}) {
     const url = this.getSavedSupabaseUrl();
     const apiKey = this.getSavedApiKey();
@@ -2230,9 +2267,21 @@ class TenantsComponent {
                       <td><code>${Formatters.formatIdCard(t.idCard)}</code></td>
                       <td>${t.tel} ${t.lineId ? `(${t.lineId})` : ''}</td>
                       <td>
-                        <button class="btn btn-secondary btn-xs btn-view-docs" data-id="${t.id}">
-                          <i class="fa-solid fa-folder-open text-primary"></i> เอกสาร (${docCount})
-                        </button>
+                        <div style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-start;">
+                          <button class="btn btn-secondary btn-xs btn-view-docs" data-id="${t.id}" style="width:100%; text-align:left;">
+                            <i class="fa-solid fa-folder-open text-primary"></i> \u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e17\u0e35\u0e48\u0e07\u0e2b\u0e21\u0e14 (${docCount})
+                          </button>
+                          ${(t.documents || []).some(d => d.category === 'idcard' && d.dataUrl) ? `
+                            <a href="${(t.documents || []).find(d => d.category === 'idcard').dataUrl}" target="_blank" class="btn btn-success btn-xs" style="width:100%; font-size:0.75rem; text-align:left; padding:0.15rem 0.35rem;">
+                              <i class="fa-solid fa-id-card"></i> \u0e14\u0e39\u0e1a\u0e31\u0e15\u0e23\u0e15\u0e23\u0e30\u0e0a\u0e32\u0e0a\u0e19
+                            </a>
+                          ` : ''}
+                          ${(t.documents || []).some(d => d.category === 'house' && d.dataUrl) ? `
+                            <a href="${(t.documents || []).find(d => d.category === 'house').dataUrl}" target="_blank" class="btn btn-info btn-xs" style="width:100%; font-size:0.75rem; text-align:left; padding:0.15rem 0.35rem;">
+                              <i class="fa-solid fa-house-user"></i> \u0e14\u0e39\u0e17\u0e30\u0e40\u0e1a\u0e35\u0e22\u0e19\u0e1a\u0e4c\u0e32\u0e19
+                            </a>
+                          ` : ''}
+                        </div>
                       </td>
                       <td>${Formatters.thaiDate(t.startDate)} ➔ <strong class="text-warning">${Formatters.thaiDate(t.endDate)}</strong></td>
                       <td>
@@ -5688,9 +5737,9 @@ class App {
 
   // อัปโหลดไฟล์เอกสารผู้เช่าขึ้น Supabase Storage แทนการฝัง base64 ลงคอลัมน์ file_url โดยตรง
   // (bucket: tenant-documents ต้องสร้างไว้ล่วงหน้าใน Supabase Dashboard → Storage และตั้งเป็น public)
-  static async readFileAsDataUrl(file) {
+  static async readFileAsDataUrl(file, tenantId = 'temp') {
     if (!file) return null;
-    const publicUrl = await DBService.uploadFileToStorage(file, 'doc');
+    const publicUrl = await DBService.uploadFileToStorage(file, `tenant/${tenantId}`);
     return {
       id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       fileName: file.name,
@@ -5829,22 +5878,23 @@ class App {
       const fileHouse = document.getElementById('tn-file-house').files[0];
       const otherFiles = Array.from(document.getElementById('tn-file-other').files);
 
+            const tenantId = isEdit ? tenantToEdit.id : 't_' + Date.now();
       const newDocs = tenantToEdit && tenantToEdit.documents ? [...tenantToEdit.documents] : [];
 
       try {
         if (fileIdCard || fileHouse || otherFiles.length) {
-          submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลดไฟล์เอกสารขึ้น Supabase Storage...';
+          submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> \u0e01\u0e33\u0e25\u0e31\u0e07\u0e2d\u0e31\u0e1b\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e1f\u0e25\u0e4c\u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e02\u0e36\u0e49\u0e19 Supabase Storage...';
         }
         if (fileIdCard) {
-          const doc = await App.readFileAsDataUrl(fileIdCard);
-          if (doc) { doc.category = 'idcard'; doc.title = 'สำเนาบัตรประชาชน'; newDocs.push(doc); }
+          const doc = await App.readFileAsDataUrl(fileIdCard, tenantId);
+          if (doc) { doc.category = 'idcard'; doc.title = '\u0e2a\u0e33\u0e40\u0e19\u0e32\u0e1a\u0e31\u0e15\u0e23\u0e15\u0e23\u0e30\u0e0a\u0e32\u0e0a\u0e19'; newDocs.push(doc); }
         }
         if (fileHouse) {
-          const doc = await App.readFileAsDataUrl(fileHouse);
-          if (doc) { doc.category = 'house'; doc.title = 'สำเนาทะเบียนบ้าน'; newDocs.push(doc); }
+          const doc = await App.readFileAsDataUrl(fileHouse, tenantId);
+          if (doc) { doc.category = 'house'; doc.title = '\u0e2a\u0e33\u0e40\u0e19\u0e32\u0e17\u0e30\u0e40\u0e1a\u0e35\u0e22\u0e19\u0e1a\u0e4c\u0e32\u0e19'; newDocs.push(doc); }
         }
         for (const f of otherFiles) {
-          const doc = await App.readFileAsDataUrl(f);
+          const doc = await App.readFileAsDataUrl(f, tenantId);
           if (doc) { doc.category = 'other'; doc.title = doc.fileName; newDocs.push(doc); }
         }
       } catch (err) {
@@ -9473,20 +9523,12 @@ class App {
       </div>
       <div class="modal-body">
         <form id="create-contract-form">
-          ${!isEdit ? `
-          <div class="form-group">
-            <label>เลือกผู้เช่าหลัก *</label>
-            <select id="ctr-tenant-select" class="form-control" required>
-              <option value="">-- เลือกผู้เช่า หรือ กรอกผู้เช่าใหม่ด้านล่าง --</option>
-              ${this.state.tenants.map(t => `<option value="${t.id}">${t.name} (บัตร: ${t.idCard})</option>`).join('')}
-            </select>
-          </div>
-          ` : `
+          ${isEdit ? `
           <div style="background:#eff6ff; padding:0.75rem; border-radius:8px; margin-bottom:1rem; border:1px solid #bfdbfe; font-weight:700; color:#1e40af;">
-            <i class="fa-solid fa-user-pen"></i> กำลังแก้ไขสัญญาเช่าสำหรับผู้เช่าหลัก: ${tenantToEdit.name}
+            <i class="fa-solid fa-user-pen"></i> \u0e01\u0e33\u0e25\u0e31\u0e07\u0e41\u0e01\u0e49\u0e44\u0e02\u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e40\u0e0a\u0e48\u0e32\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e1c\u0e39\u0e49\u0e40\u0e0a\u0e48\u0e32\u0e2b\u0e25\u0e31\u0e01: ${tenantToEdit.name}
             <input type="hidden" id="ctr-tenant-select" value="${tenantToEdit.id}">
           </div>
-          `}
+          ` : ''}
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
