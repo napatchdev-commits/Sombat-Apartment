@@ -2523,7 +2523,7 @@ class BillingComponent {
                     <td>
                       <div class="action-buttons">
                         <button class="btn btn-secondary btn-xs btn-edit-bill" data-id="${inv.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
-                        <button class="btn btn-primary btn-xs btn-save-pdf-bill" data-id="${inv.id}" title="บันทึก PDF ลง Supabase"><i class="fa-solid fa-file-pdf"></i> บันทึก PDF</button>
+                        
                         <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}"><i class="fa-solid fa-print text-warning"></i> พิมพ์บิล</button>
                         <button class="btn btn-secondary btn-xs btn-send-line" data-id="${inv.id}"><i class="fa-brands fa-line text-success"></i> LINE</button>
                         <button class="btn btn-danger btn-xs btn-delete-bill" data-id="${inv.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
@@ -6683,27 +6683,7 @@ class App {
       });
     });
 
-    document.querySelectorAll('.btn-save-pdf-bill').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        const inv = this.state.invoices.find(i => i.id === id);
-        if (inv) {
-          inv.pdfUrl = `https://sombat-apartment.vercel.app/tenant.html?supabaseUrl=${encodeURIComponent(DBService.getSavedSupabaseUrl())}&apiKey=${encodeURIComponent(DBService.getSavedTenantApiKey())}&idCard=${encodeURIComponent(inv.idCard || '')}&roomId=${encodeURIComponent(inv.roomId || '')}`;
-          DBService.saveState(this.state);
-          const url = (this.state.settings && this.state.settings.supabaseUrl) ? this.state.settings.supabaseUrl : DBService.getSavedSupabaseUrl();
-          if (url) {
-            try {
-              await DBService.syncToSupabase(url, this.state);
-              alert(`✅ บันทึก PDF บิลและอัปโหลดลิงก์/เอกสารของห้อง ${inv.roomName} ลง Supabase เรียบร้อยแล้ว!`);
-            } catch (err) {
-              alert(`✅ บันทึก PDF บิลเรียบร้อยแล้ว! (การซิงค์ Supabase: ${err.message})`);
-            }
-          } else {
-            alert(`✅ บันทึก PDF บิลเรียบร้อยแล้ว!`);
-          }
-        }
-      });
-    });
+
 
     const lineNotifyBtn = document.getElementById('btn-line-notify-header');
     if (lineNotifyBtn) {
