@@ -9547,10 +9547,11 @@ class App {
               <input type="text" id="ctr-tel" class="form-control" placeholder="081-2345678" value="${isEdit ? tenantToEdit.tel : ''}" required>
             </div>
             <div class="form-group">
-              <label>เลือกห้องเช่า / บ้าน *</label>
-              <select id="ctr-room-select" class="form-control" required>
+              <label>\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e0a\u0e48\u0e32 / \u0e1a\u0e49\u0e32\u0e19</label>
+              <select id="ctr-room-select" class="form-control">
+                <option value="">-- \u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07 --</option>
                 ${this.state.rooms.map(r => `
-                  <option value="${r.id}" ${(isEdit && tenantToEdit.assignedRoomId === r.id) ? 'selected' : ''}>ห้อง ${r.name}</option>
+                  <option value="${r.id}" ${(isEdit && tenantToEdit.assignedRoomId === r.id) ? 'selected' : ''}>\u0e2b\u0e49\u0e2d\u0e07 ${r.name}</option>
                 `).join('')}
               </select>
             </div>
@@ -9563,12 +9564,12 @@ class App {
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
             <div class="form-group">
-              <label>วันเริ่มสัญญา (วัน/เดือน/ปี พ.ศ.) *</label>
-              <input type="text" id="ctr-start-date" class="form-control" value="${isEdit ? tenantToEdit.startDate : Formatters.thaiDate(new Date().toISOString().slice(0,10))}" placeholder="21/07/2569" required>
+              <label>\u0e27\u0e31\u0e19\u0e40\u0e23\u0e34\u0e48\u0e21\u0e2a\u0e31\u0e0d\u0e0d\u0e32 *</label>
+              <input type="date" id="ctr-start-date" class="form-control" value="${isEdit && tenantToEdit.startDate ? tenantToEdit.startDate : new Date().toISOString().slice(0,10)}" required>
             </div>
             <div class="form-group">
-              <label>วันสิ้นสุดสัญญา (วัน/เดือน/ปี พ.ศ.) *</label>
-              <input type="text" id="ctr-end-date" class="form-control" value="${isEdit ? tenantToEdit.endDate : '31/07/2570'}" placeholder="31/07/2570" required>
+              <label>\u0e27\u0e31\u0e19\u0e2a\u0e34\u0e49\u0e19\u0e2a\u0e38\u0e14\u0e2a\u0e31\u0e0d\u0e0d\u0e32 *</label>
+              <input type="date" id="ctr-end-date" class="form-control" value="${isEdit && tenantToEdit.endDate ? tenantToEdit.endDate : '2027-07-31'}" required>
             </div>
           </div>
 
