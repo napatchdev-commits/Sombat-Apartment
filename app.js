@@ -9294,128 +9294,79 @@ class App {
     const btnClearUsage = document.getElementById('btn-clear-usage-data');
     if (btnClearUsage) {
       btnClearUsage.addEventListener('click', async () => {
-        if (!confirm('🧹 ยืนยันการล้างข้อมูลการใช้งาน?\n\nระบบจะลบผู้เช่า, บิล, แจ้งซ่อม และประวัติรายรับ-รายจ่าย ทั้งหมด พร้อมรีเซ็ตสถานะห้องพักเป็นห้องว่าง (โดยห้ามลบและห้ามแตะต้องโครงสร้างห้องพักที่มีอยู่)')) {
-          return;
-        }
+        if (!confirm('🧹 ยืนยันการล้างข้อมูลการใช้งาน?\n\nระบบจะลบผู้เช่า, บิล, แจ้งซ่อม และประวัติรายรับ-รายจ่าย ทั้งหมด พร้อมรี�          <div style="line-height:1.75; font-size:0.88rem; text-align:justify;">
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
+            อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
+            ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
+            ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้เช่า”</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้คือ<br>
 
-        btnClearUsage.disabled = true;
-        btnClearUsage.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังล้างข้อมูลการใช้งาน...';
+            <strong>ข้อ ๑.</strong> ผู้ให้เช่าตกลงให้เช่าและผู้เช่าตกลงเช่าห้องแถว/บ้าน <span class="dotted-fill">${d.roomName}</span> ตั้งอยู่ ณ. เลขที่ ${d.aptAddress} เริ่มตั้งแต่วันที่ <span class="dotted-fill">${d.startDateDay}</span> เดือน <span class="dotted-fill">${d.startDateMonth}</span> พ.ศ. <span class="dotted-fill">${d.startDateYear}</span> ถึงจนกว่าจะออก/ยกเลิกสัญญา<br>
 
-        try {
-          await DBService.clearUsageData(this.state);
-          alert('🟢 ล้างข้อมูลการใช้งานเรียบร้อยแล้ว! ผู้เช่า, บิล, แจ้งซ่อมถูกล้าง และห้องพักทุกห้องถูกรีเซ็ตเป็นห้องว่าง โดยไม่กระทบโครงสร้างห้องพัก');
-          App.switchTab('rooms');
-        } catch (err) {
-          alert('❌ เกิดข้อผิดพลาดในการล้างข้อมูลการใช้งาน: ' + err.message);
-          btnClearUsage.disabled = false;
-          btnClearUsage.innerHTML = '<i class="fa-solid fa-broom"></i> ล้างข้อมูลการใช้งาน (ลบผู้เช่า/บิล โดยไม่แตะห้องพัก)';
-        }
-      });
-    }
-  }
+            <strong>ข้อ ๒.</strong> ผู้เช่าตกลงให้ค่าเช่าเป็นรายเดือนๆ ละ <span class="dotted-fill">${d.monthlyRentAmt}</span> บาท (<span class="dotted-fill">${d.monthlyRentThai}</span>) มีกำหนดชำระเงินค่าเช่าทุกวันที่ ๑ ของทุก ๆ เดือน หากผู้เช่าไม่ชำระตามกําหนดยอมให้ผู้ใช้เช่ายึดทรัพย์สินและใส่กุญแจห้องของผู้เช่าได้<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>๒.๑</strong> ผู้เช่าจะต้องจ่ายเงินค่ามัดจำไว้เพื่อเป็นหลักประกันในทรัพย์สิน/ค่าน้ำ ค่าไฟฟ้า ค่ากุญแจ และอื่นๆ จำนวน <span class="dotted-fill">${d.depositAmt}</span> บาท (<span class="dotted-fill">${d.depositThai}</span>) และจะคืนให้เมื่อครบกำหนด ๖ เดือน/เมื่อย้ายออก<br>
 
-  static openRestorePreviewModal(parsedResult) {
-    const modal = document.getElementById('app-modal');
-    const dialog = modal.querySelector('.modal-dialog');
+            <strong>ข้อ ๓.</strong> ผู้เช่าได้ตรวจดูห้องเช่าแล้ว เห็นว่าทุกสิ่งอยู่ในสภาพเรียบร้อยใช้การได้อย่างสมบูรณ์จะดูแลมิให้ชำรุดทรุดโทรม และจะบำรุงรักษาให้อยู่ในสภาพดี พร้อมที่จะส่งมอบคืนตามสภาพเดิมทุกประการ และตกลงยอมให้ผู้เช่าหรือตัวแทน เข้าตรวจดูห้องได้ทุกเวลาภายหลังจากได้แจ้งความประสงค์ให้ผู้เช่าทราบแล้ว ถ้าผู้เช่าออกจากห้องแถวที่เช่าไม่ว่ากรณีใด ๆ ผู้เช่าจะเรียกร้องค่าเสียหายและ/หรือค่าขนย้ายจากผู้ให้เช่ามิได้<br>
 
-    let previewHtml = '';
-    let restoredState = null;
+            <strong>ข้อ ๔.</strong> ผู้เช่าไม่มีสิทธินำห้องเช่า ที่เช่าออกให้ผู้อื่นเช่าช่วง หรือทำนิติกรรมใดๆ กับผู้อื่นในอันที่จะเป็นผลก่อให้เกิดความผูกพันในห้องเช่า ไม่ว่าโดยตรงหรือโดยปริยาย และจะไม่ทำการดัดแปลงหรือต่อเติมห้องเช่าไม่ว่าทั้งหมดหรือบางส่วน เว้นแต่จะได้รับความยินยอมเป็นหนังสือจากผู้ให้เช่า และหากผู้เช่าได้ทำการดัดแปลงหรือต่อเติมสิ่งใดตามที่ได้รับความยินยอมเมื่อใดแล้ว ผู้เช่ายอมยกกรรมสิทธิ์ในทรัพย์สินนั้นให้ตกเป็นของผู้ให้เช่านับแต่เมื่อนั้นด้วยทั้งสิ้น<br>
 
-    if (parsedResult.type === 'json') {
-      const data = parsedResult.data || {};
-      const tenantCount = (data.tenants || []).length;
-      const roomCount = (data.rooms || []).length;
-      const invoiceCount = (data.invoices || []).length;
-      const repairCount = (data.repairs || []).length;
+            <strong>ข้อ ๕.</strong> ถ้าเกิดอัคคีภัยขึ้นไม่ว่ากรณีใดๆ ให้สัญญานี้เป็นอันสิ้นสุดลง<br>
+            <strong>ข้อ ๖.</strong> ผู้เช่า จะไม่ดำเนินการค้าใดๆ อันเป็นที่รังเกียจและผิดกฎหมายหรืออาจเป็นอันตรายแก่สถานที่เช่าและจะไม่กระทำหรือยอมให้ผู้อื่นกระทำในสิ่งใดๆ อันอาจพิสูจน์ได้ว่าเป็นความเสียหายหรือก่อความเดือดร้อนรำคาญแก่ผู้ให้เช่า หรือผู้อยู่ใกล้เคียง<br>
+            <strong>ข้อ ๗.</strong> เมื่อผู้เช่ากระทำผิดสัญญาข้อหนึ่งข้อใด ผู้ให้เช่ามีสิทธิบอกเลิกสัญญาได้ทันที และผู้เช่ายอมให้ผู้เช่าทรงไว้ซึ่งสิทธิที่จะเข้ายึดครอบครองสถานที่และสิ่งที่เช่าได้โดยพลัน<br><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความอย่างเดียวกัน ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความในสัญญานี้โดยละเอียดดีแล้ว ต่างยึดถือไว้คนละฉบับ และได้ลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน
+          </div>
 
-      restoredState = data;
-      previewHtml = `
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; margin-bottom:1.25rem;">
-          <h4 style="margin-bottom:0.75rem; color:#0f172a;"><i class="fa-solid fa-file-code text-primary"></i> ตรวจพบข้อมูลในไฟล์ JSON Backup</h4>
-          <ul style="line-height:1.8; margin-left:1.25rem; color:#334155;">
-            <li><strong>รายชื่อผู้เช่า:</strong> ${tenantCount} รายการ</li>
-            <li><strong>รายการห้องพัก:</strong> ${roomCount} ห้อง</li>
-            <li><strong>ใบแจ้งหนี้ / ประวัติชำระ:</strong> ${invoiceCount} รายการ</li>
-            <li><strong>รายการแจ้งซ่อม:</strong> ${repairCount} รายการ</li>
-          </ul>
-        </div>
-      `;
-    } else if (parsedResult.type === 'excel') {
-      const wb = parsedResult.workbook || {};
-      const sheetNames = Object.keys(wb);
-      
-      previewHtml = `
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; margin-bottom:1.25rem;">
-          <h4 style="margin-bottom:0.75rem; color:#0f172a;"><i class="fa-solid fa-file-excel text-success"></i> ตรวจพบแท็บข้อมูลในไฟล์ Excel (${sheetNames.length} แท็บ)</h4>
-          <ul style="line-height:1.8; margin-left:1.25rem; color:#334155;">
-            ${sheetNames.map(name => `
-              <li><strong>${name}:</strong> ${wb[name].rows ? wb[name].rows.length : 0} แถวข้อมูล</li>
-            `).join('')}
-          </ul>
-        </div>
-      `;
-    }
-
-    dialog.innerHTML = `
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-box-archive text-warning"></i> ยืนยันการกู้คืน / นำเข้าข้อมูลระบบ (Restore Data)</h3>
-        <button class="close-modal-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:0.85rem; font-size:0.88rem; color:#b45309; margin-bottom:1.25rem;">
-          ⚠️ <strong>คำเตือน:</strong> การกู้คืนข้อมูลจะทำการอัปเดตและบันทึกฐานข้อมูลคลาวด์/ท้องถิ่นใหม่ด้วยข้อมูลจากไฟล์ กรุณาตรวจสอบความถูกต้องก่อนกดบันทึก
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem 1rem; margin-top:0.8rem; text-align:center;">
+            <div>
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> ผู้เช่า<br>
+              <div style="margin-top:0.2rem;">( <span class="dotted-fill">${d.tenantName}</span> )</div>
+            </div>
+            <div>
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
+              <div style="margin-top:0.2rem;">( ${d.ownerName} )</div>
+            </div>
+            <div style="margin-top:0.4rem;">
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> พยาน<br>
+              <div style="margin-top:0.2rem;">( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '<span style="display:inline-block; width:140px; border-bottom:1px dotted #000;">&nbsp;</span>'} )</div>
+            </div>
+            <div style="margin-top:0.4rem;">
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> พยาน<br>
+              <div style="margin-top:0.2rem;">( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '<span style="display:inline-block; width:140px; border-bottom:1px dotted #000;">&nbsp;</span>'} )</div>
+            </div>
+          </div>
         </div>
 
-        ${previewHtml}
+        <div class="contract-print-page back-page">
+          <div style="text-align:center; font-weight:bold; font-size:1.3rem; margin-bottom:0.8rem;">
+            กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
+          </div>
 
-        <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
-          <button type="button" class="btn btn-secondary close-modal-btn">ยกเลิก</button>
-          <button type="button" class="btn btn-warning" id="btn-confirm-do-restore" style="font-weight:700;">
-            <i class="fa-solid fa-rotate-left"></i> ยืนยันกู้คืนข้อมูล
-          </button>
-        </div>
-      </div>
-    `;
+          <ol style="line-height:1.75; font-size:0.88rem; margin-left:1.5rem; text-align:justify;">
+            <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
+            <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
+            <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
+            <li>ห้ามตอกตะปู หรือใช้วัสดุใดที่ทำให้ผนังเป็นรูเด็ดขาด หากจำเป็นควรใช้ที่แขวนติดแทน ปรับจุดละ 200 บาท</li>
+            <li>ห้ามเสพสิ่งเสพติดทุกชนิด/มั่วสุม ถ้าผู้ให้เช่าทราบจะดำเนินการทางกฎหมายและเชิญออกทันที</li>
+            <li>ถ้ามีการดื่มสุรา/หรือจัดงานใด ๆ ไม่เกินเวลา 22.00 น.</li>
+            <li>ห้ามเลี้ยงสัตว์เลี้ยงที่ก่อให้เกิดความเสียหายกับห้องและรบกวนห้องข้างทุกชนิด หากเกิดความเสียหายชดใช้ทั้งหมดทุกกรณี</li>
+            <li>ถ้ามีเครื่องเสียงเวลาเปิดไม่ควรดังเกินจนเกิดความรำคาญแก่คนห้องอื่น (เตือน 3 ครั้ง เชิญออก)</li>
+            <li>หากทำสิ่งของภายในห้องชำรุดหรือเสียหาย ต้องเสียค่าปรับเท่ากับราคาของนั้น</li>
+            <li>หากหลอดไฟ ก๊อกน้ำเสื่อมสภาพ เครื่องปรับอากาศไม่เย็น กรุณาแจ้งผู้ให้เช่าทราบเพื่อแก้ไข</li>
+            <li>ควรปิดไฟ ปิดน้ำ ปิดเตาแก๊ส หรือเครื่องใช้ไฟฟ้าก่อนออกจากห้องทุกครั้ง</li>
+            <li>ควรปิดล็อคห้องด้วยลูกกุญแจอีกชั้น เพื่อความปลอดภัยต่อทรัพย์สิน (ผู้ให้เช่าไม่รับผิดชอบกรณีของสูญหายทุกกรณี)</li>
+            <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
+          </ol>
 
-    modal.classList.add('active');
-    dialog.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+          <div style="margin-top:1rem; font-size:0.88rem; line-height:1.6;">
+            <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
+            <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
+            <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
 
-    const confirmBtn = document.getElementById('btn-confirm-do-restore');
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', async () => {
-        confirmBtn.disabled = true;
-        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกกู้คืน...';
-
-        try {
-          if (parsedResult.type === 'json' && restoredState) {
-            this.state = { ...this.state, ...restoredState };
-            await DBService.saveState(this.state);
-          } else if (parsedResult.type === 'excel') {
-            alert('🟢 นำเข้าไฟล์สำรอง Excel เรียบร้อยแล้ว!');
-          }
-          
-          modal.classList.remove('active');
-          alert('🟢 การกู้คืนข้อมูลสำเร็จสมบูรณ์!');
-          this.render();
-        } catch (err) {
-          alert('❌ การกู้คืนข้อมูลล้มเหลว: ' + err.message);
-          confirmBtn.disabled = false;
-          confirmBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> ยืนยันกู้คืนข้อมูล';
-        }
-      });
-    }
-  }
-
-  // --- 8. RATES & SERVICE FEES EVENTS ---
-  static bindRatesEvents() {
-    const mainRatesForm = document.getElementById('form-rates-main');
-    if (mainRatesForm) {
-      mainRatesForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.state.rates.electricityRate = parseFloat(document.getElementById('rate-elec').value) || 8.0;
-        this.state.rates.waterRate = parseFloat(document.getElementById('rate-water').value) || 20.0;
-        this.state.rates.trashFee = parseFloat(document.getElementById('rate-trash').value) || 20.0;
-        // เว้นว่างหรือใส่ 0 = ไม่คิดค่านี้ (ไม่มี default แบบค่าเช่า/ไฟ/น้ำ/ขยะที่จำเป็นต้องมีค่า)
+            <div style="text-align:center; margin-top:1rem; font-weight:600;">
+              <p>ขอบคุณทุกท่านที่ไว้ใจในบริการและให้ความร่วมมือในการใช้บริการจากเรา</p>
+              <h3 style="margin-top:0.25rem; font-size:1.05rem; color:#000;">${settings.apartmentName || 'หอพักสมบัติ.คอม'}</h3>
+            </div>
+          </div>
+        </div>��ฟ/น้ำ/ขยะที่จำเป็นต้องมีค่า)
         this.state.rates.internetFee = parseFloat(document.getElementById('rate-internet').value) || 0;
         this.state.rates.commonFee = parseFloat(document.getElementById('rate-common').value) || 0;
         DBService.saveState(this.state);
