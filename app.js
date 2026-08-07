@@ -942,6 +942,40 @@ class DBService {
     }
   }
 
+  // Delete one or more file objects from the tenant-documents bucket by their public URLs
+  static async deleteFilesFromStorage(publicUrls = []) {
+    if (!publicUrls || publicUrls.length === 0) return;
+    const url = this.getSavedSupabaseUrl();
+    const apiKey = this.getSavedApiKey();
+    if (!url || !apiKey) return;
+    const baseUrl = this.getBaseSupabaseUrl(url);
+
+    // Extract object path from each full public URL
+    const prefix = `${baseUrl}/storage/v1/object/public/tenant-documents/`;
+    const paths = publicUrls
+      .filter(u => u && typeof u === 'string' && u.includes('tenant-documents'))
+      .map(u => {
+        const idx = u.indexOf('/tenant-documents/');
+        return idx !== -1 ? u.substring(idx + '/tenant-documents/'.length) : null;
+      })
+      .filter(Boolean);
+
+    if (paths.length === 0) return;
+
+    try {
+      await fetch(`${baseUrl}/storage/v1/object/tenant-documents`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prefixes: paths })
+      });
+    } catch (err) {
+      console.warn('⚠️ Could not delete files from Supabase Storage:', err);
+    }
+  }
 
   static async callRpc(fnName, params = {}) {
     const url = this.getSavedSupabaseUrl();
@@ -5892,8 +5926,11 @@ class App {
       btn.addEventListener('click', (e) => {
         const tenantId = e.currentTarget.getAttribute('data-id');
         const tenantName = e.currentTarget.getAttribute('data-name');
-        if (confirm(`⚠️ ยืนยันการลบข้อมูลผู้เช่า "${tenantName}" ออกจากระบบอย่างถาวรใช่หรือไม่? (การดำเนินการนี้จะไม่สามารถกู้คืนได้)`)) {
-          this.deleteTenant(tenantId);
+        const tenant = this.state.tenants.find(t => t.id === tenantId);
+        const docCount = (tenant?.documents || []).filter(d => d.dataUrl && d.dataUrl.startsWith('http')).length;
+        const docNote = docCount > 0 ? `\n\nรูปภาพ/เอกสารแนบจำนวน ${docCount} ไฟล์จะถูกลบออกจาก Supabase Storage ด้วย` : '';
+        if (confirm(`⚠️ ยืนยันการลบข้อมูลผู้เช่า "${tenantName}" ออกจากระบบอย่างถาวรใช่หรือไม่? (การดำเนินการนี้จะไม่สามารถกู้คืนได้)${docNote}`)) {
+          this.deleteTenant(tenantId, { resetMeters: false, deleteInvoices: false });
         }
       });
     });
@@ -6254,11 +6291,18 @@ class App {
     }
   }
 
-  static deleteTenant(tenantId, options = {}) {
+  static async deleteTenant(tenantId, options = {}) {
     const { resetMeters = false, deleteInvoices = false } = options;
     const idx = this.state.tenants.findIndex(t => t.id === tenantId);
     if (idx !== -1) {
-      const assignedRoomId = this.state.tenants[idx].assignedRoomId;
+      const tenant = this.state.tenants[idx];
+
+      // Collect all document URLs from Supabase Storage to delete
+      const docUrls = (tenant.documents || [])
+        .map(d => d.dataUrl)
+        .filter(u => u && typeof u === 'string' && u.startsWith('http'));
+
+      const assignedRoomId = tenant.assignedRoomId;
       const room = this.state.rooms.find(r => r.id === assignedRoomId);
       if (room) {
         room.status = 'vacant';
@@ -6273,7 +6317,17 @@ class App {
         }
       }
       this.state.tenants.splice(idx, 1);
-      DBService.saveState(this.state);
+      await DBService.saveState(this.state);
+
+      // Delete files from Supabase Storage (non-blocking, fire-and-forget with notification)
+      if (docUrls.length > 0) {
+        DBService.deleteFilesFromStorage(docUrls).then(() => {
+          console.log(`🗑️ ลบไฟล์เอกสาร ${docUrls.length} ไฟล์จาก Supabase Storage เรียบร้อย`);
+        }).catch(err => {
+          console.warn('⚠️ ไม่สามารถลบบางไฟล์จาก Storage ได้:', err);
+        });
+      }
+
       this.switchTab('tenants');
     }
   }
