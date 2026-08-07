@@ -2215,14 +2215,59 @@ class ContractsComponent {
 }
 
 class TenantsComponent {
-  static activeSubTab = 'active';
+  static activeSection = 'home';
 
   static render(state) {
     if (!state.tenants) state.tenants = [];
-    if (!this.activeSubTab) this.activeSubTab = 'active';
+    if (!this.activeSection) this.activeSection = 'home';
 
+    const activeCount = state.tenants.filter(t => t.status !== 'inactive').length;
+    const inactiveCount = state.tenants.filter(t => t.status === 'inactive').length;
+
+    if (this.activeSection === 'home') {
+      return `
+        <div class="view-container animate-fade-in">
+          <div class="view-header">
+            <div>
+              <h2><i class="fa-solid fa-users text-primary"></i> ข้อมูลผู้เช่าและเอกสารสัญญา</h2>
+              <p>เลือกประเภทกลุ่มผู้เช่าเพื่อตรวจสอบรายละเอียด ทะเบียนประวัติ สัญญาเช่า และเอกสารแนบ</p>
+            </div>
+          </div>
+
+          <div class="settings-grid" style="margin-top: 1rem;">
+            <div class="settings-card-item glass-card btn-select-tenant-subtab" data-subtab="active">
+              <div class="settings-card-icon-wrapper" style="display:flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:12px; background: #3b82f620; color: #3b82f6; font-size:1.45rem;">
+                <i class="fa-solid fa-user-check"></i>
+              </div>
+              <div style="flex:1;">
+                <h4 class="settings-card-title" style="font-weight:700; font-size:1.05rem; color:var(--text-main); margin-bottom:0.25rem; margin-top:0;">ผู้เช่าปัจจุบัน / ใหม่</h4>
+                <p class="settings-card-desc" style="font-size:0.8rem; color:var(--text-muted); line-height:1.4; margin:0;">แสดงทะเบียนผู้เช่าที่เข้าพักอยู่ สัญญาเช่าปัจจุบัน หรือดำเนินการย้ายออก (${activeCount} คน)</p>
+              </div>
+              <div style="color:var(--text-muted); font-size:0.9rem;">
+                <i class="fa-solid fa-chevron-right"></i>
+              </div>
+            </div>
+
+            <div class="settings-card-item glass-card btn-select-tenant-subtab" data-subtab="inactive">
+              <div class="settings-card-icon-wrapper" style="display:flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:12px; background: #64748b20; color: #64748b; font-size:1.45rem;">
+                <i class="fa-solid fa-user-slash"></i>
+              </div>
+              <div style="flex:1;">
+                <h4 class="settings-card-title" style="font-weight:700; font-size:1.05rem; color:var(--text-main); margin-bottom:0.25rem; margin-top:0;">ประวัติผู้เช่าเก่า</h4>
+                <p class="settings-card-desc" style="font-size:0.8rem; color:var(--text-muted); line-height:1.4; margin:0;">ดูประวัติผู้เช่าเดิม ทำสัญญาใหม่โดยนำโปรไฟล์เดิมมาใช้ หรือลบข้อมูลถาวร (${inactiveCount} คน)</p>
+              </div>
+              <div style="color:var(--text-muted); font-size:0.9rem;">
+                <i class="fa-solid fa-chevron-right"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const isPast = this.activeSection === 'inactive';
     const filteredTenants = state.tenants.filter(t => {
-      if (this.activeSubTab === 'inactive') {
+      if (isPast) {
         return t.status === 'inactive';
       } else {
         return t.status !== 'inactive';
@@ -2238,29 +2283,24 @@ class TenantsComponent {
       return DBService.compareRooms(roomA, roomB);
     });
 
-    const activeCount = state.tenants.filter(t => t.status !== 'inactive').length;
-    const inactiveCount = state.tenants.filter(t => t.status === 'inactive').length;
-
     return `
       <div class="view-container animate-fade-in">
-        <div class="view-header">
-          <div>
-            <h2><i class="fa-solid fa-users text-primary"></i> จัดการข้อมูลผู้เช่าและเอกสารสัญญา</h2>
-            <p>บันทึกทะเบียนผู้เช่า เพิ่มผู้เช่าใหม่ แนบไฟล์บัตรประชาชน/ทะเบียนบ้าน แก้ไข และย้ายออก/ลบ</p>
+        <div class="view-header" style="margin-bottom:1.5rem;">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <button id="btn-back-to-tenants-dashboard" class="btn btn-secondary btn-sm" style="padding:0.4rem 0.75rem; display:flex; align-items:center; gap:0.25rem;">
+              <i class="fa-solid fa-arrow-left"></i> ย้อนกลับ
+            </button>
+            <div>
+              <h2 style="margin:0;"><i class="fa-solid ${isPast ? 'fa-user-slash text-slate' : 'fa-user-check text-primary'}"></i> ${isPast ? 'ประวัติผู้เช่าเก่า' : 'ทะเบียนผู้เช่าปัจจุบัน / ใหม่'}</h2>
+              <p style="margin:0.25rem 0 0 0; font-size:0.85rem; color:var(--text-muted);">
+                ${isPast ? 'จัดการและดึงประวัติข้อมูลผู้เช่าที่ย้ายออกไปแล้วกลับมาใช้ใหม่' : 'จัดการข้อมูลผู้เช่าปัจจุบัน สัญญา และการแจ้งย้ายออก'}
+              </p>
+            </div>
           </div>
           <div class="header-actions">
             <button id="btn-export-tenants-excel" class="btn btn-secondary"><i class="fa-solid fa-file-excel text-success"></i> Export Excel</button>
             <button id="btn-add-tenant" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> เพิ่มผู้เช่าใหม่</button>
           </div>
-        </div>
-
-        <div class="contract-tab-switcher" style="margin-bottom:1.25rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; display:flex; gap:0.5rem;">
-          <button class="contract-tab-btn ${this.activeSubTab === 'active' ? 'active' : ''}" id="tab-active-tenants" style="padding:0.45rem 1rem; font-size:0.88rem; font-weight:700;">
-            <i class="fa-solid fa-user-check"></i> ผู้เช่าปัจจุบัน / ใหม่ (${activeCount})
-          </button>
-          <button class="contract-tab-btn ${this.activeSubTab === 'inactive' ? 'active' : ''}" id="tab-inactive-tenants" style="padding:0.45rem 1rem; font-size:0.88rem; font-weight:700;">
-            <i class="fa-solid fa-user-slash"></i> ประวัติผู้เช่าเก่า (${inactiveCount})
-          </button>
         </div>
 
         <div class="glass-card style-table-card">
@@ -2313,7 +2353,7 @@ class TenantsComponent {
                       </td>
                       <td>${Formatters.thaiDate(t.startDate)} ➔ <strong class="text-warning">${Formatters.thaiDate(t.endDate)}</strong></td>
                       <td>
-                        ${this.activeSubTab === 'inactive' ? `
+                        ${isPast ? `
                           <div class="action-buttons">
                             <button class="btn btn-primary btn-xs btn-reuse-tenant" data-id="${t.id}"><i class="fa-solid fa-file-signature"></i> ทำสัญญาใหม่</button>
                             <button class="btn btn-danger btn-xs btn-delete-tenant-permanently" data-id="${t.id}" data-name="${t.name}"><i class="fa-solid fa-trash"></i> ลบถาวร</button>
@@ -4927,6 +4967,8 @@ class App {
       if (link) {
         e.preventDefault();
         const tabId = link.getAttribute('data-tab');
+        if (tabId === 'tenants') TenantsComponent.activeSection = 'home';
+        if (tabId === 'settings') SettingsComponent.activeSection = 'home';
         if (tabId) this.switchTab(tabId);
         return;
       }
@@ -5009,6 +5051,8 @@ class App {
       if (bottomNavItem) {
         e.preventDefault();
         const tab = bottomNavItem.getAttribute('data-tab');
+        if (tab === 'tenants') TenantsComponent.activeSection = 'home';
+        if (tab === 'settings') SettingsComponent.activeSection = 'home';
         this.switchTab(tab);
         // Close sidebar if open
         const sidebar = document.getElementById('app-sidebar');
@@ -5771,8 +5815,25 @@ class App {
   }
 
   // --- 2. TENANTS EVENTS ---
-  // --- 2. TENANTS EVENTS ---
   static bindTenantsEvents() {
+    // 1. Dashboard Sub-tab Card Clicks
+    document.querySelectorAll('.btn-select-tenant-subtab').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const subtab = e.currentTarget.getAttribute('data-subtab');
+        TenantsComponent.activeSection = subtab;
+        this.switchTab('tenants');
+      });
+    });
+
+    // 2. Back Button to Dashboard Click
+    const btnBack = document.getElementById('btn-back-to-tenants-dashboard');
+    if (btnBack) {
+      btnBack.addEventListener('click', () => {
+        TenantsComponent.activeSection = 'home';
+        this.switchTab('tenants');
+      });
+    }
+
     const exportExcel = document.getElementById('btn-export-tenants-excel');
     if (exportExcel) {
       exportExcel.addEventListener('click', () => {
@@ -5785,22 +5846,6 @@ class App {
     const addBtn = document.getElementById('btn-add-tenant');
     if (addBtn) {
       addBtn.addEventListener('click', () => this.openTenantModal());
-    }
-
-    const tabActive = document.getElementById('tab-active-tenants');
-    if (tabActive) {
-      tabActive.addEventListener('click', () => {
-        TenantsComponent.activeSubTab = 'active';
-        this.switchTab('tenants');
-      });
-    }
-
-    const tabInactive = document.getElementById('tab-inactive-tenants');
-    if (tabInactive) {
-      tabInactive.addEventListener('click', () => {
-        TenantsComponent.activeSubTab = 'inactive';
-        this.switchTab('tenants');
-      });
     }
 
     document.querySelectorAll('.btn-edit-tenant').forEach(btn => {
