@@ -1916,12 +1916,40 @@ class MyBillsApp {
           <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:1rem; margin-bottom:1rem;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; font-size:0.9rem;">
               <span style="font-weight:700; color:#1e293b;">รอบบิล ${Formatters.thaiMonthBE(inv.monthKey)}</span>
-              <span class="badge-pill badge-danger" style="font-size:0.75rem;">ค้างชำระ</span>
+              ${inv.status === 'paid' || (inv.outstandingAmount !== undefined && inv.outstandingAmount <= 0) ? `
+                <span class="badge-pill badge-success" style="font-size:0.75rem; font-weight:700;">🟢 ชำระแล้ว</span>
+              ` : (inv.paidAmount > 0 ? `
+                <span class="badge-pill" style="font-size:0.75rem; font-weight:700; background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;">🟠 ชำระบางส่วน</span>
+              ` : `
+                <span class="badge-pill badge-danger" style="font-size:0.75rem; font-weight:700;">🔴 ค้างชำระ</span>
+              `)}
             </div>
             <div style="font-size:0.8rem; color:#64748b; font-family:monospace;">บิลเลขที่: ${inv.invoiceNumber}</div>
-            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:0.5rem; font-size:0.9rem;">
-              <span style="font-weight:600; color:#475569;">ยอดเงินที่ต้องชำระ:</span>
-              <strong style="font-size:1.3rem; color:#dc2626;">${Formatters.currency(amountToPay)}</strong>
+            
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.5rem; margin-top:0.75rem; border-top:1px solid #e2e8f0; padding-top:0.5rem; text-align:center;">
+              <div>
+                <div style="font-size:0.72rem; color:#64748b;">ยอดบิลรวม</div>
+                <strong style="font-size:0.95rem; color:#1e293b;">${Formatters.currency((inv.totalAmount || 0) + (inv.penaltyAmount || 0))}</strong>
+              </div>
+              <div>
+                <div style="font-size:0.72rem; color:#166534;">ชำระแล้ว</div>
+                <strong style="font-size:0.95rem; color:#15803d;">${Formatters.currency(inv.paidAmount || 0)}</strong>
+              </div>
+              <div>
+                <div style="font-size:0.72rem; color:#991b1b;">ยอดคงเหลือ</div>
+                <strong style="font-size:1.1rem; color:#dc2626;">${Formatters.currency(amountToPay)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Custom Payment Amount Input -->
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:0.85rem; margin-bottom:1rem;">
+            <label style="font-weight:700; color:#1e3a8a; font-size:0.88rem; display:block; margin-bottom:0.35rem;">
+              <i class="fa-solid fa-coins text-primary"></i> จำนวนเงินที่ต้องการชำระในครั้งนี้ (บาท) *
+            </label>
+            <input type="number" id="pay-modal-custom-amount" class="form-control" min="1" max="${amountToPay}" step="any" value="${amountToPay}" required style="font-size:1.2rem; font-weight:800; color:#2563eb; background:#ffffff; text-align:center; border-color:#93c5fd; border-radius:8px;">
+            <div style="font-size:0.75rem; color:#3b82f6; text-align:center; margin-top:0.25rem;">
+              สามารถแบ่งชำระได้ตามจำนวนเงินที่จ่ายจริง (ไม่เกินยอดคงเหลือ ${Formatters.currency(amountToPay)})
             </div>
           </div>
 
@@ -2133,6 +2161,19 @@ class MyBillsApp {
               }
             }
 
+            const customAmtInput = document.getElementById('pay-modal-custom-amount');
+            const payAmtToSubmit = customAmtInput ? (parseFloat(customAmtInput.value) || 0) : amountToPay;
+
+            if (payAmtToSubmit <= 0) {
+              alert('กรุณาระบุจำนวนเงินที่ต้องการชำระให้ถูกต้อง');
+              return;
+            }
+
+            if (payAmtToSubmit > amountToPay + 0.01) {
+              alert('❌ จำนวนเงินเกินยอดคงเหลือ');
+              return;
+            }
+
             const analysisLoader = document.createElement('div');
             analysisLoader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.85); color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999999; font-family:sans-serif; backdrop-filter:blur(4px);';
             analysisLoader.innerHTML = `
@@ -2164,7 +2205,7 @@ class MyBillsApp {
                 paymentMethod: 'transfer',
                 slipDataUrl: MyBillsApp.currentSlipDataUrl,
                 requiredAmount: inv ? (inv.totalAmount || amountToPay) : amountToPay,
-                amount: amountToPay,
+                amount: payAmtToSubmit,
                 fineAmount: inv ? (inv.fineAmount || 0) : 0,
                 referenceNo: MyBillsApp.currentSlipQrData ? MyBillsApp.getRefNo(MyBillsApp.currentSlipQrData) : null,
                 imageHash: MyBillsApp.currentSlipImageHash || null

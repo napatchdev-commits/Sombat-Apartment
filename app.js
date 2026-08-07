@@ -1659,7 +1659,7 @@ class DBService {
     const syncPhases = [
       ['roomTypes', 'users', 'ledger', 'events', 'meterAuditLogs'],
       ['rooms'],
-      ['tenants', 'invoices', 'repairs', 'paymentSlips']
+      ['tenants', 'invoices', 'repairs', 'paymentSlips', 'payments']
     ];
     const handledCategories = new Set(syncPhases.flat());
 
@@ -1757,11 +1757,38 @@ class DBService {
       );
     }
 
-    await Promise.all(requests);
-    this.saveSnapshot(newSnapshot);
-    return { status: 'success', message: 'บันทึกข้อมูลเรียบร้อย' };
+  static getApprovedPaidAmount(invoiceId, state) {
+    if (!invoiceId || !state || !state.payments) return 0;
+    return state.payments
+      .filter(p => (p.invoiceId === invoiceId || p.invoice_id === invoiceId) && p.status === 'approved')
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   }
 
+  static getInvoiceRemainingBalance(inv, state) {
+    if (!inv) return 0;
+    const approvedPaid = this.getApprovedPaidAmount(inv.id, state);
+    const totalWithPenalty = (Number(inv.totalAmount) || 0) + (Number(inv.penaltyAmount) || 0);
+    const remaining = totalWithPenalty - approvedPaid;
+    return remaining < 0 ? 0 : remaining;
+  }
+
+  static recalculateInvoiceStatus(inv, state) {
+    if (!inv) return;
+    const approvedPaid = this.getApprovedPaidAmount(inv.id, state);
+    const totalWithPenalty = (Number(inv.totalAmount) || 0) + (Number(inv.penaltyAmount) || 0);
+    const remaining = totalWithPenalty - approvedPaid;
+    
+    inv.paidAmount = approvedPaid;
+    inv.outstandingAmount = remaining < 0 ? 0 : remaining;
+
+    if (inv.outstandingAmount <= 0) {
+      inv.status = 'paid';
+    } else if (approvedPaid > 0) {
+      inv.status = 'partial';
+    } else {
+      inv.status = (inv.status === 'pending_verification' ? 'pending_verification' : 'unpaid');
+    }
+  }
 
   static exportJSON() {
     const state = this.getState();
@@ -2595,51 +2622,70 @@ class BillingComponent {
                   <th>เลขที่บิล / รอบเดือน</th>
                   <th>ห้อง</th>
                   <th>ผู้เช่า</th>
-                  <th>ยอดรวมสุทธิ</th>
+                  <th>ยอดบิลรวม</th>
+                  <th>ชำระแล้ว</th>
+                  <th>คงเหลือ</th>
                   <th>สถานะ</th>
-                  <th>การสั่งพิมพ์ & ส่งไลน์</th>
+                  <th>การจัดการ</th>
                 </tr>
               </thead>
               <tbody>
                 ${sortedInvoices.map(inv => {
                   const displayStyle = (inv.monthKey === latestMonth || !latestMonth) ? '' : 'none';
+                  const approvedPaid = DBService.getApprovedPaidAmount(inv.id, state);
+                  const totalWithPenalty = (Number(inv.totalAmount) || 0) + (Number(inv.penaltyAmount) || 0);
+                  const remaining = totalWithPenalty - approvedPaid;
+                  const isPaid = (remaining <= 0) || inv.status === 'paid';
+                  const isPartial = approvedPaid > 0 && !isPaid;
+
+                  let statusHtml = '';
+                  if (inv.status === 'pending_verification') {
+                    statusHtml = `
+                      <button class="btn btn-xs btn-goto-slip-verification" data-room="${inv.roomName}" style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-weight:700;">
+                        🧾 รอตรวจสอบสลิป
+                      </button>
+                    `;
+                  } else if (isPaid) {
+                    statusHtml = `<span class="badge-pill badge-success" style="font-weight:700;">🟢 ชำระแล้ว</span>`;
+                  } else if (isPartial) {
+                    statusHtml = `<span class="badge-pill" style="background:#ffedd5; color:#c2410c; border:1px solid #fed7aa; font-weight:700;">🟠 ชำระบางส่วน</span>`;
+                  } else {
+                    statusHtml = `<span class="badge-pill badge-danger" style="font-weight:700;">🔴 รอชำระ</span>`;
+                  }
+
                   return `
                     <tr class="billing-table-row" data-month="${inv.monthKey}" style="display: ${displayStyle}">
                       <td><strong>${inv.invoiceNumber}</strong><div class="text-muted text-sm">${Formatters.thaiMonthBE(inv.monthKey)}</div></td>
                       <td><span class="badge-pill badge-primary">ห้อง ${inv.roomName}</span></td>
-                    <td><strong>${inv.tenantName}</strong></td>
-                    <td><strong class="text-primary">${Formatters.currency(inv.totalAmount)}</strong></td>
-                    <td>
-                      ${inv.status === 'pending_verification' ? `
-                        <button class="btn btn-xs btn-goto-slip-verification" data-room="${inv.roomName}" style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-weight:700;">
-                          🧾 รอตรวจสอบสลิป
-                        </button>
-                      ` : `
-                        <button class="btn btn-xs ${inv.status === 'paid' ? 'btn-success' : (inv.status === 'pending' ? 'btn-warning' : 'btn-danger')} btn-toggle-pay-status" data-id="${inv.id}">
-                          ${inv.status === 'paid' ? '🟢 ชำระแล้ว' : (inv.status === 'pending' ? '🟡 รอตรวจสอบ' : '🔴 ค้างชำระ')}
-                        </button>
-                      `}
-                      ${inv.slipUrl && (inv.slipUrl === 'cash' || inv.slipUrl.startsWith('http') || inv.slipUrl.startsWith('data:')) ? (inv.slipUrl === 'cash' ? `
-                        <span class="badge-pill" style="margin-top:0.35rem; display:block; text-align:center; font-size:0.72rem; background-color:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-weight:700; padding:2px 4px; border-radius:4px;">
-                          💵 ชำระเงินสด
-                        </span>
-                      ` : `
-                        <button class="btn btn-info btn-xs btn-view-slip" data-id="${inv.id}" style="margin-top:0.35rem; display:block; width:100%; border-radius:6px; font-weight:600;">
-                          <i class="fa-solid fa-image"></i> ดูสลิป
-                        </button>
-                      `) : ''}
-                    </td>
-                    <td>
-                      <div class="action-buttons">
-                        <button class="btn btn-secondary btn-xs btn-edit-bill" data-id="${inv.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
-                        
-                        <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}"><i class="fa-solid fa-print text-warning"></i> พิมพ์บิล</button>
-                        <button class="btn btn-secondary btn-xs btn-send-line" data-id="${inv.id}"><i class="fa-brands fa-line text-success"></i> LINE</button>
-                        <button class="btn btn-danger btn-xs btn-delete-bill" data-id="${inv.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
-                      </div>
-                    </td>
-                  </tr>
-                `;
+                      <td><strong>${inv.tenantName}</strong></td>
+                      <td><strong class="text-primary">${Formatters.currency(totalWithPenalty)}</strong></td>
+                      <td><strong class="text-success">${Formatters.currency(approvedPaid)}</strong></td>
+                      <td><strong class="${remaining > 0 ? 'text-danger' : 'text-muted'}">${Formatters.currency(remaining < 0 ? 0 : remaining)}</strong></td>
+                      <td>
+                        ${statusHtml}
+                        ${inv.slipUrl && (inv.slipUrl === 'cash' || inv.slipUrl.startsWith('http') || inv.slipUrl.startsWith('data:')) ? (inv.slipUrl === 'cash' ? `
+                          <span class="badge-pill" style="margin-top:0.35rem; display:block; text-align:center; font-size:0.72rem; background-color:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-weight:700; padding:2px 4px; border-radius:4px;">
+                            💵 ชำระเงินสด
+                          </span>
+                        ` : `
+                          <button class="btn btn-info btn-xs btn-view-slip" data-id="${inv.id}" style="margin-top:0.35rem; display:block; width:100%; border-radius:6px; font-weight:600;">
+                            <i class="fa-solid fa-image"></i> ดูสลิป
+                          </button>
+                        `) : ''}
+                      </td>
+                      <td>
+                        <div class="action-buttons">
+                          <button class="btn btn-primary btn-xs btn-open-add-payment-modal" data-id="${inv.id}" title="บันทึกและดูประวัติการชำระเงิน">
+                            <i class="fa-solid fa-hand-holding-dollar"></i> บันทึกชำระ
+                          </button>
+                          <button class="btn btn-secondary btn-xs btn-edit-bill" data-id="${inv.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
+                          <button class="btn btn-secondary btn-xs btn-print-bill" data-id="${inv.id}"><i class="fa-solid fa-print text-warning"></i> พิมพ์บิล</button>
+                          <button class="btn btn-secondary btn-xs btn-send-line" data-id="${inv.id}"><i class="fa-brands fa-line text-success"></i> LINE</button>
+                          <button class="btn btn-danger btn-xs btn-delete-bill" data-id="${inv.id}"><i class="fa-solid fa-trash"></i> ลบ</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
                 }).join('')}
               </tbody>
             </table>
@@ -4171,14 +4217,18 @@ class SlipVerificationComponent {
     if (supaUrl && apiKey) {
       try {
         const base = DBService.getBaseSupabaseUrl(supaUrl);
-        const res = await fetch(`${base}/rest/v1/rpc/approve_payment_slip`, {
+        const rpcName = (slip.paymentId || slip.payment_id) ? 'approve_partial_payment' : 'approve_payment_slip';
+        const params = (slip.paymentId || slip.payment_id) 
+          ? { p_payment_id: slip.paymentId || slip.payment_id, p_admin_name: adminName } 
+          : { p_slip_id: slip.id, p_admin_name: adminName };
+        const res = await fetch(`${base}/rest/v1/rpc/${rpcName}`, {
           method: 'POST',
           headers: {
             'apikey': apiKey,
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ p_slip_id: slip.id, p_admin_name: adminName })
+          body: JSON.stringify(params)
         });
         const result = await res.json();
         if (result.status === 'error') throw new Error(result.message);
@@ -4192,12 +4242,35 @@ class SlipVerificationComponent {
     slip.verifiedBy = adminName;
     slip.verifiedAt = new Date().toISOString();
 
+    const payId = slip.paymentId || slip.payment_id;
+    if (!state.payments) state.payments = [];
+    let payRec = state.payments.find(p => p.id === payId || p.slipId === slip.id || (p.invoiceId === slip.invoiceId && p.amount === slip.amount && p.status === 'pending'));
+    if (payRec) {
+      payRec.status = 'approved';
+      payRec.verifiedBy = adminName;
+      payRec.verifiedAt = new Date().toISOString();
+    } else {
+      payRec = {
+        id: payId || ('pay_' + Date.now()),
+        invoiceId: slip.invoiceId,
+        invoice_id: slip.invoiceId,
+        tenantId: slip.tenantId,
+        roomId: slip.roomId,
+        amount: slip.amount || slip.requiredAmount || 0,
+        paymentDate: slip.transactionDate || new Date().toISOString().slice(0, 10),
+        paymentMethod: 'transfer',
+        slipId: slip.id,
+        status: 'approved',
+        verifiedBy: adminName,
+        verifiedAt: new Date().toISOString(),
+        createdAt: slip.createdAt || new Date().toISOString()
+      };
+      state.payments.push(payRec);
+    }
+
     const inv = (state.invoices || []).find(i => i.id === slip.invoiceId || i.invoiceNumber === slip.invoiceId);
     if (inv) {
-      inv.status = 'paid';
-      inv.paidAmount = inv.totalAmount;
-      inv.outstandingAmount = 0;
-      inv.paymentDate = new Date().toISOString().slice(0, 10);
+      DBService.recalculateInvoiceStatus(inv, state);
       App.addInvoiceToLedger(inv);
     }
 
@@ -4215,31 +4288,43 @@ class SlipVerificationComponent {
     if (supaUrl && apiKey) {
       try {
         const base = DBService.getBaseSupabaseUrl(supaUrl);
-        const res = await fetch(`${base}/rest/v1/rpc/reject_payment_slip`, {
+        const rpcName = (slip.paymentId || slip.payment_id) ? 'reject_partial_payment' : 'reject_payment_slip';
+        const params = (slip.paymentId || slip.payment_id) 
+          ? { p_payment_id: slip.paymentId || slip.payment_id, p_admin_name: adminName, p_reason: reason } 
+          : { p_slip_id: slip.id, p_admin_name: adminName, p_reason: reason };
+        await fetch(`${base}/rest/v1/rpc/${rpcName}`, {
           method: 'POST',
           headers: {
             'apikey': apiKey,
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ p_slip_id: slip.id, p_admin_name: adminName, p_reason: reason })
+          body: JSON.stringify(params)
         });
-        const result = await res.json();
-        if (result.status === 'error') throw new Error(result.message);
       } catch (err) {
         console.warn('Reject slip RPC warning, updating locally:', err);
       }
     }
 
-    // Local state updates
     slip.verificationStatus = 'rejected';
     slip.verifiedBy = adminName;
     slip.verifiedAt = new Date().toISOString();
     slip.rejectReason = reason;
 
+    const payId = slip.paymentId || slip.payment_id;
+    if (state.payments) {
+      const payRec = state.payments.find(p => p.id === payId || p.slipId === slip.id || (p.invoiceId === slip.invoiceId && p.amount === slip.amount && p.status === 'pending'));
+      if (payRec) {
+        payRec.status = 'rejected';
+        payRec.note = reason;
+        payRec.verifiedBy = adminName;
+        payRec.verifiedAt = new Date().toISOString();
+      }
+    }
+
     const inv = (state.invoices || []).find(i => i.id === slip.invoiceId || i.invoiceNumber === slip.invoiceId);
-    if (inv && inv.status !== 'paid') {
-      inv.status = 'pending';
+    if (inv) {
+      DBService.recalculateInvoiceStatus(inv, state);
     }
 
     await DBService.saveState(state);
@@ -6885,6 +6970,14 @@ class App {
       });
     });
 
+    document.querySelectorAll('.btn-open-add-payment-modal').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const inv = this.state.invoices.find(i => i.id === id);
+        if (inv) this.openAddPaymentModal(inv);
+      });
+    });
+
     document.querySelectorAll('.btn-toggle-pay-status').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.getAttribute('data-id');
@@ -7192,6 +7285,240 @@ class App {
       const encodedText = encodeURIComponent(txt);
       window.open(`https://social-plugins.line.me/lineit/share?text=${encodedText}`, '_blank');
     });
+  }
+
+  static openAddPaymentModal(inv) {
+    if (!inv) return;
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    const approvedPaid = DBService.getApprovedPaidAmount(inv.id, this.state);
+    const totalWithPenalty = (Number(inv.totalAmount) || 0) + (Number(inv.penaltyAmount) || 0);
+    const remaining = totalWithPenalty - approvedPaid;
+    const isFullyPaid = remaining <= 0;
+
+    const payments = (this.state.payments || [])
+      .filter(p => p.invoiceId === inv.id || p.invoice_id === inv.id)
+      .sort((a, b) => (a.createdAt || a.created_at || '').localeCompare(b.createdAt || b.created_at || ''));
+
+    let statusBadge = '';
+    if (isFullyPaid) {
+      statusBadge = '<span class="badge-pill badge-success">🟢 ชำระครบแล้ว</span>';
+    } else if (approvedPaid > 0) {
+      statusBadge = '<span class="badge-pill" style="background:#ffedd5; color:#c2410c; border:1px solid #fed7aa; font-weight:700;">🟠 ชำระบางส่วน</span>';
+    } else {
+      statusBadge = '<span class="badge-pill badge-danger">🔴 รอชำระ</span>';
+    }
+
+    dialog.innerHTML = `
+      <div class="modal-header" style="background:linear-gradient(135deg, #1e293b, #334155); color:#fff;">
+        <h3><i class="fa-solid fa-receipt text-warning"></i> บันทึก & ประวัติการชำระเงิน (บิล ${inv.invoiceNumber} - ห้อง ${inv.roomName})</h3>
+        <button class="close-modal-btn" style="color:#fff;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        
+        <!-- Summary Cards Grid -->
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:0.75rem; margin-bottom:1.25rem;">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:0.75rem; text-align:center;">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:600;">ยอดบิลรวมค่าปรับ</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#0f172a; margin-top:0.25rem;">${Formatters.currency(totalWithPenalty)}</div>
+          </div>
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:0.75rem; text-align:center;">
+            <div style="font-size:0.75rem; color:#166534; font-weight:600;">ชำระแล้วสะสม</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#15803d; margin-top:0.25rem;">${Formatters.currency(approvedPaid)}</div>
+          </div>
+          <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:0.75rem; text-align:center;">
+            <div style="font-size:0.75rem; color:#991b1b; font-weight:600;">ยอดคงเหลือ</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#dc2626; margin-top:0.25rem;">${Formatters.currency(remaining < 0 ? 0 : remaining)}</div>
+          </div>
+          <div style="background:#fffbeb; border:1px solid #fef08a; border-radius:10px; padding:0.75rem; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div style="font-size:0.75rem; color:#854d0e; font-weight:600; margin-bottom:0.25rem;">สถานะบิล</div>
+            ${statusBadge}
+          </div>
+        </div>
+
+        <!-- Payment History Timeline -->
+        <div style="margin-bottom:1.25rem;">
+          <h4 style="font-size:0.92rem; font-weight:700; color:#1e293b; margin-bottom:0.65rem; display:flex; align-items:center; gap:0.4rem;">
+            <i class="fa-solid fa-clock-rotate-left text-primary"></i> ประวัติการชำระเงิน (${payments.length} รายการ)
+          </h4>
+          ${payments.length === 0 ? `
+            <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:1rem; text-align:center; color:#64748b; font-size:0.85rem;">
+              ยังไม่มีประวัติการชำระเงินสำหรับบิลนี้
+            </div>
+          ` : `
+            <div style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+              <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                <thead style="background:#f1f5f9; text-align:left;">
+                  <tr>
+                    <th style="padding:0.5rem 0.75rem;">งวดที่</th>
+                    <th style="padding:0.5rem 0.75rem;">จำนวนเงิน</th>
+                    <th style="padding:0.5rem 0.75rem;">วันที่ชำระ</th>
+                    <th style="padding:0.5rem 0.75rem;">ช่องทาง</th>
+                    <th style="padding:0.5rem 0.75rem;">สถานะ</th>
+                    <th style="padding:0.5rem 0.75rem;">หมายเหตุ / สลิป</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${payments.map((p, idx) => `
+                    <tr style="border-top:1px solid #f1f5f9;">
+                      <td style="padding:0.5rem 0.75rem; font-weight:700;">ครั้งที่ ${idx + 1}</td>
+                      <td style="padding:0.5rem 0.75rem;"><strong class="text-success">${Formatters.currency(p.amount)}</strong></td>
+                      <td style="padding:0.5rem 0.75rem;">${Formatters.thaiDate(p.paymentDate || p.payment_date || p.createdAt || p.created_at)}</td>
+                      <td style="padding:0.5rem 0.75rem;">${(p.paymentMethod === 'cash' || p.payment_method === 'cash') ? '💵 เงินสด' : '💳 โอนเงิน'}</td>
+                      <td style="padding:0.5rem 0.75rem;">
+                        ${p.status === 'approved' ? '<span style="color:#16a34a; font-weight:700;">✓ อนุมัติแล้ว</span>' : (p.status === 'pending' ? '<span style="color:#d97706; font-weight:700;">⏳ รอตรวจสอบ</span>' : '<span style="color:#dc2626; font-weight:700;">❌ ปฏิเสธ</span>')}
+                      </td>
+                      <td style="padding:0.5rem 0.75rem;">
+                        ${p.note ? `<span class="text-muted">${p.note}</span>` : '-'}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `}
+        </div>
+
+        <!-- Add Payment Form -->
+        ${isFullyPaid ? `
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:1rem; text-align:center; color:#166534; font-weight:700; font-size:0.9rem;">
+            🔒 บิลนี้ชำระเงินครบถ้วนแล้ว ล็อกการบันทึกชำระเงินเพิ่ม
+          </div>
+        ` : `
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:1rem; box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+            <h4 style="font-size:0.92rem; font-weight:700; color:#0f172a; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem;">
+              <i class="fa-solid fa-plus-circle text-success"></i> บันทึกรับชำระเงินงวดใหม่
+            </h4>
+            <form id="adm-payment-form">
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                <div class="form-group">
+                  <label>จำนวนเงินที่รับชำระ (บาท) *</label>
+                  <input type="number" id="adm-pay-amt" class="form-control" min="1" max="${remaining}" step="any" value="${remaining}" required style="font-weight:700; color:#16a34a;">
+                  <div style="font-size:0.75rem; color:#64748b; margin-top:0.2rem;">สูงสุดไม่เกินยอดคงเหลือ ${Formatters.currency(remaining)}</div>
+                </div>
+                <div class="form-group">
+                  <label>วันที่รับชำระ *</label>
+                  <input type="date" id="adm-pay-date" class="form-control" value="${new Date().toISOString().slice(0, 10)}" required>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.5rem;">
+                <div class="form-group">
+                  <label>ช่องทางชำระเงิน</label>
+                  <select id="adm-pay-method" class="form-control">
+                    <option value="cash">💵 เงินสด (บันทึกและอนุมัติทันที)</option>
+                    <option value="transfer">💳 โอนเงิน / พร้อมเพย์</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>หมายเหตุ</label>
+                  <input type="text" id="adm-pay-note" class="form-control" placeholder="เช่น รับเงินสดหน้าเคาน์เตอร์">
+                </div>
+              </div>
+
+              <button type="submit" id="btn-submit-adm-payment" class="btn btn-success btn-full" style="margin-top:1rem; padding:0.75rem; font-weight:700; border-radius:10px;">
+                <i class="fa-solid fa-floppy-disk"></i> บันทึกรายการชำระเงิน
+              </button>
+            </form>
+          </div>
+        `}
+
+      </div>
+    `;
+
+    modal.classList.add('active');
+    modal.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    const form = document.getElementById('adm-payment-form');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const amtInput = document.getElementById('adm-pay-amt');
+        const payAmt = parseFloat(amtInput.value) || 0;
+        const payDate = document.getElementById('adm-pay-date').value;
+        const payMethod = document.getElementById('adm-pay-method').value;
+        const payNote = document.getElementById('adm-pay-note').value.trim();
+
+        if (payAmt <= 0) {
+          alert('กรุณาระบุจำนวนเงินที่ชำระให้ถูกต้อง');
+          return;
+        }
+
+        if (payAmt > remaining + 0.01) {
+          alert('❌ จำนวนเงินเกินยอดคงเหลือ');
+          return;
+        }
+
+        const currentUser = AuthService.getCurrentUser();
+        const adminName = currentUser ? currentUser.displayName : 'แอดมิน';
+
+        const submitBtn = document.getElementById('btn-submit-adm-payment');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...`;
+        }
+
+        try {
+          const supaUrl = DBService.getSavedSupabaseUrl();
+          const apiKey = DBService.getSavedApiKey();
+
+          if (supaUrl && apiKey) {
+            const base = DBService.getBaseSupabaseUrl(supaUrl);
+            const res = await fetch(`${base}/rest/v1/rpc/add_admin_payment`, {
+              method: 'POST',
+              headers: { 'apikey': apiKey, 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                p_invoice_id: inv.id,
+                p_amount: payAmt,
+                p_payment_date: payDate,
+                p_payment_method: payMethod,
+                p_note: payNote,
+                p_admin_name: adminName
+              })
+            });
+            const result = await res.json().catch(() => ({}));
+            if (result.status === 'error') {
+              throw new Error(result.message);
+            }
+          }
+
+          const payId = 'pay_adm_' + Date.now();
+          const newPay = {
+            id: payId,
+            invoiceId: inv.id,
+            invoice_id: inv.id,
+            tenantId: inv.tenantId,
+            roomId: inv.roomId,
+            amount: payAmt,
+            paymentDate: payDate,
+            paymentMethod: payMethod,
+            status: 'approved',
+            note: payNote,
+            verifiedBy: adminName,
+            verifiedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          };
+
+          if (!this.state.payments) this.state.payments = [];
+          this.state.payments.push(newPay);
+
+          DBService.recalculateInvoiceStatus(inv, this.state);
+          App.addInvoiceToLedger(inv);
+          await DBService.saveState(this.state);
+
+          modal.classList.remove('active');
+          alert('✅ บันทึกรายการชำระเงินเรียบร้อยแล้ว!');
+          this.switchTab('billing');
+        } catch (err) {
+          alert(`❌ ไม่สามารถบันทึกได้: ${err.message}`);
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> บันทึกรายการชำระเงิน`;
+          }
+        }
+      });
+    }
   }
 
   static openEditInvoiceModal(inv) {
