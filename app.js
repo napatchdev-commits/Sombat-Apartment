@@ -10429,22 +10429,22 @@ class App {
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความอย่างเดียวกัน ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความในสัญญานี้โดยละเอียดดีแล้ว ต่างยึดถือไว้คนละฉบับ และได้ลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน
           </div>
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:2.2rem; text-align:center;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem 1rem; margin-top:1rem; text-align:center;">
             <div>
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้เช่า<br>
-              <div style="margin-top:0.4rem;">( <span class="dotted-fill">${d.tenantName}</span> )</div>
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> ผู้เช่า<br>
+              <div style="margin-top:0.25rem;">( <span class="dotted-fill">${d.tenantName}</span> )</div>
             </div>
             <div>
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
-              <div style="margin-top:0.4rem;">( ${d.ownerName} )</div>
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
+              <div style="margin-top:0.25rem;">( ${d.ownerName} )</div>
             </div>
-            <div style="margin-top:1.5rem;">
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
-              <div style="margin-top:0.4rem;">( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
+            <div style="margin-top:0.5rem;">
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> พยาน<br>
+              <div style="margin-top:0.25rem;">( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '<span style="display:inline-block; width:140px; border-bottom:1px dotted #000;">&nbsp;</span>'} )</div>
             </div>
-            <div style="margin-top:1.5rem;">
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
-              <div style="margin-top:0.4rem;">( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
+            <div style="margin-top:0.5rem;">
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> พยาน<br>
+              <div style="margin-top:0.25rem;">( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '<span style="display:inline-block; width:140px; border-bottom:1px dotted #000;">&nbsp;</span>'} )</div>
             </div>
           </div>
         </div>
@@ -10545,22 +10545,22 @@ class App {
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความอย่างเดียวกัน ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความในสัญญานี้โดยละเอียดดีแล้ว ต่างยึดถือไว้คนละฉบับ และได้ลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน
           </div>
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1.2rem; text-align:center;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem 1rem; margin-top:1rem; text-align:center;">
             <div>
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้เช่า<br>
-              <div style="margin-top:0.3rem;">( <span class="dotted-fill">${d.tenantName}</span> )</div>
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> ผู้เช่า<br>
+              <div style="margin-top:0.25rem;">( <span class="dotted-fill">${d.tenantName}</span> )</div>
             </div>
             <div>
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
-              <div style="margin-top:0.3rem;">( ${d.ownerName} )</div>
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
+              <div style="margin-top:0.25rem;">( ${d.ownerName} )</div>
             </div>
-            <div style="margin-top:0.8rem;">
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
-              <div style="margin-top:0.3rem;">( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
+            <div style="margin-top:0.5rem;">
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> พยาน<br>
+              <div style="margin-top:0.25rem;">( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '<span style="display:inline-block; width:140px; border-bottom:1px dotted #000;">&nbsp;</span>'} )</div>
             </div>
-            <div style="margin-top:0.8rem;">
-              ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
-              <div style="margin-top:0.3rem;">( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
+            <div style="margin-top:0.5rem;">
+              ลงชื่อ <span style="display:inline-block; width:140px; border-bottom:1px dotted #000;"></span> พยาน<br>
+              <div style="margin-top:0.25rem;">( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '<span style="display:inline-block; width:140px; border-bottom:1px dotted #000;">&nbsp;</span>'} )</div>
             </div>
           </div>
         </div>
