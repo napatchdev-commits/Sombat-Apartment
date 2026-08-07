@@ -1757,6 +1757,11 @@ class DBService {
       );
     }
 
+    await Promise.all(requests);
+    this.saveSnapshot(newSnapshot);
+    return { status: 'success', message: 'บันทึกข้อมูลเรียบร้อย' };
+  }
+
   static getApprovedPaidAmount(invoiceId, state) {
     if (!invoiceId || !state || !state.payments) return 0;
     return state.payments
