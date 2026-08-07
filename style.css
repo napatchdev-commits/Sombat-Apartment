@@ -873,7 +873,9 @@ body {
         display: none !important;
     }
     
-    #app-modal {
+    #app-modal,
+    body.print-receipt-active #app-modal,
+    #app-modal.printing-hide {
         display: none !important;
     }
 
@@ -1065,7 +1067,7 @@ body {
 
 /* Perfect 100% Fit Print Engine */
 @media print {
-    #app-modal {
+    body:not(.print-receipt-active) #app-modal:not(.printing-hide) {
         display: block !important;
     }
 

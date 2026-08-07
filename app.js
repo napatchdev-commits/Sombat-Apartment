@@ -8154,7 +8154,11 @@ class App {
           </div>
         </div>
       `;
+      document.body.classList.add('print-receipt-active');
       window.print();
+      setTimeout(() => {
+        document.body.classList.remove('print-receipt-active');
+      }, 600);
     });
   }
 
@@ -10595,10 +10599,14 @@ class App {
         </div>
       `;
 
+      document.body.classList.add('print-receipt-active');
+      modal.classList.add('printing-hide');
       modal.style.display = 'none';
       window.print();
       setTimeout(() => {
         modal.style.display = '';
+        document.body.classList.remove('print-receipt-active');
+        modal.classList.remove('printing-hide');
       }, 600);
     });
   }
