@@ -1111,7 +1111,7 @@ class DBService {
         fields: [['id','id'],['name','name'],['idCard','id_card'],['tel','tel'],['lineId','line_id'],['email','email'],
                  ['address','address'],['startDate','start_date'],['endDate','end_date'],['assignedRoomId','assigned_room_id'],
                  ['depositAmount','deposit_amount'],['depositStatus','deposit_status'],
-                 ['witness1','witness1'],['witness2','witness2']]
+                 ['witness1','witness1'],['witness2','witness2'],['status','status'],['lastAssignedRoomName','last_assigned_room_name']]
       },
       invoices: {
         table: 'invoices', onConflict: 'room_id,month_key',
@@ -1135,7 +1135,7 @@ class DBService {
       ledger: {
         table: 'ledger', onConflict: 'id',
         fields: [['id','id'],['date','date'],['type','type'],['category','category'],['description','description'],
-                 ['amount','amount'],['recordedBy','recorded_by']]
+                 ['amount','amount'],['recordedBy','recorded_by'],['invoiceId','invoice_id']]
       },
       roomTypes: {
         table: 'room_types', onConflict: 'id',
@@ -2215,9 +2215,21 @@ class ContractsComponent {
 }
 
 class TenantsComponent {
+  static activeSubTab = 'active';
+
   static render(state) {
     if (!state.tenants) state.tenants = [];
-    const tenants = [...state.tenants].sort((a, b) => {
+    if (!this.activeSubTab) this.activeSubTab = 'active';
+
+    const filteredTenants = state.tenants.filter(t => {
+      if (this.activeSubTab === 'inactive') {
+        return t.status === 'inactive';
+      } else {
+        return t.status !== 'inactive';
+      }
+    });
+
+    const tenants = [...filteredTenants].sort((a, b) => {
       const roomA = state.rooms?.find(r => r.id === a.assignedRoomId);
       const roomB = state.rooms?.find(r => r.id === b.assignedRoomId);
       if (!roomA && !roomB) return 0;
@@ -2226,17 +2238,29 @@ class TenantsComponent {
       return DBService.compareRooms(roomA, roomB);
     });
 
+    const activeCount = state.tenants.filter(t => t.status !== 'inactive').length;
+    const inactiveCount = state.tenants.filter(t => t.status === 'inactive').length;
+
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
           <div>
             <h2><i class="fa-solid fa-users text-primary"></i> จัดการข้อมูลผู้เช่าและเอกสารสัญญา</h2>
-            <p>บันทึกทะเบียนผู้เช่า เพิ่มผู้เช่าใหม่ แนบไฟล์บัตรประชาชน/ทะเบียนบ้าน แก้ไข และลบรายการ</p>
+            <p>บันทึกทะเบียนผู้เช่า เพิ่มผู้เช่าใหม่ แนบไฟล์บัตรประชาชน/ทะเบียนบ้าน แก้ไข และย้ายออก/ลบ</p>
           </div>
           <div class="header-actions">
             <button id="btn-export-tenants-excel" class="btn btn-secondary"><i class="fa-solid fa-file-excel text-success"></i> Export Excel</button>
             <button id="btn-add-tenant" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> เพิ่มผู้เช่าใหม่</button>
           </div>
+        </div>
+
+        <div class="contract-tab-switcher" style="margin-bottom:1.25rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; display:flex; gap:0.5rem;">
+          <button class="contract-tab-btn ${this.activeSubTab === 'active' ? 'active' : ''}" id="tab-active-tenants" style="padding:0.45rem 1rem; font-size:0.88rem; font-weight:700;">
+            <i class="fa-solid fa-user-check"></i> ผู้เช่าปัจจุบัน / ใหม่ (${activeCount})
+          </button>
+          <button class="contract-tab-btn ${this.activeSubTab === 'inactive' ? 'active' : ''}" id="tab-inactive-tenants" style="padding:0.45rem 1rem; font-size:0.88rem; font-weight:700;">
+            <i class="fa-solid fa-user-slash"></i> ประวัติผู้เช่าเก่า (${inactiveCount})
+          </button>
         </div>
 
         <div class="glass-card style-table-card">
@@ -2255,10 +2279,14 @@ class TenantsComponent {
               </thead>
               <tbody>
                 ${tenants.length === 0 ? `
-                  <tr><td colspan="7" class="text-center text-muted" style="padding:2rem;">ยังไม่มีข้อมูลผู้เช่าในระบบ กดปุ่ม "เพิ่มผู้เช่าใหม่" ด้านบนเพื่อเพิ่มข้อมูล</td></tr>
+                  <tr><td colspan="7" class="text-center text-muted" style="padding:2rem;">ยังไม่มีข้อมูลผู้เช่าในกลุ่มนี้</td></tr>
                 ` : tenants.map(t => {
                   const room = state.rooms.find(r => r.id === t.assignedRoomId);
-                  const roomBadge = room ? `<span class="badge-pill badge-primary">ห้อง ${room.name}</span>` : `<span class="badge-pill badge-gray">ยังไม่ระบุ</span>`;
+                  const roomBadge = room 
+                    ? `<span class="badge-pill badge-primary">ห้อง ${room.name}</span>` 
+                    : (t.lastAssignedRoomName 
+                        ? `<span class="badge-pill badge-gray">ห้องเดิม: ${t.lastAssignedRoomName}</span>` 
+                        : `<span class="badge-pill badge-gray">ยังไม่ระบุ</span>`);
                   const docCount = t.documents ? t.documents.length : 0;
                   return `
                     <tr>
@@ -2269,27 +2297,34 @@ class TenantsComponent {
                       <td>
                         <div style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-start;">
                           <button class="btn btn-secondary btn-xs btn-view-docs" data-id="${t.id}" style="width:100%; text-align:left;">
-                            <i class="fa-solid fa-folder-open text-primary"></i> \u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e17\u0e35\u0e48\u0e07\u0e2b\u0e21\u0e14 (${docCount})
+                            <i class="fa-solid fa-folder-open text-primary"></i> เอกสารทั้งหมด (${docCount})
                           </button>
                           ${(t.documents || []).some(d => d.category === 'idcard' && d.dataUrl) ? `
                             <a href="${(t.documents || []).find(d => d.category === 'idcard').dataUrl}" target="_blank" class="btn btn-success btn-xs" style="width:100%; font-size:0.75rem; text-align:left; padding:0.15rem 0.35rem;">
-                              <i class="fa-solid fa-id-card"></i> \u0e14\u0e39\u0e1a\u0e31\u0e15\u0e23\u0e15\u0e23\u0e30\u0e0a\u0e32\u0e0a\u0e19
+                              <i class="fa-solid fa-id-card"></i> ดูบัตรประชาชน
                             </a>
                           ` : ''}
                           ${(t.documents || []).some(d => d.category === 'house' && d.dataUrl) ? `
                             <a href="${(t.documents || []).find(d => d.category === 'house').dataUrl}" target="_blank" class="btn btn-info btn-xs" style="width:100%; font-size:0.75rem; text-align:left; padding:0.15rem 0.35rem;">
-                              <i class="fa-solid fa-house-user"></i> \u0e14\u0e39\u0e17\u0e30\u0e40\u0e1a\u0e35\u0e22\u0e19\u0e1a\u0e4c\u0e32\u0e19
+                              <i class="fa-solid fa-house-user"></i> ดูทะเบียนบ้าน
                             </a>
                           ` : ''}
                         </div>
                       </td>
                       <td>${Formatters.thaiDate(t.startDate)} ➔ <strong class="text-warning">${Formatters.thaiDate(t.endDate)}</strong></td>
                       <td>
-                        <div class="action-buttons">
-                          <button class="btn btn-secondary btn-xs btn-gen-contract" data-id="${t.id}"><i class="fa-solid fa-file-contract text-warning"></i> สัญญา</button>
-                          <button class="btn btn-secondary btn-xs btn-edit-tenant" data-id="${t.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
-                          <button class="btn btn-danger btn-xs btn-delete-tenant" data-id="${t.id}" data-name="${t.name}"><i class="fa-solid fa-trash"></i> ลบ</button>
-                        </div>
+                        ${this.activeSubTab === 'inactive' ? `
+                          <div class="action-buttons">
+                            <button class="btn btn-primary btn-xs btn-reuse-tenant" data-id="${t.id}"><i class="fa-solid fa-file-signature"></i> ทำสัญญาใหม่</button>
+                            <button class="btn btn-danger btn-xs btn-delete-tenant-permanently" data-id="${t.id}" data-name="${t.name}"><i class="fa-solid fa-trash"></i> ลบถาวร</button>
+                          </div>
+                        ` : `
+                          <div class="action-buttons">
+                            <button class="btn btn-secondary btn-xs btn-gen-contract" data-id="${t.id}"><i class="fa-solid fa-file-contract text-warning"></i> สัญญา</button>
+                            <button class="btn btn-secondary btn-xs btn-edit-tenant" data-id="${t.id}"><i class="fa-solid fa-pen text-info"></i> แก้ไข</button>
+                            <button class="btn btn-danger btn-xs btn-delete-tenant" data-id="${t.id}" data-name="${t.name}"><i class="fa-solid fa-sign-out"></i> ย้ายออก / ลบ</button>
+                          </div>
+                        `}
                       </td>
                     </tr>
                   `;
@@ -4088,6 +4123,8 @@ class SlipVerificationComponent {
       inv.status = 'paid';
       inv.paidAmount = inv.totalAmount;
       inv.outstandingAmount = 0;
+      inv.paymentDate = new Date().toISOString().slice(0, 10);
+      App.addInvoiceToLedger(inv);
     }
 
     await DBService.saveState(state);
@@ -5734,6 +5771,7 @@ class App {
   }
 
   // --- 2. TENANTS EVENTS ---
+  // --- 2. TENANTS EVENTS ---
   static bindTenantsEvents() {
     const exportExcel = document.getElementById('btn-export-tenants-excel');
     if (exportExcel) {
@@ -5747,6 +5785,22 @@ class App {
     const addBtn = document.getElementById('btn-add-tenant');
     if (addBtn) {
       addBtn.addEventListener('click', () => this.openTenantModal());
+    }
+
+    const tabActive = document.getElementById('tab-active-tenants');
+    if (tabActive) {
+      tabActive.addEventListener('click', () => {
+        TenantsComponent.activeSubTab = 'active';
+        this.switchTab('tenants');
+      });
+    }
+
+    const tabInactive = document.getElementById('tab-inactive-tenants');
+    if (tabInactive) {
+      tabInactive.addEventListener('click', () => {
+        TenantsComponent.activeSubTab = 'inactive';
+        this.switchTab('tenants');
+      });
     }
 
     document.querySelectorAll('.btn-edit-tenant').forEach(btn => {
@@ -5780,9 +5834,26 @@ class App {
         if (tenant) this.openViewTenantDocsModal(tenant);
       });
     });
+
+    document.querySelectorAll('.btn-reuse-tenant').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const tenant = this.state.tenants.find(t => t.id === id);
+        if (tenant) this.openCreateNewContractModal(tenant);
+      });
+    });
+
+    document.querySelectorAll('.btn-delete-tenant-permanently').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tenantId = e.currentTarget.getAttribute('data-id');
+        const tenantName = e.currentTarget.getAttribute('data-name');
+        if (confirm(`⚠️ ยืนยันการลบข้อมูลผู้เช่า "${tenantName}" ออกจากระบบอย่างถาวรใช่หรือไม่? (การดำเนินการนี้จะไม่สามารถกู้คืนได้)`)) {
+          this.deleteTenant(tenantId);
+        }
+      });
+    });
   }
 
-  // อัปโหลดไฟล์เอกสารผู้เช่าขึ้น Supabase Storage แทนการฝัง base64 ลงคอลัมน์ file_url โดยตรง
   // (bucket: tenant-documents ต้องสร้างไว้ล่วงหน้าใน Supabase Dashboard → Storage และตั้งเป็น public)
   static async readFileAsDataUrl(file, tenantId = 'temp') {
     if (!file) return null;
@@ -6043,50 +6114,99 @@ class App {
     const dialog = modal.querySelector('.modal-dialog');
     dialog.innerHTML = `
       <div class="modal-header">
-        <h3><i class="fa-solid fa-triangle-exclamation text-danger"></i> ลบข้อมูลผู้เช่า</h3>
+        <h3><i class="fa-solid fa-circle-question text-warning"></i> จัดการสถานะผู้เช่า</h3>
         <button class="close-modal-btn">&times;</button>
       </div>
       <div class="modal-body">
-        <p>คุณต้องการลบข้อมูลผู้เช่า <strong>"${tenantName}"</strong> ออกจากระบบใช่หรือไม่?</p>
-        <p class="text-muted text-sm">ห้องพักที่เคยเข้าอยู่จะถูกเปลี่ยนสถานะเป็น "ว่าง" โดยอัตโนมัติ</p>
+        <p>คุณต้องการดำเนินการอย่างไรกับข้อมูลผู้เช่า <strong>"${tenantName}"</strong>?</p>
+        
+        <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:1.25rem;">
+          <button id="btn-move-to-history" class="btn btn-warning" style="padding:0.75rem; font-weight:700; text-align:left; display:flex; align-items:center; gap:0.5rem; justify-content:center;">
+            <i class="fa-solid fa-user-slash"></i> ย้ายไปประวัติผู้เช่าเก่า (แนะนำ)
+          </button>
+          <p class="text-muted" style="font-size:0.8rem; margin:0 0 0.5rem 0; line-height:1.4;">
+            ย้ายข้อมูลผู้เช่านี้ไปเก็บไว้ที่แท็บ "ประวัติผู้เช่าเก่า" เพื่อเก็บประวัติและสามารถดึงข้อมูลกลับมาทำสัญญาเช่าใหม่ได้ในอนาคต โดยห้องพักเดิมจะเปลี่ยนสถานะเป็น "ว่าง"
+          </p>
+
+          <button id="btn-delete-permanently" class="btn btn-danger" style="padding:0.75rem; font-weight:700; text-align:left; display:flex; align-items:center; gap:0.5rem; justify-content:center;">
+            <i class="fa-solid fa-trash"></i> ลบข้อมูลออกจากระบบอย่างถาวร
+          </button>
+          <p class="text-muted" style="font-size:0.8rem; margin:0 0 1rem 0; line-height:1.4;">
+            ลบข้อมูลผู้เช่าและประวัติเอกสารแนบทั้งหมดออกจากฐานข้อมูลทันที ไม่สามารถกู้คืนได้
+          </p>
+        </div>
 
         ${room ? `
-          <div style="background:#fef3c7; border:1px solid #f59e0b; border-radius:8px; padding:1rem; margin-top:1rem;">
+          <div style="background:#fef3c7; border:1px solid #f59e0b; border-radius:8px; padding:1rem; margin-top:0.5rem; margin-bottom:1rem;">
             <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; margin-bottom:0.75rem;">
               <input type="checkbox" id="chk-reset-meters" checked style="margin-top:0.2rem;">
               <span>
                 <strong>เคลียร์เลขมิเตอร์น้ำ-ไฟของห้อง ${room.name} เป็น 0</strong><br>
-                <span class="text-muted text-sm">แนะนำให้ติ๊ก ถ้านี่คือผู้เช่าทดสอบ — ป้องกันบิลแรกของผู้เช่าจริงคนต่อไปเอาเลขมิเตอร์เก่าไปคำนวณผิด (ถ้าเป็นผู้เช่าจริงที่ย้ายออก แล้วมิเตอร์ยังเดินต่อเนื่อง ให้ไม่ติ๊กช่องนี้)</span>
+                <span class="text-muted style-sm" style="font-size:0.75rem;">(แนะนำให้ติ๊ก หากผู้เช่าคนนี้เป็นผู้เช่าทดสอบ)</span>
               </span>
             </label>
             ${relatedInvoiceCount > 0 ? `
               <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
                 <input type="checkbox" id="chk-delete-invoices" style="margin-top:0.2rem;">
                 <span>
-                  <strong>ลบบิล/ใบแจ้งหนี้ทั้งหมดของห้อง ${room.name} ด้วย (${relatedInvoiceCount} ใบ)</strong><br>
-                  <span class="text-muted text-sm">แนะนำให้ติ๊ก ถ้านี่คือบิลทดสอบ — ถ้าเป็นบิลจริงที่มีประวัติการชำระเงินจริง ไม่ควรติ๊ก</span>
+                  <strong>ลบบิล/ใบแจ้งหนี้ทั้งหมดของห้อง ${room.name} ด้วย (${relatedInvoiceCount} ใบ)</strong>
                 </span>
               </label>
             ` : ''}
           </div>
         ` : ''}
 
-        <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
-          <button id="btn-confirm-delete-tenant" class="btn btn-danger" style="flex:1;"><i class="fa-solid fa-trash"></i> ยืนยันลบผู้เช่า</button>
-          <button class="btn btn-secondary close-modal-btn" style="flex:1;">ยกเลิก</button>
+        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem; border-top:1px solid var(--border-color); padding-top:1rem;">
+          <button class="btn btn-secondary close-modal-btn">ยกเลิก</button>
         </div>
       </div>
     `;
     modal.classList.add('active');
     modal.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
 
-    document.getElementById('btn-confirm-delete-tenant').addEventListener('click', () => {
+    document.getElementById('btn-move-to-history').addEventListener('click', () => {
       const resetMeters = room ? document.getElementById('chk-reset-meters').checked : false;
       const deleteInvoicesChk = document.getElementById('chk-delete-invoices');
       const deleteInvoices = deleteInvoicesChk ? deleteInvoicesChk.checked : false;
       modal.classList.remove('active');
-      this.deleteTenant(tenantId, { resetMeters, deleteInvoices });
+      this.moveToHistory(tenantId, { resetMeters, deleteInvoices });
     });
+
+    document.getElementById('btn-delete-permanently').addEventListener('click', () => {
+      const resetMeters = room ? document.getElementById('chk-reset-meters').checked : false;
+      const deleteInvoicesChk = document.getElementById('chk-delete-invoices');
+      const deleteInvoices = deleteInvoicesChk ? deleteInvoicesChk.checked : false;
+      if (confirm(`⚠️ ยืนยันการลบข้อมูลผู้เช่า "${tenantName}" ออกจากระบบอย่างถาวรใช่หรือไม่? (การดำเนินการนี้จะไม่สามารถกู้คืนได้)`)) {
+        modal.classList.remove('active');
+        this.deleteTenant(tenantId, { resetMeters, deleteInvoices });
+      }
+    });
+  }
+
+  static moveToHistory(tenantId, options = {}) {
+    const { resetMeters = false, deleteInvoices = false } = options;
+    const tenant = this.state.tenants.find(t => t.id === tenantId);
+    if (tenant) {
+      const assignedRoomId = tenant.assignedRoomId;
+      const room = this.state.rooms.find(r => r.id === assignedRoomId);
+      if (room) {
+        tenant.lastAssignedRoomName = room.name;
+        room.status = 'vacant';
+        room.currentTenantId = null;
+        room.currentTenantName = null;
+        if (resetMeters) {
+          room.lastElecMeter = 0;
+          room.lastWaterMeter = 0;
+        }
+        if (deleteInvoices) {
+          this.state.invoices = this.state.invoices.filter(i => i.roomId !== room.id);
+        }
+      }
+      tenant.assignedRoomId = null;
+      tenant.status = 'inactive';
+      DBService.saveState(this.state);
+      this.switchTab('tenants');
+    }
   }
 
   static deleteTenant(tenantId, options = {}) {
@@ -6113,7 +6233,7 @@ class App {
     }
   }
 
-  // --- 2.5 METER ENTRY GRID EVENTS ---
+    // --- 2.5 METER ENTRY GRID EVENTS ---
   static bindMeterEntryEvents() {
     const rawInvoices = this.state.invoices || [];
     const rooms = [...this.state.rooms].sort(DBService.compareRooms);
@@ -6675,6 +6795,11 @@ class App {
           inv.paidAmount = inv.status === 'paid' ? inv.totalAmount : 0;
           inv.outstandingAmount = inv.status === 'paid' ? 0 : inv.totalAmount;
           inv.paymentDate = inv.status === 'paid' ? new Date().toISOString().slice(0, 10) : null;
+          if (inv.status === 'paid') {
+            App.addInvoiceToLedger(inv);
+          } else {
+            App.removeInvoiceFromLedger(inv.id);
+          }
           DBService.saveState(this.state);
           this.switchTab('billing');
         }
@@ -7194,6 +7319,17 @@ class App {
           slipUrl: document.getElementById('edit-inv-status').value === 'paid' ? (this.state.invoices[idx].slipUrl || "") : "",
           slipHash: document.getElementById('edit-inv-status').value === 'paid' ? (this.state.invoices[idx].slipHash || "") : ""
         };
+
+        const updatedInv = this.state.invoices[idx];
+        if (updatedInv.status === 'paid') {
+          if (!updatedInv.paymentDate) {
+            updatedInv.paymentDate = new Date().toISOString().slice(0, 10);
+          }
+          App.addInvoiceToLedger(updatedInv);
+        } else {
+          updatedInv.paymentDate = null;
+          App.removeInvoiceFromLedger(updatedInv.id);
+        }
 
         const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) {
@@ -9710,7 +9846,8 @@ class App {
         tenant.endDate = endDate;
         tenant.assignedRoomId = roomId;
         tenant.depositAmount = bail;
-        tenant.depositStatus = tenant.depositStatus || 'active';
+        tenant.depositStatus = 'active';
+        tenant.status = 'active';
         if (!tenant.deposit) tenant.deposit = { deductions: [], status: 'active' };
         tenant.deposit.initialBail = bail;
         tenant.witness1 = witness1;
@@ -9741,6 +9878,36 @@ class App {
       this.switchTab('contracts');
       this.openOfficialContractModal(tenant, witness1, witness2);
     });
+  }
+
+  static addInvoiceToLedger(inv) {
+    if (!this.state.ledger) this.state.ledger = [];
+    const existing = this.state.ledger.find(l => l.invoiceId === inv.id);
+    if (existing) {
+      existing.amount = inv.totalAmount;
+      existing.date = inv.paymentDate || new Date().toISOString().slice(0, 10);
+      existing.description = `รับชำระค่าเช่าห้อง ${inv.roomName} (${inv.invoiceNumber})`;
+      return;
+    }
+    const newLed = {
+      id: 'led_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      invoiceId: inv.id,
+      date: inv.paymentDate || new Date().toISOString().slice(0, 10),
+      type: 'income',
+      category: 'ค่าเช่าห้อง',
+      description: `รับชำระค่าเช่าห้อง ${inv.roomName} (${inv.invoiceNumber})`,
+      amount: inv.totalAmount,
+      recordedBy: 'system'
+    };
+    this.state.ledger.unshift(newLed);
+  }
+
+  static removeInvoiceFromLedger(invId) {
+    if (!this.state.ledger) return;
+    const idx = this.state.ledger.findIndex(l => l.invoiceId === invId);
+    if (idx !== -1) {
+      this.state.ledger.splice(idx, 1);
+    }
   }
 
   static openOfficialContractModal(tenant, witness1Input = '', witness2Input = '') {
