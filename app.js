@@ -10524,7 +10524,7 @@ class App {
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
-          <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
+          <div style="line-height:1.9; font-size:0.92rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
@@ -10545,32 +10545,32 @@ class App {
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความอย่างเดียวกัน ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความในสัญญานี้โดยละเอียดดีแล้ว ต่างยึดถือไว้คนละฉบับ และได้ลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน
           </div>
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:2.2rem; text-align:center;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1.2rem; text-align:center;">
             <div>
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้เช่า<br>
-              <div style="margin-top:0.4rem;">( <span class="dotted-fill">${d.tenantName}</span> )</div>
+              <div style="margin-top:0.3rem;">( <span class="dotted-fill">${d.tenantName}</span> )</div>
             </div>
             <div>
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
-              <div style="margin-top:0.4rem;">( ${d.ownerName} )</div>
+              <div style="margin-top:0.3rem;">( ${d.ownerName} )</div>
             </div>
-            <div style="margin-top:1.5rem;">
+            <div style="margin-top:0.8rem;">
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
-              <div style="margin-top:0.4rem;">( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
+              <div style="margin-top:0.3rem;">( ${d.witness1 ? `<span class="dotted-fill">${d.witness1}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
             </div>
-            <div style="margin-top:1.5rem;">
+            <div style="margin-top:0.8rem;">
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
-              <div style="margin-top:0.4rem;">( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
+              <div style="margin-top:0.3rem;">( ${d.witness2 ? `<span class="dotted-fill">${d.witness2}</span>` : '<span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span>'} )</div>
             </div>
           </div>
         </div>
 
         <div class="contract-print-page back-page">
-          <div style="text-align:center; font-weight:bold; font-size:1.5rem; margin-bottom:1.5rem;">
+          <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1rem;">
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
           </div>
 
-          <ol style="line-height:2.1; font-size:0.95rem; margin-left:1.5rem; text-align:justify;">
+          <ol style="line-height:1.85; font-size:0.90rem; margin-left:1.5rem; text-align:justify;">
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
@@ -10586,14 +10586,14 @@ class App {
             <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
           </ol>
 
-          <div style="margin-top:2.5rem; font-size:0.95rem; line-height:1.9;">
+          <div style="margin-top:1.2rem; font-size:0.90rem; line-height:1.7;">
             <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
 
-            <div style="text-align:center; margin-top:2rem; font-weight:600;">
+            <div style="text-align:center; margin-top:1.2rem; font-weight:600;">
               <p>ขอบคุณทุกท่านที่ไว้ใจในบริการและให้ความร่วมมือในการใช้บริการจากเรา</p>
-              <h3 style="margin-top:0.4rem; font-size:1.2rem; color:#000;">${settings.apartmentName || 'หอพักสมบัติ.คอม'}</h3>
+              <h3 style="margin-top:0.3rem; font-size:1.1rem; color:#000;">${settings.apartmentName || 'หอพักสมบัติ.คอม'}</h3>
             </div>
           </div>
         </div>

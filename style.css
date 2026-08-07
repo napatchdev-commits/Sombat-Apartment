@@ -897,16 +897,19 @@ body {
     }
 
     .contract-print-page {
-        padding: 0.2cm 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
         box-shadow: none !important;
         border: none !important;
         font-family: 'Sarabun', 'Noto Sans Thai', THSarabunNew, sans-serif !important;
         color: #000000 !important;
-        line-height: 2.0 !important;
-        font-size: 0.95rem !important;
+        line-height: 1.85 !important;
+        font-size: 0.90rem !important;
         width: 100% !important;
         max-width: 100% !important;
+        max-height: 275mm !important;
         box-sizing: border-box !important;
+        overflow: hidden !important;
     }
 
     .contract-print-page.front-page {
@@ -921,7 +924,7 @@ body {
         break-before: page !important;
         page-break-after: avoid !important;
         break-after: avoid !important;
-        padding-top: 0.5cm !important;
+        padding-top: 0.2cm !important;
     }
 
     .dotted-fill {
