@@ -2919,6 +2919,7 @@ class SettingsComponent {
     if (this.activeSection === 'home') {
       const categories = [
         { id: 'apartment_info', title: 'ข้อมูลหอพัก', desc: 'ชื่อหอพัก, ที่อยู่, เบอร์โทร, บัญชีธนาคาร และ PromptPay', icon: 'fa-building', color: '#06b6d4', keywords: 'หอพัก ธนาคาร พร้อมเพย์ โอนเงิน บัญชี bay kbank scb promptpay' },
+        { id: 'owner_info', title: 'ข้อมูลเจ้าของหอพัก', desc: 'ชื่อเจ้าของหอพัก, ที่อยู่, เบอร์โทร, เลขบัตรประชาชน (สำหรับใช้ในหนังสือสัญญา)', icon: 'fa-user-tie', color: '#a855f7', keywords: 'เจ้าของ ผู้ให้เช่า สัญญา นามผู้ให้เช่า เลขบัตร owner host address lessor' },
         { id: 'billing', title: 'การออกบิล', desc: 'รูปแบบเลขที่บิล, กำหนดส่งบิล, ข้อความแนบท้ายใบเสร็จ', icon: 'fa-file-invoice-dollar', color: '#f97316', keywords: 'บิล ใบเสร็จ ออกบิล กำหนดส่ง เลขที่บิล ท้ายบิล' },
         { id: 'rates', title: 'ค่าน้ำ / ค่าไฟ', desc: 'กำหนดอัตราค่าน้ำ ค่าไฟ ค่าขยะ และค่าบริการเสริมพิเศษ', icon: 'fa-droplet', color: '#3b82f6', keywords: 'น้ำ ไฟ ขยะ เน็ต ส่วนกลาง บริการ extra fee rate unit' },
         { id: 'penalty', title: 'ค่าปรับชำระล่าช้า', desc: 'วันครบกำหนดชำระปกติ, ค่าปรับขั้นบันไดช่วงที่ 1 และ 2', icon: 'fa-clock-rotate-left', color: '#ef4444', keywords: 'ปรับ ล่าช้า เกินกำหนด due phase fine' },
@@ -2966,6 +2967,7 @@ class SettingsComponent {
         <button class="btn btn-secondary btn-sm" id="btn-settings-back" style="padding:0.4rem 0.8rem; font-size:0.85rem; font-weight:700;"><i class="fa-solid fa-arrow-left"></i> ย้อนกลับ</button>
         <h3 style="margin:0; font-size:1.25rem; font-weight:700;">
           ${this.activeSection === 'apartment_info' ? '🏢 ข้อมูลหอพัก' :
+            this.activeSection === 'owner_info' ? '👤 ข้อมูลเจ้าของหอพัก' :
             this.activeSection === 'billing' ? '🧾 การออกบิล' :
             this.activeSection === 'rates' ? '💧 ค่าน้ำ / ค่าไฟ' :
             this.activeSection === 'penalty' ? '💰 ค่าปรับชำระล่าช้า' :
@@ -2993,6 +2995,16 @@ class SettingsComponent {
             <div class="form-group" style="margin-bottom:0.85rem;">
               <label style="font-weight:600;"><i class="fa-solid fa-building text-primary"></i> ชื่อหอพัก / สถานประกอบการ:</label>
               <input type="text" id="setting-apt-name" class="form-control" value="${settings.apartmentName || 'หอพักสมบัติ นนทบุรี'}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-location-dot text-primary"></i> ที่อยู่ของหอพัก (สำหรับสัญญาและบิล):</label>
+              <input type="text" id="setting-apt-address" class="form-control" value="${settings.address || '๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี'}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-phone text-primary"></i> เบอร์โทรศัพท์หอพัก:</label>
+              <input type="text" id="setting-apt-tel" class="form-control" value="${settings.tel || '๐๘๐-๕๙๙๑६๙๑'}" required style="padding:0.55rem 0.75rem;">
             </div>
 
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
@@ -3031,7 +3043,42 @@ class SettingsComponent {
           </form>
         </div>
       `;
-    } else if (this.activeSection === 'billing') {
+} else if (this.activeSection === 'owner_info') {
+      cardBody = `
+        <div class="glass-card">
+          <h3><i class="fa-solid fa-user-tie text-primary"></i> ข้อมูลเจ้าของหอพัก / ผู้ให้เช่า</h3>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
+            ข้อมูลเจ้าของหอพัก/ผู้ให้เช่าจะถูกนำไปใช้แทนที่ข้อมูลผู้ให้เช่าที่ฮาร์ดโค้ดในหนังสือสัญญาเช่าห้องพักโดยอัตโนมัติ
+          </p>
+          
+          <form id="form-owner-settings" style="margin-top:1rem;">
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-user text-primary"></i> ชื่อ-นามสกุล เจ้าของหอพัก (ผู้ให้เช่า) *:</label>
+              <input type="text" id="setting-owner-name" class="form-control" value="${settings.ownerName || 'นายสมบัติ น้ำวน'}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-id-card text-success"></i> เลขบัตรประจำตัวประชาชน (13 หลัก) *:</label>
+              <input type="text" id="setting-owner-idcard" class="form-control" value="${settings.ownerIdCard || '3451200115491'}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-location-dot text-info"></i> ที่อยู่ของผู้ให้เช่า (ตามทะเบียนบ้าน) *:</label>
+              <input type="text" id="setting-owner-address" class="form-control" value="${settings.ownerAddress || '๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี'}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0.85rem;">
+              <label style="font-weight:600;"><i class="fa-solid fa-phone text-warning"></i> เบอร์โทรศัพท์ติดต่อ *:</label>
+              <input type="text" id="setting-owner-tel" class="form-control" value="${settings.ownerTel || '๐๘๐-๕๙๙๑६๙๑'}" required style="padding:0.55rem 0.75rem;">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full" style="padding:0.6rem; font-weight:700; margin-top:0.35rem;">
+              <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลเจ้าของหอพัก
+            </button>
+          </form>
+        </div>
+      `;
+      } else if (this.activeSection === 'billing') {
       cardBody = `
         <div class="glass-card">
           <h3><i class="fa-solid fa-file-invoice-dollar text-primary"></i> ตั้งค่าการออกบิลและเอกสาร</h3>
@@ -9029,6 +9076,8 @@ class App {
         e.preventDefault();
         if (!this.state.settings) this.state.settings = {};
         this.state.settings.apartmentName = document.getElementById('setting-apt-name').value.trim();
+        this.state.settings.address = document.getElementById('setting-apt-address').value.trim();
+        this.state.settings.tel = document.getElementById('setting-apt-tel').value.trim();
         this.state.settings.bankName = document.getElementById('setting-bank-name').value;
         this.state.settings.bankAccountNo = document.getElementById('setting-bank-no').value.trim();
         this.state.settings.bankAccountName = document.getElementById('setting-bank-acc-name').value.trim();
@@ -9036,6 +9085,21 @@ class App {
 
         DBService.saveState(this.state);
         alert('🟢 บันทึกข้อมูลหอพักและบัญชีธนาคารเรียบร้อยแล้ว!');
+      });
+    }
+
+    const ownerForm = document.getElementById('form-owner-settings');
+    if (ownerForm) {
+      ownerForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!this.state.settings) this.state.settings = {};
+        this.state.settings.ownerName = document.getElementById('setting-owner-name').value.trim();
+        this.state.settings.ownerIdCard = document.getElementById('setting-owner-idcard').value.trim();
+        this.state.settings.ownerAddress = document.getElementById('setting-owner-address').value.trim();
+        this.state.settings.ownerTel = document.getElementById('setting-owner-tel').value.trim();
+
+        DBService.saveState(this.state);
+        alert('🟢 บันทึกข้อมูลเจ้าของหอพักเรียบร้อยแล้ว!');
       });
     }
 
@@ -9681,6 +9745,12 @@ class App {
 
   static openOfficialContractModal(tenant, witness1Input = '', witness2Input = '') {
     const room = this.state.rooms.find(r => r.id === tenant.assignedRoomId);
+    const settings = this.state.settings || {};
+    const ownerName = settings.ownerName || 'นายสมบัติ น้ำวน';
+    const ownerIdCard = settings.ownerIdCard || '3451200115491';
+    const ownerAddress = settings.ownerAddress || '๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี';
+    const ownerTel = settings.ownerTel || '๐๘๐-๕๙๙๑६๙๑';
+    const aptAddress = settings.address || '๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี';
 
     const today = new Date();
     const hasAddress = tenant.address && tenant.address.trim() && !tenant.address.includes('45/10 หมู่ที่ 8');
@@ -9702,7 +9772,12 @@ class App {
       depositAmt: tenant.deposit ? tenant.deposit.initialBail.toLocaleString() : '7,000',
       depositThai: Formatters.thaiBahtText(tenant.deposit ? tenant.deposit.initialBail : 7000),
       witness1: witness1Input,
-      witness2: witness2Input
+      witness2: witness2Input,
+      ownerName,
+      ownerIdCard,
+      ownerAddress,
+      ownerTel,
+      aptAddress
     };
 
     const modal = document.getElementById('app-modal');
@@ -9725,19 +9800,19 @@ class App {
             หนังสือสัญญาเช่าห้องแถว
           </div>
           <div style="text-align:right; margin-bottom:1rem; font-size:0.95rem;">
-            เขียนที่ ๔๕/๓ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ๑๑๑๕๐ โทร. ๐๒-๐๕๓๔๓๑๑,๐๘๐-๕๙๙๑๖๙๑
+            เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
           <div style="text-align:right; margin-bottom:1.5rem; font-size:0.95rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
           <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>นายสมบัติ น้ำวน</strong> อยู่บ้านเลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
             ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้เช่า”</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้คือ<br>
 
-            <strong>ข้อ ๑.</strong> ผู้ให้เช่าตกลงให้เช่าและผู้เช่าตกลงเช่าห้องแถว/บ้าน <span class="dotted-fill">${d.roomName}</span> ตั้งอยู่ ณ. เลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี เริ่มตั้งแต่วันที่ <span class="dotted-fill">${d.startDateDay}</span> เดือน <span class="dotted-fill">${d.startDateMonth}</span> พ.ศ. <span class="dotted-fill">${d.startDateYear}</span> ถึงจนกว่าจะออก/ยกเลิกสัญญา<br>
+            <strong>ข้อ ๑.</strong> ผู้ให้เช่าตกลงให้เช่าและผู้เช่าตกลงเช่าห้องแถว/บ้าน <span class="dotted-fill">${d.roomName}</span> ตั้งอยู่ ณ. เลขที่ ${d.aptAddress} เริ่มตั้งแต่วันที่ <span class="dotted-fill">${d.startDateDay}</span> เดือน <span class="dotted-fill">${d.startDateMonth}</span> พ.ศ. <span class="dotted-fill">${d.startDateYear}</span> ถึงจนกว่าจะออก/ยกเลิกสัญญา<br>
 
             <strong>ข้อ ๒.</strong> ผู้เช่าตกลงให้ค่าเช่าเป็นรายเดือนๆ ละ <span class="dotted-fill">${d.monthlyRentAmt}</span> บาท (<span class="dotted-fill">${d.monthlyRentThai}</span>) มีกำหนดชำระเงินค่าเช่าทุกวันที่ ๑ ของทุก ๆ เดือน หากผู้เช่าไม่ชำระตามกําหนดยอมให้ผู้ใช้เช่ายึดทรัพย์สินและใส่กุญแจห้องของผู้เช่าได้<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>๒.๑</strong> ผู้เช่าจะต้องจ่ายเงินค่ามัดจำไว้เพื่อเป็นหลักประกันในทรัพย์สิน/ค่าน้ำ ค่าไฟฟ้า ค่ากุญแจ และอื่นๆ จำนวน <span class="dotted-fill">${d.depositAmt}</span> บาท (<span class="dotted-fill">${d.depositThai}</span>) และจะคืนให้เมื่อครบกำหนด ๖ เดือน/เมื่อย้ายออก<br>
@@ -9759,7 +9834,7 @@ class App {
             </div>
             <div>
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
-              <div style="margin-top:0.4rem;">( นายสมบัติ น้ำวน )</div>
+              <div style="margin-top:0.4rem;">( ${d.ownerName} )</div>
             </div>
             <div style="margin-top:1.5rem;">
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
@@ -9794,30 +9869,28 @@ class App {
           </ol>
 
           <div style="margin-top:2.5rem; font-size:0.95rem; line-height:1.9;">
-            <p>เบอร์เจ้าของห้อง 062-6252564</p>
+            <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
 
             <div style="text-align:center; margin-top:2rem; font-weight:600;">
               <p>ขอบคุณทุกท่านที่ไว้ใจในบริการและให้ความร่วมมือในการใช้บริการจากเรา</p>
-              <h3 style="margin-top:0.4rem; font-size:1.2rem; color:var(--primary);">หอพักสมบัติ.คอม</h3>
+              <h3 style="margin-top:0.4rem; font-size:1.2rem; color:#000;">${settings.apartmentName || 'หอพักสมบัติ.คอม'}</h3>
             </div>
           </div>
         </div>
+      </div>
 
-        <button class="btn btn-primary btn-full" id="btn-do-print-official-contract" style="margin-top: 1.5rem;">
-          <i class="fa-solid fa-print"></i> สั่งพิมพ์หนังสือสัญญาเช่า (PDF หน้า-หลัง)
-        </button>
+      <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid var(--border-color); padding:1rem;">
+        <button class="btn btn-secondary" id="btn-close-contract-modal"><i class="fa-solid fa-xmark"></i> ปิด</button>
+        <button class="btn btn-primary" id="btn-do-print-official-contract"><i class="fa-solid fa-print"></i> พิมพ์สัญญา (PDF 2 หน้า)</button>
       </div>
     `;
 
-    modal.classList.add('active');
-    modal.querySelector('.close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
-
-    const tabFront = document.getElementById('tab-front-doc');
-    const tabBack = document.getElementById('tab-back-doc');
     const viewFront = document.getElementById('contract-front-view');
     const viewBack = document.getElementById('contract-back-view');
+    const tabFront = document.getElementById('tab-front-doc');
+    const tabBack = document.getElementById('tab-back-doc');
 
     tabFront.addEventListener('click', () => {
       tabFront.classList.add('active'); tabBack.classList.remove('active');
@@ -9837,19 +9910,19 @@ class App {
             หนังสือสัญญาเช่าห้องแถว
           </div>
           <div style="text-align:right; margin-bottom:1rem; font-size:0.95rem;">
-            เขียนที่ ๔๕/๓ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ๑๑๑๕๐ โทร. ๐๒-๐๕๓๔๓๑๑,๐๘๐-๕๙๙๑๖๙๑
+            เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
           <div style="text-align:right; margin-bottom:1.5rem; font-size:0.95rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
           <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>นายสมบัติ น้ำวน</strong> อยู่บ้านเลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
             ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้เช่า”</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้คือ<br>
 
-            <strong>ข้อ ๑.</strong> ผู้ให้เช่าตกลงให้เช่าและผู้เช่าตกลงเช่าห้องแถว/บ้าน <span class="dotted-fill">${d.roomName}</span> ตั้งอยู่ ณ. เลขที่ ๔๕/๑๐ หมู่ที่ ๘ ตำบลราษฎร์นิยม อำเภอไทรน้อย จังหวัดนนทบุรี เริ่มตั้งแต่วันที่ <span class="dotted-fill">${d.startDateDay}</span> เดือน <span class="dotted-fill">${d.startDateMonth}</span> พ.ศ. <span class="dotted-fill">${d.startDateYear}</span> ถึงจนกว่าจะออก/ยกเลิกสัญญา<br>
+            <strong>ข้อ ๑.</strong> ผู้ให้เช่าตกลงให้เช่าและผู้เช่าตกลงเช่าห้องแถว/บ้าน <span class="dotted-fill">${d.roomName}</span> ตั้งอยู่ ณ. เลขที่ ${d.aptAddress} เริ่มตั้งแต่วันที่ <span class="dotted-fill">${d.startDateDay}</span> เดือน <span class="dotted-fill">${d.startDateMonth}</span> พ.ศ. <span class="dotted-fill">${d.startDateYear}</span> ถึงจนกว่าจะออก/ยกเลิกสัญญา<br>
 
             <strong>ข้อ ๒.</strong> ผู้เช่าตกลงให้ค่าเช่าเป็นรายเดือนๆ ละ <span class="dotted-fill">${d.monthlyRentAmt}</span> บาท (<span class="dotted-fill">${d.monthlyRentThai}</span>) มีกำหนดชำระเงินค่าเช่าทุกวันที่ ๑ ของทุก ๆ เดือน หากผู้เช่าไม่ชำระตามกําหนดยอมให้ผู้ใช้เช่ายึดทรัพย์สินและใส่กุญแจห้องของผู้เช่าได้<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>๒.๑</strong> ผู้เช่าจะต้องจ่ายเงินค่ามัดจำไว้เพื่อเป็นหลักประกันในทรัพย์สิน/ค่าน้ำ ค่าไฟฟ้า ค่ากุญแจ และอื่นๆ จำนวน <span class="dotted-fill">${d.depositAmt}</span> บาท (<span class="dotted-fill">${d.depositThai}</span>) และจะคืนให้เมื่อครบกำหนด ๖ เดือน/เมื่อย้ายออก<br>
@@ -9871,7 +9944,7 @@ class App {
             </div>
             <div>
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> ผู้ให้เช่า<br>
-              <div style="margin-top:0.4rem;">( นายสมบัติ น้ำวน )</div>
+              <div style="margin-top:0.4rem;">( ${d.ownerName} )</div>
             </div>
             <div style="margin-top:1.5rem;">
               ลงชื่อ <span style="display:inline-block; width:150px; border-bottom:1px dotted #000;"></span> พยาน<br>
@@ -9906,13 +9979,13 @@ class App {
           </ol>
 
           <div style="margin-top:2.5rem; font-size:0.95rem; line-height:1.9;">
-            <p>เบอร์เจ้าของห้อง 062-6252564</p>
+            <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
 
             <div style="text-align:center; margin-top:2rem; font-weight:600;">
               <p>ขอบคุณทุกท่านที่ไว้ใจในบริการและให้ความร่วมมือในการใช้บริการจากเรา</p>
-              <h3 style="margin-top:0.4rem; font-size:1.2rem; color:#000;">หอพักสมบัติ.คอม</h3>
+              <h3 style="margin-top:0.4rem; font-size:1.2rem; color:#000;">${settings.apartmentName || 'หอพักสมบัติ.คอม'}</h3>
             </div>
           </div>
         </div>
