@@ -9887,6 +9887,12 @@ class App {
       </div>
     `;
 
+    modal.classList.add('active');
+    const closeModal = () => modal.classList.remove('active');
+    modal.querySelector('.close-modal-btn').addEventListener('click', closeModal);
+    const closeBtn = document.getElementById('btn-close-contract-modal');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
     const viewFront = document.getElementById('contract-front-view');
     const viewBack = document.getElementById('contract-back-view');
     const tabFront = document.getElementById('tab-front-doc');
