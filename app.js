@@ -787,7 +787,7 @@ class DBService {
     if (state.invoices && Array.isArray(state.invoices)) {
       state.invoices = this.getUniqueInvoices(state.invoices);
       let migrated = false;
-      state.invoices.forEach(inv => {
+      invoices.forEach(inv => {
         if (inv.monthKey && inv.dueDate && inv.dueDate.slice(0, 7) === inv.monthKey) {
           const [year, month] = inv.monthKey.split('-').map(Number);
           let nextMonth = month + 1;
@@ -1065,7 +1065,7 @@ class DBService {
   static updateInvoicePenalties(state) {
     if (!state || !state.invoices) return false;
     let changed = false;
-    state.invoices.forEach(inv => {
+    invoices.forEach(inv => {
       if (inv.status === 'unpaid') {
         const penalty = this.calculateLatePenalty(inv, state.lateFeeSettings);
         if (Number(inv.penaltyAmount || 0) !== penalty.amount || inv.penaltyRule !== penalty.rule) {
@@ -1948,7 +1948,7 @@ class NavbarComponent {
     const vacantCount = state.rooms.filter(r => r.status === 'vacant').length;
     
     const today = new Date();
-    const expiringContracts = state.tenants.filter(t => {
+    const expiringContracts = tenants.filter(t => {
       if (!t.endDate) return false;
       const end = new Date(t.endDate);
       const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 3600 * 24));
@@ -2119,7 +2119,7 @@ class DashboardComponent {
 
     let todayIncome = 0; let monthIncome = 0; let yearIncome = 0; let totalOutstanding = 0;
 
-    state.invoices.forEach(inv => {
+    invoices.forEach(inv => {
       if (inv.paymentDate === todayStr) todayIncome += inv.paidAmount;
       if (inv.monthKey === monthKeyCurrent) monthIncome += inv.paidAmount;
       if (inv.issueDate && inv.issueDate.startsWith(yearCurrent)) yearIncome += inv.paidAmount;
@@ -2127,7 +2127,7 @@ class DashboardComponent {
     });
 
     const today = new Date();
-    const expiringTenants = state.tenants.filter(t => {
+    const expiringTenants = tenants.filter(t => {
       if (!t.endDate) return false;
       const end = new Date(t.endDate);
       const diff = Math.ceil((end.getTime() - today.getTime()) / (1000 * 3600 * 24));
@@ -2410,7 +2410,7 @@ class TenantsComponent {
     }
 
     const isPast = this.activeSection === 'inactive';
-    const filteredTenants = state.tenants.filter(t => {
+    const filteredTenants = tenants.filter(t => {
       if (isPast) {
         return t.status === 'inactive';
       } else {
