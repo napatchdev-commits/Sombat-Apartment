@@ -1453,3 +1453,163 @@ body.dark .settings-card-item:hover {
         gap: 1rem;
     }
 }
+
+
+/* ==========================================================================
+   PARTIAL PAYMENTS MODULE & HISTORY TIMELINE STYLES
+   ========================================================================== */
+.sidebar-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 9999px;
+    background-color: #f97316;
+    color: #ffffff;
+    margin-left: auto;
+}
+
+.payment-progress-bar-container {
+    width: 100%;
+    margin: 0.6rem 0;
+}
+
+.progress-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+
+.payment-progress-track {
+    width: 100%;
+    height: 10px;
+    background-color: #e2e8f0;
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+body.dark .payment-progress-track {
+    background-color: #334155;
+}
+
+.payment-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f97316, #eab308);
+    border-radius: 9999px;
+    transition: width 0.4s ease;
+}
+
+.partial-payment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.2rem;
+    margin-top: 1rem;
+}
+
+.partial-payment-card {
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 12px;
+    padding: 1.2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+body.dark .partial-payment-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+.partial-payment-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+.partial-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.8rem;
+}
+
+.status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.status-chip.partial {
+    background-color: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #ffedd5;
+}
+
+.status-chip.pending {
+    background-color: #fefce8;
+    color: #a16207;
+    border: 1px solid #fef08a;
+}
+
+.status-chip.approved, .status-chip.paid {
+    background-color: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.status-chip.rejected {
+    background-color: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.payment-history-timeline {
+    position: relative;
+    padding-left: 1.5rem;
+    margin-top: 0.8rem;
+    border-left: 2px solid var(--border-color, #e2e8f0);
+}
+
+.payment-history-item {
+    position: relative;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+}
+
+.payment-history-item::before {
+    content: '';
+    position: absolute;
+    left: -1.85rem;
+    top: 0.2rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #94a3b8;
+    border: 2px solid #ffffff;
+}
+
+.payment-history-item.approved::before {
+    background-color: #22c55e;
+}
+
+.payment-history-item.pending::before {
+    background-color: #eab308;
+}
+
+.payment-history-item.rejected::before {
+    background-color: #ef4444;
+}

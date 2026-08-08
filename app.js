@@ -1132,6 +1132,10 @@ class DBService {
 
   static getTableConfigs() {
     return {
+      payments: {
+        table: 'payments', onConflict: 'id',
+        fields: [['id','id'],['invoiceId','invoice_id'],['tenantId','tenant_id'],['roomId','room_id'],['amount','amount'],['paymentDate','payment_date'],['paymentMethod','payment_method'],['slipId','slip_id'],['slipUrl','slip_url'],['status','status'],['note','note'],['rejectionReason','rejection_reason'],['verifiedBy','verified_by'],['verifiedAt','verified_at'],['createdAt','created_at']]
+      },
       rooms: {
         table: 'rooms', onConflict: 'id',
         fields: [['id','id'],['name','name'],['floor','floor'],['typeId','type_id'],['baseRent','base_rent'],
@@ -1190,6 +1194,10 @@ class DBService {
                  ['newWaterCurr','new_water_curr'],['oldElecCurr','old_elec_curr'],['newElecCurr','new_elec_curr'],
                  ['waterUnits','water_units'],['elecUnits','elec_units'],['waterAmount','water_amount'],
                  ['elecAmount','elec_amount'],['notes','notes'],['createdAt','created_at']]
+      },
+      payments: {
+        table: 'payments', onConflict: 'id',
+        fields: [['id','id'],['invoiceId','invoice_id'],['tenantId','tenant_id'],['roomId','room_id'],['amount','amount'],['paymentDate','payment_date'],['paymentMethod','payment_method'],['slipId','slip_id'],['slipUrl','slip_url'],['status','status'],['note','note'],['rejectionReason','rejection_reason'],['verifiedBy','verified_by'],['verifiedAt','verified_at'],['createdAt','created_at']]
       },
       paymentSlips: {
         table: 'payment_slips', onConflict: 'id',
@@ -1370,6 +1378,72 @@ class DBService {
       console.error('Failed to pull from Supabase:', e);
     }
     return null;
+  }
+
+    static async addAdminPayment(invoiceId, amount, paymentDate, paymentMethod, note, adminName, slipUrl) {
+    const url = this.getSavedSupabaseUrl();
+    const apiKey = this.getSavedApiKey();
+    const baseUrl = this.getBaseSupabaseUrl(url);
+
+    const res = await fetch(${baseUrl}/rest/v1/rpc/add_admin_payment, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Authorization': Bearer ,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        p_invoice_id: invoiceId,
+        p_amount: amount,
+        p_payment_date: paymentDate || new Date().toISOString().slice(0, 10),
+        p_payment_method: paymentMethod || 'cash',
+        p_note: note || null,
+        p_admin_name: adminName || 'แอดมิน',
+        p_slip_url: slipUrl || null
+      })
+    });
+    return await res.json();
+  }
+
+  static async approvePartialPayment(paymentId, adminName) {
+    const url = this.getSavedSupabaseUrl();
+    const apiKey = this.getSavedApiKey();
+    const baseUrl = this.getBaseSupabaseUrl(url);
+
+    const res = await fetch(${baseUrl}/rest/v1/rpc/approve_partial_payment, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Authorization': Bearer ,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        p_payment_id: paymentId,
+        p_admin_name: adminName || 'แอดมิน'
+      })
+    });
+    return await res.json();
+  }
+
+  static async rejectPartialPayment(paymentId, adminName, reason) {
+    const url = this.getSavedSupabaseUrl();
+    const apiKey = this.getSavedApiKey();
+    const baseUrl = this.getBaseSupabaseUrl(url);
+
+    const res = await fetch(${baseUrl}/rest/v1/rpc/reject_partial_payment, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Authorization': Bearer ,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        p_payment_id: paymentId,
+        p_admin_name: adminName || 'แอดมิน',
+        p_reason: reason || null
+      })
+    });
+    return await res.json();
   }
 
   static async purgeSupabaseData(url, state) {
@@ -1967,6 +2041,7 @@ class SidebarComponent {
       { id: 'meter-reading', label: 'จดมิเตอร์', icon: 'fa-gauge-high', colorClass: 'nav-icon-amber', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'meter-entry', label: 'ตารางกรอกมิเตอร์', icon: 'fa-table-cells', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'billing', label: 'ระบบออกบิลค่าเช่า', icon: 'fa-file-invoice-dollar', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
+      { id: 'partial-payments', label: '💳 แบ่งชำระ', icon: 'fa-credit-card', colorClass: 'nav-icon-orange', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'repairs', label: 'ระบบแจ้งซ่อม', icon: 'fa-screwdriver-wrench', colorClass: 'nav-icon-purple', roles: ['super_admin', 'admin', 'staff'] },
       { id: 'accounting', label: 'รายรับ - รายจ่าย', icon: 'fa-scale-balanced', colorClass: 'nav-icon-slate', roles: ['super_admin', 'admin'] },
       { id: 'calendar', label: 'ปฏิทินงาน', icon: 'fa-calendar-days', colorClass: 'nav-icon-rose', roles: ['super_admin', 'admin', 'staff'] },
@@ -2038,6 +2113,9 @@ class DashboardComponent {
     const todayStr = new Date().toISOString().slice(0, 10);
     const monthKeyCurrent = todayStr.slice(0, 7);
     const yearCurrent = todayStr.slice(0, 4);
+    const partialInvoices = state.invoices.filter(i => i.status === 'partial');
+    const partialCount = partialInvoices.length;
+    const partialOutstandingTotal = partialInvoices.reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
 
     let todayIncome = 0; let monthIncome = 0; let yearIncome = 0; let totalOutstanding = 0;
 
@@ -2068,7 +2146,7 @@ class DashboardComponent {
           </div>
         </div>
 
-        <div class="kpi-cards-grid">
+        ${partialCount > 0 ? `<div class="alert alert-warning animate-fade-in" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; border-radius:12px; background:#fff7ed; border:1px solid #ffedd5; color:#9a3412; padding:0.85rem 1.25rem;"><div style="display:flex; align-items:center; gap:0.75rem;"><i class="fa-solid fa-credit-card" style="font-size:1.4rem; color:#ea580c;"></i><span style="font-weight:700;">มีบิลที่อยู่ระหว่างการแบ่งชำระ <strong>${partialCount}</strong> รายการ</span></div><a href="#partial-payments" data-tab="partial-payments" class="btn btn-warning btn-sm" style="padding:0.4rem 1rem; border-radius:8px; font-weight:700; background:#f97316; border-color:#f97316; color:#ffffff; text-decoration:none;"><i class="fa-solid fa-arrow-right"></i> จัดการ</a></div>` : ""}<div class="kpi-cards-grid">
           <div class="kpi-card card-blue">
             <div class="kpi-icon"><i class="fa-solid fa-building"></i></div>
             <div class="kpi-content"><span class="label">จำนวนห้องทั้งหมด</span><h3 class="value">${totalRooms} <small>ห้อง</small></h3><span class="subtext">ชั้น 1 ถึง ชั้น 3</span></div>
@@ -2091,7 +2169,7 @@ class DashboardComponent {
           <div class="kpi-card card-white"><div class="kpi-icon text-success"><i class="fa-solid fa-hand-holding-dollar"></i></div><div class="kpi-content"><span class="label">รายรับวันนี้</span><h3 class="value text-success">${Formatters.currency(todayIncome)}</h3></div></div>
           <div class="kpi-card card-white"><div class="kpi-icon text-primary"><i class="fa-solid fa-calendar-check"></i></div><div class="kpi-content"><span class="label">รายได้เดือนนี้ (${monthKeyCurrent})</span><h3 class="value text-primary">${Formatters.currency(monthIncome)}</h3></div></div>
           <div class="kpi-card card-white"><div class="kpi-icon text-info"><i class="fa-solid fa-chart-line"></i></div><div class="kpi-content"><span class="label">รายได้รวมปีนี้ (${yearCurrent})</span><h3 class="value text-info">${Formatters.currency(yearIncome)}</h3></div></div>
-          <div class="kpi-card card-white"><div class="kpi-icon text-warning"><i class="fa-solid fa-file-contract"></i></div><div class="kpi-content"><span class="label">สัญญาใกล้หมดอายุ</span><h3 class="value text-warning">${expiringTenants.length} <small>ราย</small></h3></div></div>
+          <div class="kpi-card card-white"><div class="kpi-icon text-warning"><i class="fa-solid fa-file-contract"></i></div><div class="kpi-content"><span class="label">สัญญาใกล้หมดอายุ</span><h3 class="value text-warning">${expiringTenants.length} <small>ราย</small></h3></div></div><a href="#partial-payments" data-tab="partial-payments" class="kpi-card card-white" style="text-decoration:none; cursor:pointer;" title="คลิกเพื่อดูบิลแบ่งชำระทั้งหมด"><div class="kpi-icon" style="color:#ea580c; background:#fff7ed;"><i class="fa-solid fa-credit-card"></i></div><div class="kpi-content"><span class="label">💳 บิลแบ่งชำระ</span><h3 class="value" style="color:#ea580c;">${partialCount} <small>บิล</small></h3><span class="subtext" style="font-size:0.75rem; color:#9a3412;">ยอดค้าง <strong>${Formatters.currency(partialOutstandingTotal)}</strong></span></div></a>
         </div>
 
         <div class="charts-grid-container" style="margin-top: 1.5rem; display:grid; grid-template-columns: 1fr;">
@@ -2570,6 +2648,469 @@ class RoomTypesComponent {
   }
 }
 
+class PartialPaymentsComponent {
+  static searchKeyword = '';
+  static currentFilter = 'all'; // 'all' | 'partial' | 'unpaid' | 'approaching'
+  static currentSort = 'latest'; // 'latest' | 'highest_remaining' | 'room'
+
+  static render(state) {
+    const invoices = state.invoices || [];
+    let list = invoices.filter(i => i.status === 'partial' || i.status === 'unpaid' || i.status === 'overdue');
+
+    const totalPartialCount = invoices.filter(i => i.status === 'partial').length;
+    const totalPartialOutstanding = invoices.filter(i => i.status === 'partial').reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
+
+    // Filter by tab
+    if (this.currentFilter === 'partial') {
+      list = list.filter(i => i.status === 'partial');
+    } else if (this.currentFilter === 'unpaid') {
+      list = list.filter(i => i.status === 'unpaid' || i.status === 'overdue');
+    } else if (this.currentFilter === 'approaching') {
+      const today = new Date();
+      list = list.filter(i => {
+        if (!i.dueDate) return false;
+        const due = new Date(i.dueDate);
+        const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 3600 * 24));
+        return diff >= 0 && diff <= 5;
+      });
+    }
+
+    // Search
+    if (this.searchKeyword) {
+      const kw = this.searchKeyword.toLowerCase().trim();
+      list = list.filter(i => 
+        (i.roomName && i.roomName.toLowerCase().includes(kw)) ||
+        (i.tenantName && i.tenantName.toLowerCase().includes(kw)) ||
+        (i.invoiceNumber && i.invoiceNumber.toLowerCase().includes(kw))
+      );
+    }
+
+    // Sort
+    if (this.currentSort === 'highest_remaining') {
+      list.sort((a, b) => (parseFloat(b.outstandingAmount) || 0) - (parseFloat(a.outstandingAmount) || 0));
+    } else if (this.currentSort === 'room') {
+      list.sort((a, b) => (a.roomName || '').localeCompare(b.roomName || ''));
+    } else {
+      // latest
+      list.sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
+    }
+
+    return 
+      <div class="view-container animate-fade-in">
+        <div class="view-header">
+          <div>
+            <h2><i class="fa-solid fa-credit-card text-warning"></i> ระบบจัดการบิลแบ่งชำระ (Partial Payments)</h2>
+            <p>จัดการบิลค่าเช่าที่มีการแบ่งชำระ บันทึกงวดชำระ และตรวจสอบสลีปย้อนหลัง</p>
+          </div>
+          <div class="header-actions">
+            <span class="badge-pill badge-warning" style="font-size:0.9rem; padding:0.5rem 1rem;">
+              💳 แบ่งชำระ: <strong> + totalPartialCount + </strong> บิล (ยอดค้างรวม  + Formatters.currency(totalPartialOutstanding) + )
+            </span>
+          </div>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="glass-card" style="padding:1rem; margin-bottom:1.25rem;">
+          <div style="display:grid; grid-template-columns: 1fr auto auto; gap:0.75rem; align-items:center;">
+            <div style="position:relative;">
+              <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:1rem; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+              <input type="text" id="partial-search-input" class="form-control" placeholder="ค้นหาตามเลขห้อง, ชื่อผู้เช่า หรือเลขที่บิล..." value=" + this.searchKeyword + " style="padding-left:2.5rem; border-radius:10px;">
+            </div>
+            
+            <select id="partial-filter-select" class="form-control" style="border-radius:10px; font-weight:600;">
+              <option value="all"  + (this.currentFilter === 'all' ? 'selected' : '') + >บิลค้างชำระทั้งหมด ( + invoices.filter(i => i.status === 'partial' || i.status === 'unpaid' || i.status === 'overdue').length + )</option>
+              <option value="partial"  + (this.currentFilter === 'partial' ? 'selected' : '') + >🟠 กำลังแบ่งชำระ ( + totalPartialCount + )</option>
+              <option value="unpaid"  + (this.currentFilter === 'unpaid' ? 'selected' : '') + >🔴 ยังไม่เคยชำระ</option>
+              <option value="approaching"  + (this.currentFilter === 'approaching' ? 'selected' : '') + >⏰ ใกล้ครบกำหนด (ภายใน 5 วัน)</option>
+            </select>
+
+            <select id="partial-sort-select" class="form-control" style="border-radius:10px; font-weight:600;">
+              <option value="latest"  + (this.currentSort === 'latest' ? 'selected' : '') + >เรียงตามรอบบิลล่าสุด</option>
+              <option value="highest_remaining"  + (this.currentSort === 'highest_remaining' ? 'selected' : '') + >เรียงตามยอดคงเหลือมากสุด</option>
+              <option value="room"  + (this.currentSort === 'room' ? 'selected' : '') + >เรียงตามเลขห้อง</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Cards Grid Container -->
+         + (list.length === 0 ? 
+          <div class="glass-card text-center" style="padding:3rem 1.5rem;">
+            <i class="fa-solid fa-circle-check text-success" style="font-size:3rem; margin-bottom:1rem;"></i>
+            <h3 style="font-weight:700; color:var(--text-main);">ไม่พบรายการบิลแบ่งชำระในเงื่อนไขนี้</h3>
+            <p style="color:var(--text-muted);">ไม่มีบิลที่ตรงกับคำค้นหาหรือตัวกรองที่เลือก</p>
+          </div>
+         : 
+          <div class="partial-payment-grid">
+             + list.map(inv => {
+              const total = parseFloat(inv.totalAmount) || 0;
+              const paid = parseFloat(inv.paidAmount) || 0;
+              const remaining = parseFloat(inv.outstandingAmount) || (total - paid);
+              const percent = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
+              
+              const payments = state.payments ? state.payments.filter(p => p.invoiceId === inv.id) : [];
+              const approvedPayments = payments.filter(p => p.status === 'approved');
+              const latestPayment = payments.length > 0 ? payments[payments.length - 1] : null;
+              const latestDate = latestPayment ? Formatters.thaiDate(latestPayment.paymentDate || latestPayment.createdAt) : '-';
+
+              return 
+                <div class="partial-payment-card">
+                  <div>
+                    <div class="partial-card-header">
+                      <div>
+                        <h3 style="font-size:1.15rem; font-weight:800; color:var(--text-main); margin:0;">ห้อง  + inv.roomName + </h3>
+                        <span style="font-size:0.85rem; color:var(--text-muted);> + (inv.tenantName || 'ผู้เช่า') +  • บิลเดือน  + Formatters.thaiMonthBE(inv.monthKey) + </span>
+                      </div>
+                      <span class="status-chip  + (inv.status === 'partial' ? 'partial' : 'pending') + ">
+                         + (inv.status === 'partial' ? '🟠 แบ่งชำระ' : '🔴 ค้างชำระ') + 
+                      </span>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; text-align:center; background:var(--bg-hover, #f8fafc); padding:0.6rem; border-radius:10px; margin-bottom:0.75rem;">
+                      <div>
+                        <span style="font-size:0.72rem; color:var(--text-muted); display:block;">ยอดบิล</span>
+                        <strong style="font-size:0.92rem; color:var(--text-main);"> + Formatters.currency(total) + </strong>
+                      </div>
+                      <div>
+                        <span style="font-size:0.72rem; color:#16a34a; display:block;">ชำระแล้ว</span>
+                        <strong style="font-size:0.92rem; color:#16a34a;"> + Formatters.currency(paid) + </strong>
+                      </div>
+                      <div>
+                        <span style="font-size:0.72rem; color:#dc2626; display:block;">คงเหลือ</span>
+                        <strong style="font-size:0.95rem; color:#dc2626;"> + Formatters.currency(remaining) + </strong>
+                      </div>
+                    </div>
+
+                    <div class="payment-progress-bar-container">
+                      <div class="progress-label-row">
+                        <span>ชำระแล้ว  + Formatters.currency(paid) +  /  + Formatters.currency(total) + </span>
+                        <span> + percent + %</span>
+                      </div>
+                      <div class="payment-progress-track">
+                        <div class="payment-progress-fill" style="width: + percent + %;"></div>
+                      </div>
+                    </div>
+
+                    <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.6rem; display:flex; justify-content:space-between; border-top:1px dashed var(--border-color); padding-top:0.4rem;">
+                      <span><i class="fa-solid fa-receipt text-primary"></i> ชำระแล้ว  + approvedPayments.length +  ครั้ง</span>
+                      <span><i class="fa-regular fa-clock"></i> ล่าสุด:  + latestDate + </span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; gap:0.5rem; margin-top:1.25rem;">
+                    <button class="btn btn-secondary btn-sm btn-partial-details" data-id=" + inv.id + " style="flex:1; border-radius:8px; font-weight:700;">
+                      <i class="fa-solid fa-eye"></i> ดูรายละเอียด
+                    </button>
+                    <button class="btn btn-primary btn-sm btn-partial-add-pay" data-id=" + inv.id + " style="flex:1; border-radius:8px; font-weight:700; background:#f97316; border-color:#f97316;">
+                      <i class="fa-solid fa-plus"></i> บันทึกการชำระ
+                    </button>
+                  </div>
+                </div>
+              ;
+            }).join('') + 
+          </div>
+        ) + 
+      </div>
+    ;
+  }
+
+  static bindEvents(state) {
+    const searchInput = document.getElementById('partial-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.searchKeyword = e.target.value;
+        App.switchTab('partial-payments');
+      });
+    }
+
+    const filterSelect = document.getElementById('partial-filter-select');
+    if (filterSelect) {
+      filterSelect.addEventListener('change', (e) => {
+        this.currentFilter = e.target.value;
+        App.switchTab('partial-payments');
+      });
+    }
+
+    const sortSelect = document.getElementById('partial-sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        this.currentSort = e.target.value;
+        App.switchTab('partial-payments');
+      });
+    }
+
+    document.querySelectorAll('.btn-partial-details').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        this.openDetailsModal(id, state);
+      });
+    });
+
+    document.querySelectorAll('.btn-partial-add-pay').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        this.openAddPaymentModal(id, state);
+      });
+    });
+  }
+
+  static openDetailsModal(invoiceId, state) {
+    const inv = state.invoices.find(i => i.id === invoiceId);
+    if (!inv) return;
+
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    const total = parseFloat(inv.totalAmount) || 0;
+    const paid = parseFloat(inv.paidAmount) || 0;
+    const remaining = parseFloat(inv.outstandingAmount) || (total - paid);
+    const payments = state.payments ? state.payments.filter(p => p.invoiceId === inv.id) : [];
+
+    dialog.innerHTML = 
+      <div class="modal-header" style="background:#f97316; color:#ffffff;">
+        <h3><i class="fa-solid fa-receipt"></i> รายละเอียดบิลและการแบ่งชำระ - ห้อง  + inv.roomName + </h3>
+        <button type="button" class="close-modal-btn" style="color:#ffffff;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1rem; margin-bottom:1.25rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <span style="font-weight:700; font-size:1.05rem;">บิลเดือน  + Formatters.thaiMonthBE(inv.monthKey) + </span>
+            <span class="status-chip  + (inv.status === 'partial' ? 'partial' : 'pending') + "> + (inv.status === 'partial' ? '🟠 แบ่งชำระ' : '🔴 ค้างชำระ') + </span>
+          </div>
+          <div style="font-size:0.85rem; color:#64748b;">ผู้เช่า: <strong> + inv.tenantName + </strong> | เลขที่บิล:  + inv.invoiceNumber + </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; text-align:center; margin-top:0.75rem; background:#ffffff; padding:0.75rem; border-radius:8px; border:1px solid #cbd5e1;">
+            <div>
+              <div style="font-size:0.75rem; color:#64748b;">ยอดบิล</div>
+              <strong style="font-size:1.05rem; color:#0f172a;"> + Formatters.currency(total) + </strong>
+            </div>
+            <div>
+              <div style="font-size:0.75rem; color:#16a34a;">ยอดชำระแล้ว</div>
+              <strong style="font-size:1.05rem; color:#16a34a;"> + Formatters.currency(paid) + </strong>
+            </div>
+            <div>
+              <div style="font-size:0.75rem; color:#dc2626;">ยอดคงเหลือ</div>
+              <strong style="font-size:1.15rem; color:#dc2626;"> + Formatters.currency(remaining) + </strong>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="font-weight:700; font-size:0.95rem; margin-bottom:0.75rem; color:#1e293b;">
+          <i class="fa-solid fa-history text-primary"></i> ประวัติการชำระเงิน ( + payments.length +  ครั้ง)
+        </h4>
+
+         + (payments.length === 0 ? 
+          <div style="text-align:center; color:#94a3b8; padding:2rem; background:#f8fafc; border-radius:10px;">
+            ยังไม่มีประวัติการส่งชำระเงินในระบบสำหรับบิลนี้
+          </div>
+         : 
+          <div class="payment-history-timeline">
+             + payments.map((p, idx) => 
+              <div class="payment-history-item  + p.status + ">
+                <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:0.85rem; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                      <strong style="font-size:0.95rem;">ครั้งที่  + (idx + 1) +  ( + (p.paymentMethod === 'cash' ? '💵 เงินสด' : '💳 โอนเงิน') + )</strong>
+                      <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem;">
+                        วันที่:  + Formatters.thaiDate(p.paymentDate || p.createdAt) + 
+                      </div>
+                       + (p.slipUrl ? <a href=" + p.slipUrl + " target="_blank" style="font-size:0.8rem; color:#2563eb; font-weight:600; display:inline-block; margin-top:0.25rem;"><i class="fa-solid fa-paperclip"></i> ดูรูปสลิป</a> : '') + 
+                       + (p.note ? <div style="font-size:0.78rem; color:#475569; margin-top:0.2rem;">หมายเหตุ:  + p.note + </div> : '') + 
+                       + (p.status === 'rejected' && p.rejectionReason ? <div style="font-size:0.78rem; color:#dc2626; font-weight:600; margin-top:0.2rem;">❌ เหตุผลที่ปฏิเสธ:  + p.rejectionReason + </div> : '') + 
+                    </div>
+                    <div style="text-align:right;">
+                      <span class="status-chip  + p.status + ">
+                         + (p.status === 'approved' ? '🟢 อนุมัติแล้ว' : (p.status === 'rejected' ? '🔴 ไม่ผ่าน' : '🟡 รอตรวจสอบ')) + 
+                      </span>
+                      <div style="font-weight:800; font-size:1.1rem; color: + (p.status === 'approved' ? '#16a34a' : (p.status === 'rejected' ? '#dc2626' : '#d97706')) + ; margin-top:0.3rem;">
+                         + Formatters.currency(p.amount) + 
+                      </div>
+                       + (p.status === 'pending' ? 
+                        <div style="display:flex; gap:0.35rem; margin-top:0.5rem; justify-content:flex-end;">
+                          <button type="button" class="btn btn-success btn-xs btn-approve-pay" data-pay-id=" + p.id + " style="padding:0.2rem 0.55rem; font-size:0.75rem; font-weight:700;">
+                            <i class="fa-solid fa-check"></i> อนุมัติ
+                          </button>
+                          <button type="button" class="btn btn-danger btn-xs btn-reject-pay" data-pay-id=" + p.id + " style="padding:0.2rem 0.55rem; font-size:0.75rem; font-weight:700;">
+                            <i class="fa-solid fa-xmark"></i> ปฏิเสธ
+                          </button>
+                        </div>
+                       : '') + 
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ).join('') + 
+          </div>
+        ) + 
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary close-modal-trigger">ปิดหน้าต่าง</button>
+      </div>
+    ;
+
+    modal.classList.add('active');
+    modal.querySelectorAll('.close-modal-btn, .close-modal-trigger').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    modal.querySelectorAll('.btn-approve-pay').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const payId = btn.getAttribute('data-pay-id');
+        if (confirm('คุณต้องการอนุมัติการชำระเงินงวดนี้หรือไม่?')) {
+          btn.disabled = true;
+          try {
+            const user = AuthService.getCurrentUser();
+            const res = await DBService.approvePartialPayment(payId, user ? user.displayName : 'แอดมิน');
+            if (res.status === 'success') {
+              alert('✅ อนุมัติการชำระเงินเรียบร้อยแล้ว!');
+              modal.classList.remove('active');
+              const syncUrl = DBService.getSavedSupabaseUrl();
+              if (syncUrl) App.state = await DBService.pullFromSupabase(syncUrl);
+              App.switchTab('partial-payments');
+            } else {
+              alert('❌ ' + (res.message || 'เกิดข้อผิดพลาดในการอนุมัติ'));
+            }
+          } catch (e) {
+            alert('❌ เกิดข้อผิดพลาด: ' + e.message);
+          }
+        }
+      });
+    });
+
+    modal.querySelectorAll('.btn-reject-pay').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const payId = btn.getAttribute('data-pay-id');
+        const reason = prompt('กรุณาระบุเหตุผลการปฏิเสธการชำระเงิน:');
+        if (reason !== null) {
+          btn.disabled = true;
+          try {
+            const user = AuthService.getCurrentUser();
+            const res = await DBService.rejectPartialPayment(payId, user ? user.displayName : 'แอดมิน', reason);
+            if (res.status === 'success') {
+              alert('✅ ปฏิเสธการชำระเงินเรียบร้อยแล้ว');
+              modal.classList.remove('active');
+              const syncUrl = DBService.getSavedSupabaseUrl();
+              if (syncUrl) App.state = await DBService.pullFromSupabase(syncUrl);
+              App.switchTab('partial-payments');
+            } else {
+              alert('❌ ' + (res.message || 'เกิดข้อผิดพลาดในการปฏิเสธ'));
+            }
+          } catch (e) {
+            alert('❌ เกิดข้อผิดพลาด: ' + e.message);
+          }
+        }
+      });
+    });
+  }
+
+  static openAddPaymentModal(invoiceId, state) {
+    const inv = state.invoices.find(i => i.id === invoiceId);
+    if (!inv) return;
+
+    const modal = document.getElementById('app-modal');
+    const dialog = modal.querySelector('.modal-dialog');
+
+    const total = parseFloat(inv.totalAmount) || 0;
+    const paid = parseFloat(inv.paidAmount) || 0;
+    const remaining = parseFloat(inv.outstandingAmount) || (total - paid);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    dialog.innerHTML = 
+      <div class="modal-header" style="background:#2563eb; color:#ffffff;">
+        <h3><i class="fa-solid fa-plus-circle"></i> บันทึกการชำระเงิน - ห้อง  + inv.roomName + </h3>
+        <button type="button" class="close-modal-btn" style="color:#ffffff;">&times;</button>
+      </div>
+      <form id="form-admin-add-payment">
+        <div class="modal-body" style="padding:1.25rem;">
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:0.85rem; margin-bottom:1rem; font-size:0.85rem;">
+            <div>บิลเดือน: <strong> + Formatters.thaiMonthBE(inv.monthKey) +  ( + inv.invoiceNumber + )</strong></div>
+            <div>ผู้เช่า: <strong> + inv.tenantName + </strong></div>
+            <div style="margin-top:0.35rem; color:#1e3a8a;">ยอดบิลรวม: <strong> + Formatters.currency(total) + </strong> | ชำระแล้ว: <strong style="color:#16a34a;"> + Formatters.currency(paid) + </strong> | คงเหลือ: <strong style="color:#dc2626;"> + Formatters.currency(remaining) + </strong></div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.35rem;">
+              จำนวนเงินที่รับชำระ (บาท) *
+            </label>
+            <input type="number" id="adm-pay-amount" class="form-control" min="1" max=" + remaining + " step="any" value=" + remaining + " required style="font-size:1.1rem; font-weight:800; color:#2563eb;">
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.35rem;">
+              วันที่รับชำระ *
+            </label>
+            <input type="date" id="adm-pay-date" class="form-control" value=" + todayStr + " required>
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.35rem;">
+              ช่องทาง/วิธีชำระเงิน *
+            </label>
+            <select id="adm-pay-method" class="form-control" required>
+              <option value="cash" selected>💵 เงินสด</option>
+              <option value="transfer">💳 โอนเงิน (PromptPay / Bank Transfer)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.35rem;">
+              หมายเหตุเพิ่มเติม
+            </label>
+            <input type="text" id="adm-pay-note" class="form-control" placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary close-modal-trigger">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" style="font-weight:700; background:#2563eb;">
+            <i class="fa-solid fa-check"></i> บันทึกการชำระเงิน
+          </button>
+        </div>
+      </form>
+    ;
+
+    modal.classList.add('active');
+    modal.querySelectorAll('.close-modal-btn, .close-modal-trigger').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
+
+    const form = document.getElementById('form-admin-add-payment');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const amount = parseFloat(document.getElementById('adm-pay-amount').value);
+      const payDate = document.getElementById('adm-pay-date').value;
+      const method = document.getElementById('adm-pay-method').value;
+      const note = document.getElementById('adm-pay-note').value.trim();
+
+      if (isNaN(amount) || amount <= 0) {
+        alert('กรุณากรอกจำนวนเงินให้ถูกต้อง');
+        return;
+      }
+      if (amount > remaining) {
+        alert('จำนวนเงินเกินยอดคงเหลือ');
+        return;
+      }
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+      try {
+        const user = AuthService.getCurrentUser();
+        const res = await DBService.addAdminPayment(inv.id, amount, payDate, method, note, user ? user.displayName : 'แอดมิน');
+        if (res.status === 'success') {
+          alert('✅ บันทึกการชำระเงินเรียบร้อยแล้ว!');
+          modal.classList.remove('active');
+          const syncUrl = DBService.getSavedSupabaseUrl();
+          if (syncUrl) App.state = await DBService.pullFromSupabase(syncUrl);
+          App.switchTab('partial-payments');
+        } else {
+          alert('❌ ' + (res.message || 'เกิดข้อผิดพลาดในการบันทึก'));
+          submitBtn.disabled = false;
+        }
+      } catch (err) {
+        alert('❌ ไม่สามารถบันทึกได้: ' + err.message);
+        submitBtn.disabled = false;
+      }
+    });
+  }
+}
+
+
 class BillingComponent {
   static render(state) {
     const rawInvoices = state.invoices || [];
@@ -2773,7 +3314,7 @@ class AccountingComponent {
           </div>
         </div>
 
-        <div class="kpi-cards-grid">
+        ${partialCount > 0 ? `<div class="alert alert-warning animate-fade-in" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; border-radius:12px; background:#fff7ed; border:1px solid #ffedd5; color:#9a3412; padding:0.85rem 1.25rem;"><div style="display:flex; align-items:center; gap:0.75rem;"><i class="fa-solid fa-credit-card" style="font-size:1.4rem; color:#ea580c;"></i><span style="font-weight:700;">มีบิลที่อยู่ระหว่างการแบ่งชำระ <strong>${partialCount}</strong> รายการ</span></div><a href="#partial-payments" data-tab="partial-payments" class="btn btn-warning btn-sm" style="padding:0.4rem 1rem; border-radius:8px; font-weight:700; background:#f97316; border-color:#f97316; color:#ffffff; text-decoration:none;"><i class="fa-solid fa-arrow-right"></i> จัดการ</a></div>` : ""}<div class="kpi-cards-grid">
           <div class="kpi-card card-green"><div class="kpi-content"><span class="label">รายรับรวม</span><h3 class="value text-success">${Formatters.currency(totalIncome)}</h3></div></div>
           <div class="kpi-card card-red"><div class="kpi-content"><span class="label">รายจ่ายรวม</span><h3 class="value text-danger">${Formatters.currency(totalExpense)}</h3></div></div>
           <div class="kpi-card card-blue"><div class="kpi-content"><span class="label">กำไรสุทธิ</span><h3 class="value text-primary">${Formatters.currency(totalIncome - totalExpense)}</h3></div></div>
@@ -5063,6 +5604,7 @@ class App {
       case 'meter-reading': workspace.innerHTML = MeterReadingComponent.render(this.state); MeterReadingComponent.bindMeterReadingEvents(); break;
       case 'meter-entry': workspace.innerHTML = MeterEntryComponent.render(this.state); this.bindMeterEntryEvents(); break;
       case 'billing': workspace.innerHTML = BillingComponent.render(this.state); this.bindBillingEvents(); break;
+      case 'partial-payments': workspace.innerHTML = PartialPaymentsComponent.render(this.state); PartialPaymentsComponent.bindEvents(this.state); break;
       case 'slip-verification': workspace.innerHTML = SlipVerificationComponent.render(this.state); SlipVerificationComponent.bindEvents(this.state); break;
       case 'repairs': workspace.innerHTML = RepairsComponent.render(this.state); this.bindRepairsEvents(); break;
       case 'accounting': workspace.innerHTML = AccountingComponent.render(this.state); this.bindAccountingEvents(); break;

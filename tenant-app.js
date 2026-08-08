@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    MYBILLS TENANT PORTAL - SOMBAT APARTMENT ENTERPRISE (MOBILE-FIRST JS)
    ========================================================================== */
 
@@ -2170,7 +2170,7 @@ class MyBillsApp {
             }
 
             if (payAmtToSubmit > amountToPay + 0.01) {
-              alert('❌ จำนวนเงินเกินยอดคงเหลือ');
+              alert('จำนวนเงินเกินยอดคงเหลือที่สามารถชำระได้');
               return;
             }
 
@@ -2243,8 +2243,37 @@ class MyBillsApp {
                 console.warn('LINE notification trigger error:', lineErr);
               }
 
-              MyBillsApp.render();
-              MyBillsApp.openOfficialBillModal(invoicesList[invIdx]);
+              dialog.innerHTML = 
+                <div class="modal-header" style="background:#059669; color:#ffffff; text-align:center;">
+                  <h3><i class="fa-solid fa-circle-check"></i> ส่งข้อมูลชำระเงินเรียบร้อยแล้ว</h3>
+                </div>
+                <div class="modal-body" style="padding:2rem 1.5rem; text-align:center;">
+                  <div style="width:70px; height:70px; background:#d1fae5; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:1.25rem;">
+                    <i class="fa-solid fa-check" style="font-size:2.2rem; color:#059669;"></i>
+                  </div>
+                  <h4 style="font-size:1.15rem; font-weight:800; color:#0f172a; margin-bottom:0.75rem; line-height:1.5;">
+                    ขอบคุณที่ชำระบริการ
+                  </h4>
+                  <p style="font-size:0.92rem; color:#334155; line-height:1.7; margin-bottom:1.5rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1rem; text-align:center;">
+                    กรุณารอแอดมินตรวจสอบสลิปอีกครั้ง<br>
+                    แล้วกลับเข้ามาดูสถานะใหม่อีกครั้ง<br>
+                    <span style="font-size:0.85rem; color:#64748b;">หากมีข้อสงสัยกรุณาติดต่อแอดมิน</span>
+                  </p>
+                  <button type="button" class="btn btn-primary btn-full" id="btn-back-to-bills-view" style="padding:0.85rem; font-weight:700; border-radius:10px; background:#059669; border-color:#059669;">
+                    <i class="fa-solid fa-arrow-left"></i> กลับไปหน้าบิล
+                  </button>
+                </div>
+              ;
+              modal.classList.add('active');
+              document.getElementById('btn-back-to-bills-view').addEventListener('click', async () => {
+                modal.classList.remove('active');
+                try {
+                  const cleanId = String(tenant.idCard).replace(/\D/g, '');
+                  const fresh = await TenantDBService.fetchTenantBill(cleanId, tenant.assignedRoomId);
+                  MyBillsApp.applyTenantBillData(fresh);
+                } catch (e) {}
+                MyBillsApp.render();
+              });
             } catch (err) {
               analysisLoader.remove();
               alert('❌ ' + err.message);
@@ -2304,8 +2333,37 @@ class MyBillsApp {
                 console.warn('LINE notification trigger error:', lineErr);
               }
 
-              MyBillsApp.render();
-              MyBillsApp.openReceiptModal(invoicesList[invIdx]);
+              dialog.innerHTML = 
+                <div class="modal-header" style="background:#059669; color:#ffffff; text-align:center;">
+                  <h3><i class="fa-solid fa-circle-check"></i> แจ้งชำระเงินสดเรียบร้อยแล้ว</h3>
+                </div>
+                <div class="modal-body" style="padding:2rem 1.5rem; text-align:center;">
+                  <div style="width:70px; height:70px; background:#d1fae5; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:1.25rem;">
+                    <i class="fa-solid fa-check" style="font-size:2.2rem; color:#059669;"></i>
+                  </div>
+                  <h4 style="font-size:1.15rem; font-weight:800; color:#0f172a; margin-bottom:0.75rem; line-height:1.5;">
+                    ขอบคุณที่ชำระบริการ
+                  </h4>
+                  <p style="font-size:0.92rem; color:#334155; line-height:1.7; margin-bottom:1.5rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1rem; text-align:center;">
+                    กรุณารอแอดมินตรวจสอบการชำระเงินอีกครั้ง<br>
+                    แล้วกลับเข้ามาดูสถานะใหม่อีกครั้ง<br>
+                    <span style="font-size:0.85rem; color:#64748b;">หากมีข้อสงสัยกรุณาติดต่อแอดมิน</span>
+                  </p>
+                  <button type="button" class="btn btn-primary btn-full" id="btn-back-to-bills-view-cash" style="padding:0.85rem; font-weight:700; border-radius:10px; background:#059669; border-color:#059669;">
+                    <i class="fa-solid fa-arrow-left"></i> กลับไปหน้าบิล
+                  </button>
+                </div>
+              ;
+              modal.classList.add('active');
+              document.getElementById('btn-back-to-bills-view-cash').addEventListener('click', async () => {
+                modal.classList.remove('active');
+                try {
+                  const cleanId = String(tenant.idCard).replace(/\D/g, '');
+                  const fresh = await TenantDBService.fetchTenantBill(cleanId, tenant.assignedRoomId);
+                  MyBillsApp.applyTenantBillData(fresh);
+                } catch (e) {}
+                MyBillsApp.render();
+              });
             } catch (err) {
               alert('❌ แจ้งชำระล้มเหลว: ' + err.message);
             }
