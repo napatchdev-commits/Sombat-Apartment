@@ -2107,26 +2107,31 @@ class SidebarComponent {
 
 class DashboardComponent {
   static render(state) {
-    const totalRooms = state.rooms.length;
-    const occupiedRooms = state.rooms.filter(r => r.status === 'occupied').length;
-    const vacantRooms = state.rooms.filter(r => r.status === 'vacant').length;
-    const overdueRooms = state.rooms.filter(r => r.status === 'overdue').length;
-    const reservedRooms = state.rooms.filter(r => r.status === 'reserved').length;
+    if (!state) state = {};
+    const rooms = state.rooms || [];
+    const invoices = state.invoices || [];
+    const tenants = state.tenants || [];
+    
+    const totalRooms = rooms.length;
+    const occupiedRooms = rooms.filter(r => r.status === 'occupied').length;
+    const vacantRooms = rooms.filter(r => r.status === 'vacant').length;
+    const overdueRooms = rooms.filter(r => r.status === 'overdue').length;
+    const reservedRooms = rooms.filter(r => r.status === 'reserved').length;
 
     const todayStr = new Date().toISOString().slice(0, 10);
     const monthKeyCurrent = todayStr.slice(0, 7);
     const yearCurrent = todayStr.slice(0, 4);
-    const partialInvoices = state.invoices.filter(i => i.status === 'partial');
+    const partialInvoices = invoices.filter(i => i.status === 'partial');
     const partialCount = partialInvoices.length;
     const partialOutstandingTotal = partialInvoices.reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
 
     let todayIncome = 0; let monthIncome = 0; let yearIncome = 0; let totalOutstanding = 0;
 
-    state.invoices.forEach(inv => {
-      if (inv.paymentDate === todayStr) todayIncome += inv.paidAmount;
-      if (inv.monthKey === monthKeyCurrent) monthIncome += inv.paidAmount;
-      if (inv.issueDate && inv.issueDate.startsWith(yearCurrent)) yearIncome += inv.paidAmount;
-      totalOutstanding += inv.outstandingAmount;
+    invoices.forEach(inv => {
+      if (inv.paymentDate === todayStr) todayIncome += (inv.paidAmount || 0);
+      if (inv.monthKey === monthKeyCurrent) monthIncome += (inv.paidAmount || 0);
+      if (inv.issueDate && inv.issueDate.startsWith(yearCurrent)) yearIncome += (inv.paidAmount || 0);
+      totalOutstanding += (inv.outstandingAmount || 0);
     });
 
     const today = new Date();
