@@ -2090,6 +2090,12 @@ class SidebarComponent {
                     <i class="fa-solid ${item.icon}"></i>
                   </span>
                   <span>${item.label}</span>
+                  ${item.id === 'partial-payments' && App.state && App.state.invoices ? (
+                    (() => {
+                      const count = App.state.invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0).length;
+                      return count > 0 ? `<span class="sidebar-badge">${count}</span>` : '';
+                    })()
+                  ) : ''}
                 </a>
               </li>
             `).join('')}
@@ -2121,7 +2127,7 @@ class DashboardComponent {
     const todayStr = new Date().toISOString().slice(0, 10);
     const monthKeyCurrent = todayStr.slice(0, 7);
     const yearCurrent = todayStr.slice(0, 4);
-    const partialInvoices = invoices.filter(i => i.status === 'partial');
+    const partialInvoices = invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
     const partialCount = partialInvoices.length;
     const partialOutstandingTotal = partialInvoices.reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
 
@@ -2664,16 +2670,20 @@ class PartialPaymentsComponent {
 
   static render(state) {
     const invoices = state.invoices || [];
-    let list = invoices.filter(i => i.status === 'partial' || i.status === 'unpaid' || i.status === 'overdue');
+    let list = invoices.filter(i => {
+      const outstanding = parseFloat(i.outstandingAmount) || 0;
+      return (i.status === 'partial' || i.status === 'unpaid' || i.status === 'overdue' || i.status === 'pending_verification') && outstanding > 0;
+    });
 
-    const totalPartialCount = invoices.filter(i => i.status === 'partial').length;
-    const totalPartialOutstanding = invoices.filter(i => i.status === 'partial').reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
+    const partialInvoices = invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
+    const totalPartialCount = partialInvoices.length;
+    const totalPartialOutstanding = partialInvoices.reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
 
     // Filter by tab
     if (this.currentFilter === 'partial') {
-      list = list.filter(i => i.status === 'partial');
+      list = list.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
     } else if (this.currentFilter === 'unpaid') {
-      list = list.filter(i => i.status === 'unpaid' || i.status === 'overdue');
+      list = list.filter(i => (parseFloat(i.paidAmount) || 0) === 0);
     } else if (this.currentFilter === 'approaching') {
       const today = new Date();
       list = list.filter(i => {
@@ -3197,16 +3207,16 @@ class BillingComponent {
                   const hasPendingPayment = payments.some(p => p.status === 'pending');
 
                   let statusHtml = '';
-                  if (inv.status === 'pending_verification' || hasPendingPayment) {
+                  if (isPaid) {
+                    statusHtml = `<span class="badge-pill badge-success" style="font-weight:700;">🟢 ชำระแล้ว</span>`;
+                  } else if (isPartial) {
+                    statusHtml = `<span class="badge-pill" style="background:#ffedd5; color:#c2410c; border:1px solid #fed7aa; font-weight:700;">🟠 ชำระบางส่วน</span>`;
+                  } else if (inv.status === 'pending_verification' || hasPendingPayment) {
                     statusHtml = `
                       <button class="btn btn-xs btn-goto-slip-verification" data-room="${inv.roomName}" style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-weight:700;">
                         🧾 รอตรวจสอบสลิป
                       </button>
                     `;
-                  } else if (isPaid) {
-                    statusHtml = `<span class="badge-pill badge-success" style="font-weight:700;">🟢 ชำระแล้ว</span>`;
-                  } else if (isPartial) {
-                    statusHtml = `<span class="badge-pill" style="background:#ffedd5; color:#c2410c; border:1px solid #fed7aa; font-weight:700;">🟠 ชำระบางส่วน</span>`;
                   } else {
                     statusHtml = `<span class="badge-pill badge-danger" style="font-weight:700;">🔴 รอชำระ</span>`;
                   }
@@ -3318,7 +3328,8 @@ class AccountingComponent {
     });
 
     const invoices = state.invoices || [];
-    const partialCount = invoices.filter(i => i.status === 'partial').length;
+    const partialInvoices = invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
+    const partialCount = partialInvoices.length;
 
     return `
       <div class="view-container animate-fade-in">

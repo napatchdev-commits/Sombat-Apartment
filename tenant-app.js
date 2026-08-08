@@ -1048,8 +1048,10 @@ class MyBillsApp {
     const isPaid = latestInvoice.status === 'paid';
     const isPending = latestInvoice.status === 'pending';
     const totalAmt = parseFloat(latestInvoice.totalAmount) || 0;
-    const paidAmt = parseFloat(latestInvoice.paidAmount) || 0;
-    const amountToPay = totalAmt - paidAmt;
+    const payments = latestInvoice.payments || [];
+    const approvedPaid = payments.filter(p => p.status === 'approved').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const amountToPay = totalAmt - approvedPaid - pendingPaid;
 
     // Badges calculation
     const unpaidCount = sortedInvoices.filter(i => i.status !== 'paid' && i.status !== 'pending').length;
@@ -1075,18 +1077,34 @@ class MyBillsApp {
     let iconClass = 'fa-regular fa-file-lines text-danger';
     let iconBgColor = '#fee2e2';
     
-    if (isPaid) {
-      statusText = 'ชำระค่าห้องเรียบร้อยแล้ว ขอบคุณครับ!';
-      statusColor = '#059669';
-      amountColor = '#059669';
-      iconClass = 'fa-solid fa-circle-check text-success';
-      iconBgColor = '#d1fae5';
-    } else if (isPending) {
-      statusText = 'ส่งหลักฐานแล้ว รอแอดมินตรวจสอบ';
-      statusColor = '#d97706';
-      amountColor = '#d97706';
-      iconClass = 'fa-regular fa-clock text-warning';
-      iconBgColor = '#fef3c7';
+    if (amountToPay <= 0) {
+      if (pendingPaid > 0) {
+        statusText = 'ส่งหลักฐานครบแล้ว รอแอดมินตรวจสอบ';
+        statusColor = '#d97706';
+        amountColor = '#d97706';
+        iconClass = 'fa-regular fa-clock text-warning';
+        iconBgColor = '#fef3c7';
+      } else {
+        statusText = 'ชำระค่าห้องเรียบร้อยแล้ว ขอบคุณครับ!';
+        statusColor = '#059669';
+        amountColor = '#059669';
+        iconClass = 'fa-solid fa-circle-check text-success';
+        iconBgColor = '#d1fae5';
+      }
+    } else {
+      if (pendingPaid > 0) {
+        statusText = `รอตรวจสอบยอด ${Formatters.currency(pendingPaid)} (คงเหลือค้างชำระ ${Formatters.currency(amountToPay)})`;
+        statusColor = '#d97706';
+        amountColor = '#d97706';
+        iconClass = 'fa-regular fa-clock text-warning';
+        iconBgColor = '#fef3c7';
+      } else if (approvedPaid > 0) {
+        statusText = `แบ่งชำระแล้ว ${Formatters.currency(approvedPaid)} (คงเหลือ ${Formatters.currency(amountToPay)})`;
+        statusColor = '#c2410c';
+        amountColor = 'var(--danger)';
+        iconClass = 'fa-solid fa-credit-card text-warning';
+        iconBgColor = '#fff7ed';
+      }
     }
 
     // Top 3 recent invoices for payment history widget
@@ -1131,9 +1149,9 @@ class MyBillsApp {
             <button type="button" class="btn btn-outline-indigo" id="btn-home-view-bill">
               <i class="fa-regular fa-file-lines"></i> ดูบิล
             </button>
-            <button type="button" class="btn ${isPaid ? 'btn-success' : (isPending ? 'btn-secondary' : 'btn-indigo')}" id="btn-home-pay-bill">
-              <i class="${isPaid ? 'fa-solid fa-receipt' : (isPending ? 'fa-regular fa-clock' : 'fa-solid fa-qrcode')}"></i>
-              <span>${isPaid ? 'ดูใบเสร็จ' : (isPending ? 'รอตรวจสอบ' : 'ชำระเงิน')}</span>
+            <button type="button" class="btn ${amountToPay <= 0 && pendingPaid === 0 ? 'btn-success' : (pendingPaid > 0 ? 'btn-secondary' : 'btn-indigo')}" id="btn-home-pay-bill">
+              <i class="${amountToPay <= 0 && pendingPaid === 0 ? 'fa-solid fa-receipt' : (pendingPaid > 0 ? 'fa-regular fa-clock' : 'fa-solid fa-qrcode')}"></i>
+              <span>${amountToPay <= 0 && pendingPaid === 0 ? 'ดูใบเสร็จ' : (pendingPaid > 0 ? 'รอตรวจสอบ' : 'ชำระเงิน')}</span>
             </button>
           </div>
         </div>
@@ -1896,8 +1914,10 @@ class MyBillsApp {
     const dialog = modal.querySelector('.modal-dialog');
 
     const total = parseFloat(inv.totalAmount) || 0;
-    const paid = parseFloat(inv.paidAmount) || 0;
-    const amountToPay = total - paid;
+    const payments = inv.payments || [];
+    const approvedPaid = payments.filter(p => p.status === 'approved').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const amountToPay = total - approvedPaid - pendingPaid;
     const settings = this.state.settings || {};
     // ห้ามใช้เลขพร้อมเพย์ตัวอย่าง/เดโมเป็น fallback เด็ดขาด — ถ้าแอดมินยังไม่ตั้งค่าจริง
     // ให้ถือว่าไม่มีเลขพร้อมเพย์ แล้วซ่อน QR พร้อมแจ้งให้ติดต่อแอดมินแทน
@@ -1930,18 +1950,22 @@ class MyBillsApp {
             </div>
             <div style="font-size:0.8rem; color:#64748b; font-family:monospace;">บิลเลขที่: ${inv.invoiceNumber}</div>
             
-            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.5rem; margin-top:0.75rem; border-top:1px solid #e2e8f0; padding-top:0.5rem; text-align:center;">
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:0.25rem; margin-top:0.75rem; border-top:1px solid #e2e8f0; padding-top:0.5rem; text-align:center;">
               <div>
-                <div style="font-size:0.72rem; color:#64748b;">ยอดบิลรวม</div>
-                <strong style="font-size:0.95rem; color:#1e293b;">${Formatters.currency((inv.totalAmount || 0) + (inv.penaltyAmount || 0))}</strong>
+                <div style="font-size:0.68rem; color:#64748b;">ยอดรวม</div>
+                <strong style="font-size:0.88rem; color:#1e293b;">${Formatters.currency((inv.totalAmount || 0) + (inv.penaltyAmount || 0))}</strong>
               </div>
               <div>
-                <div style="font-size:0.72rem; color:#166534;">ชำระแล้ว</div>
-                <strong style="font-size:0.95rem; color:#15803d;">${Formatters.currency(inv.paidAmount || 0)}</strong>
+                <div style="font-size:0.68rem; color:#166534;">ชำระแล้ว</div>
+                <strong style="font-size:0.88rem; color:#15803d;">${Formatters.currency(approvedPaid)}</strong>
               </div>
               <div>
-                <div style="font-size:0.72rem; color:#991b1b;">ยอดคงเหลือ</div>
-                <strong style="font-size:1.1rem; color:#dc2626;">${Formatters.currency(amountToPay)}</strong>
+                <div style="font-size:0.68rem; color:#d97706;">รอตรวจ</div>
+                <strong style="font-size:0.88rem; color:#d97706;">${Formatters.currency(pendingPaid)}</strong>
+              </div>
+              <div>
+                <div style="font-size:0.68rem; color:#991b1b;">คงเหลือ</div>
+                <strong style="font-size:0.95rem; color:#dc2626;">${Formatters.currency(amountToPay)}</strong>
               </div>
             </div>
           </div>
