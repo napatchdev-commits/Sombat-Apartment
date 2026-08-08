@@ -2092,7 +2092,13 @@ class SidebarComponent {
                   <span>${item.label}</span>
                   ${item.id === 'partial-payments' && App.state && App.state.invoices ? (
                     (() => {
-                      const count = App.state.invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0).length;
+                      const count = App.state.invoices.filter(i => {
+                        const approvedPaid = DBService.getApprovedPaidAmount(i.id, App.state);
+                        const payments = App.state.payments ? App.state.payments.filter(p => p.invoiceId === i.id || p.invoice_id === i.id) : [];
+                        const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                        const total = (parseFloat(i.totalAmount) || 0) + (parseFloat(i.penaltyAmount) || 0);
+                        return (approvedPaid > 0 && approvedPaid < total) || (pendingPaid > 0 && (approvedPaid + pendingPaid) < total) || (i.status === 'partial');
+                      }).length;
                       return count > 0 ? `<span class="sidebar-badge">${count}</span>` : '';
                     })()
                   ) : ''}
@@ -2127,9 +2133,19 @@ class DashboardComponent {
     const todayStr = new Date().toISOString().slice(0, 10);
     const monthKeyCurrent = todayStr.slice(0, 7);
     const yearCurrent = todayStr.slice(0, 4);
-    const partialInvoices = invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
+    const partialInvoices = invoices.filter(i => {
+      const approvedPaid = DBService.getApprovedPaidAmount(i.id, state);
+      const payments = state.payments ? state.payments.filter(p => p.invoiceId === i.id || p.invoice_id === i.id) : [];
+      const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const total = (parseFloat(i.totalAmount) || 0) + (parseFloat(i.penaltyAmount) || 0);
+      return (approvedPaid > 0 && approvedPaid < total) || (pendingPaid > 0 && (approvedPaid + pendingPaid) < total) || (i.status === 'partial');
+    });
     const partialCount = partialInvoices.length;
-    const partialOutstandingTotal = partialInvoices.reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
+    const partialOutstandingTotal = partialInvoices.reduce((sum, i) => {
+      const approvedPaid = DBService.getApprovedPaidAmount(i.id, state);
+      const total = (parseFloat(i.totalAmount) || 0) + (parseFloat(i.penaltyAmount) || 0);
+      return sum + (total - approvedPaid);
+    }, 0);
 
     let todayIncome = 0; let monthIncome = 0; let yearIncome = 0; let totalOutstanding = 0;
 
@@ -2670,20 +2686,33 @@ class PartialPaymentsComponent {
 
   static render(state) {
     const invoices = state.invoices || [];
+    
+    const isPartialInvoice = (i) => {
+      const approvedPaid = DBService.getApprovedPaidAmount(i.id, state);
+      const payments = state.payments ? state.payments.filter(p => p.invoiceId === i.id || p.invoice_id === i.id) : [];
+      const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const total = (parseFloat(i.totalAmount) || 0) + (parseFloat(i.penaltyAmount) || 0);
+      return (approvedPaid > 0 && approvedPaid < total) || (pendingPaid > 0 && (approvedPaid + pendingPaid) < total) || (i.status === 'partial');
+    };
+
     let list = invoices.filter(i => {
       const outstanding = parseFloat(i.outstandingAmount) || 0;
       return (i.status === 'partial' || i.status === 'unpaid' || i.status === 'overdue' || i.status === 'pending_verification') && outstanding > 0;
     });
 
-    const partialInvoices = invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
+    const partialInvoices = invoices.filter(isPartialInvoice);
     const totalPartialCount = partialInvoices.length;
-    const totalPartialOutstanding = partialInvoices.reduce((sum, i) => sum + (parseFloat(i.outstandingAmount) || 0), 0);
+    const totalPartialOutstanding = partialInvoices.reduce((sum, i) => {
+      const approvedPaid = DBService.getApprovedPaidAmount(i.id, state);
+      const total = (parseFloat(i.totalAmount) || 0) + (parseFloat(i.penaltyAmount) || 0);
+      return sum + (total - approvedPaid);
+    }, 0);
 
     // Filter by tab
     if (this.currentFilter === 'partial') {
-      list = list.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
+      list = list.filter(isPartialInvoice);
     } else if (this.currentFilter === 'unpaid') {
-      list = list.filter(i => (parseFloat(i.paidAmount) || 0) === 0);
+      list = list.filter(i => !isPartialInvoice(i));
     } else if (this.currentFilter === 'approaching') {
       const today = new Date();
       list = list.filter(i => {
@@ -3197,13 +3226,14 @@ class BillingComponent {
               <tbody>
                 ${sortedInvoices.map(inv => {
                   const displayStyle = (inv.monthKey === latestMonth || !latestMonth) ? '' : 'none';
+                  const payments = state.payments ? state.payments.filter(p => p.invoiceId === inv.id || p.invoice_id === inv.id) : [];
                   const approvedPaid = DBService.getApprovedPaidAmount(inv.id, state);
+                  const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
                   const totalWithPenalty = (Number(inv.totalAmount) || 0) + (Number(inv.penaltyAmount) || 0);
                   const remaining = totalWithPenalty - approvedPaid;
                   const isPaid = (remaining <= 0) || inv.status === 'paid';
-                  const isPartial = approvedPaid > 0 && !isPaid;
-
-                  const payments = state.payments ? state.payments.filter(p => p.invoiceId === inv.id || p.invoice_id === inv.id) : [];
+                  
+                  const isPartial = (approvedPaid > 0 && !isPaid) || (pendingPaid > 0 && (approvedPaid + pendingPaid) < totalWithPenalty);
                   const hasPendingPayment = payments.some(p => p.status === 'pending');
 
                   let statusHtml = '';
@@ -3328,7 +3358,13 @@ class AccountingComponent {
     });
 
     const invoices = state.invoices || [];
-    const partialInvoices = invoices.filter(i => (parseFloat(i.paidAmount) || 0) > 0 && (parseFloat(i.outstandingAmount) || 0) > 0);
+    const partialInvoices = invoices.filter(i => {
+      const approvedPaid = DBService.getApprovedPaidAmount(i.id, state);
+      const payments = state.payments ? state.payments.filter(p => p.invoiceId === i.id || p.invoice_id === i.id) : [];
+      const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const total = (parseFloat(i.totalAmount) || 0) + (parseFloat(i.penaltyAmount) || 0);
+      return (approvedPaid > 0 && approvedPaid < total) || (pendingPaid > 0 && (approvedPaid + pendingPaid) < total) || (i.status === 'partial');
+    });
     const partialCount = partialInvoices.length;
 
     return `
