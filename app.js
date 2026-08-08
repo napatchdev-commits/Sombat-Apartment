@@ -1,4 +1,4 @@
-// ==========================================================================
+﻿// ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - 100% COMPLETE APP CONTROLLER
 // Fully Interactive 10 Modules: Dashboard, Contracts, Tenants, Rooms, Billing,
 // Repairs, Accounting Ledger, Event Calendar, Reports & Settings System.
@@ -2611,7 +2611,7 @@ class BillingComponent {
           <span style="font-weight:700; color:#334155; font-size:0.92rem; display:flex; align-items:center; gap:0.35rem;">
             <i class="fa-solid fa-filter text-primary"></i> ค้นหาบิลตามรอบเดือน:
           </span>
-          <select id="filter-billing-month" class="form-control" style="width:220px; padding:0.5rem 0.85rem; border-radius:8px; font-size:0.95rem; font-weight:600; cursor:pointer; border-color:#cbd5e1; height:38px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <select id="filter-billing-month" class="form-control" style="width:220px; padding:0.5rem 0.85rem; border-radius:8px; font-size:0.85rem; font-weight:600; cursor:pointer; border-color:#cbd5e1; height:38px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             ${months.map(m => `
               <option value="${m}" ${latestMonth === m ? 'selected' : ''}>บิลรอบเดือน ${Formatters.thaiMonthBE(m)} (${m})</option>
             `).join('')}
@@ -3098,7 +3098,7 @@ class SettingsComponent {
           
           <div class="settings-search-container" style="position:relative; margin-bottom:1.5rem;">
             <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:#64748b; font-size:1.1rem;"></i>
-            <input type="text" id="settings-search" placeholder="ค้นหาการตั้งค่า... (เช่น ค่าน้ำ, LINE, รหัสผ่าน)" style="width:100%; padding:0.85rem 1rem 0.85rem 2.85rem; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-main); font-size:0.95rem; outline:none; transition:all 0.2s;" />
+            <input type="text" id="settings-search" placeholder="ค้นหาการตั้งค่า... (เช่น ค่าน้ำ, LINE, รหัสผ่าน)" style="width:100%; padding:0.85rem 1rem 0.85rem 2.85rem; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-main); font-size:0.85rem; outline:none; transition:all 0.2s;" />
           </div>
 
           <div class="settings-grid">
@@ -5434,7 +5434,7 @@ class App {
           <p class="text-muted" style="margin-top:0.25rem;">Username: <strong>${currentUser.username}</strong> | บทบาทปัจจุบัน: <span class="role-pill role-${currentUser.role}">${currentUser.role === 'super_admin' ? '👑 Super Admin' : (currentUser.role === 'admin' ? '🛡️ Admin' : '👤 Staff')}</span></p>
         </div>
 
-        <h4 style="font-size:0.95rem; font-weight:600; color:#334155; margin-bottom:0.75rem;"><i class="fa-solid fa-right-to-bracket text-primary"></i> 1-Click สลับบทบาทผู้ใช้งานทันที:</h4>
+        <h4 style="font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:0.75rem;"><i class="fa-solid fa-right-to-bracket text-primary"></i> 1-Click สลับบทบาทผู้ใช้งานทันที:</h4>
         <div style="display:flex; flex-direction:column; gap:0.5rem;">
           ${users.map(u => `
             <button type="button" class="btn ${u.username === currentUser.username ? 'btn-primary' : 'btn-secondary'} btn-sm btn-profile-switch" data-id="${u.id}" style="justify-content:space-between; padding:0.75rem 1rem; border-radius:8px;">
@@ -6111,7 +6111,7 @@ class App {
           </div>
 
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:1rem; margin-top:1rem;">
-            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-paperclip"></i> แนบไฟล์เอกสารผู้เช่า (รองรับทุกไฟล์: รูปถ่าย/PDF/DOCX/ZIP)</h4>
+            <h4 style="font-size:0.85rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-paperclip"></i> แนบไฟล์เอกสารผู้เช่า (รองรับทุกไฟล์: รูปถ่าย/PDF/DOCX/ZIP)</h4>
             
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group">
@@ -7117,7 +7117,7 @@ class App {
 
       <div class="modal-body" style="padding:1.5rem;">
         <div class="form-group" style="margin-bottom:1.25rem;">
-          <label style="font-weight:600; font-size:0.95rem; color:#0f172a;">เลือกรายการผู้เช่า / ห้องพักที่ต้องการแจ้งเตือน *</label>
+          <label style="font-weight:600; font-size:0.85rem; color:#0f172a;">เลือกรายการผู้เช่า / ห้องพักที่ต้องการแจ้งเตือน *</label>
           <select id="line-notify-inv-select" class="form-control" style="font-size:1rem; padding:0.65rem 0.85rem;">
             <option value="ALL" ${!selectedInv ? 'selected' : ''}>📢 ประกาศแจ้งเตือนรวม (เรียนผู้เช่าทุกท่าน)</option>
             ${invoices.map(inv => `
@@ -7132,11 +7132,11 @@ class App {
         </div>
 
         <div class="form-group" style="margin-bottom:1.25rem;">
-          <label style="font-weight:600; font-size:0.95rem; color:#0f172a; display:flex; justify-content:space-between; align-items:center;">
+          <label style="font-weight:600; font-size:0.85rem; color:#0f172a; display:flex; justify-content:space-between; align-items:center;">
             <span><i class="fa-solid fa-pen-to-square text-info"></i> ข้อความที่จะส่งให้ผู้เช่า (สามารถพิมพ์แก้ไขเพิ่มเติมได้)</span>
             <span style="font-size:0.8rem; font-weight:normal; color:#059669;">✏️ สามารถพิมพ์แก้ไขข้อความได้ตามต้องการ</span>
           </label>
-          <textarea id="line-msg-preview-textarea" class="form-control" rows="12" style="font-family:sans-serif; font-size:0.95rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #06c755; border-radius:8px; padding:0.85rem;" placeholder="พิมพ์หรือแก้ไขข้อความเพิ่มเติมที่นี่..."></textarea>
+          <textarea id="line-msg-preview-textarea" class="form-control" rows="12" style="font-family:sans-serif; font-size:0.85rem; line-height:1.6; background-color:#ffffff; color:#0f172a; border:2px solid #06c755; border-radius:8px; padding:0.85rem;" placeholder="พิมพ์หรือแก้ไขข้อความเพิ่มเติมที่นี่..."></textarea>
         </div>
 
         <div style="margin-bottom:1rem;">
@@ -7560,7 +7560,7 @@ class App {
           </div>
 
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-top:0.75rem;">
-            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> แก้ไขมิเตอร์ไฟฟ้า</h4>
+            <h4 style="font-size:0.85rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-bolt"></i> แก้ไขมิเตอร์ไฟฟ้า</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group"><label>มิเตอร์ไฟครั้งก่อน:</label><input type="number" id="edit-elec-prev" class="form-control" value="${inv.elecPrev}"></div>
               <div class="form-group"><label>มิเตอร์ไฟครั้งนี้:</label><input type="number" id="edit-elec-curr" class="form-control" value="${inv.elecCurr}"></div>
@@ -7568,7 +7568,7 @@ class App {
           </div>
 
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-top:0.75rem;">
-            <h4 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> แก้ไขมิเตอร์น้ำประปา</h4>
+            <h4 style="font-size:0.85rem; margin-bottom:0.75rem; color:var(--primary);"><i class="fa-solid fa-droplet"></i> แก้ไขมิเตอร์น้ำประปา</h4>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
               <div class="form-group"><label>มิเตอร์น้ำครั้งก่อน:</label><input type="number" id="edit-water-prev" class="form-control" value="${inv.waterPrev}"></div>
               <div class="form-group"><label>มิเตอร์น้ำครั้งนี้:</label><input type="number" id="edit-water-curr" class="form-control" value="${inv.waterCurr}"></div>
@@ -7636,7 +7636,7 @@ class App {
       const summaryDiv = document.getElementById('edit-inv-calc-summary');
       if (summaryDiv) {
         summaryDiv.innerHTML = `
-          <h4 style="margin:0 0 0.75rem 0; font-size:0.95rem; color:#1e40af; border-bottom:1px solid #dbeafe; padding-bottom:0.5rem;"><i class="fa-solid fa-calculator"></i> สรุปรายละเอียดผลการคำนวณ</h4>
+          <h4 style="margin:0 0 0.75rem 0; font-size:0.85rem; color:#1e40af; border-bottom:1px solid #dbeafe; padding-bottom:0.5rem;"><i class="fa-solid fa-calculator"></i> สรุปรายละเอียดผลการคำนวณ</h4>
           <div style="display:flex; flex-direction:column; gap:0.45rem; font-size:0.9rem; color:#334155;">
             <div style="display:flex; justify-content:space-between;">
               <span>ค่าเช่าห้องพัก:</span>
@@ -7962,12 +7962,12 @@ class App {
                      <td style="text-align:right;"><strong>฿${(inv.trashFee !== undefined ? inv.trashFee : 20).toLocaleString(undefined, {minimumFractionDigits:2})}</strong></td>
                    </tr>
                  ` : ''}
-                 <tr style="background:#f8fafc; font-weight:bold; font-size:0.95rem; border-top:1px solid #cbd5e1;">
+                 <tr style="background:#f8fafc; font-weight:bold; font-size:0.85rem; border-top:1px solid #cbd5e1;">
                    <td colspan="6" style="text-align:right;">ยอดรวมเดิมก่อนปรับ (Base Total):</td>
                    <td style="text-align:right;">฿${(Number(inv.rentAmount || 0) + Number(inv.waterAmount || 0) + Number(inv.elecAmount || 0) + Number(inv.trashFee || 0) + Number(inv.internetFee || 0) + Number(inv.commonFee || 0) + Number(inv.fineAmount || 0)).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                  </tr>
                  ${(inv.penaltyAmount || 0) > 0 ? `
-                   <tr style="background:#fdf2f2; font-weight:bold; font-size:0.95rem; color:#dc2626;">
+                   <tr style="background:#fdf2f2; font-weight:bold; font-size:0.85rem; color:#dc2626;">
                      <td colspan="6" style="text-align:right;">ค่าปรับชำระล่าช้า (Late Payment Penalty):<div style="font-size:0.75rem; font-weight:normal; color:#ef4444;">${inv.penaltyRule || ''}</div></td>
                      <td style="text-align:right;">฿${Number(inv.penaltyAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                    </tr>
@@ -8182,7 +8182,7 @@ class App {
         <button class="close-modal-btn">&times;</button>
       </div>
       <div class="modal-body">
-        <p style="font-size:0.95rem; color:#475569; line-height:1.6; margin-bottom:1.25rem;">
+        <p style="font-size:0.85rem; color:#475569; line-height:1.6; margin-bottom:1.25rem;">
           คุณสามารถทำการสำรองบิลทั้งหมดประจำเดือนนั้นๆ ไปเป็นไฟล์ CSV สำรอง (เช่น <code>สำรองบิล_2026-07</code>) และล้างข้อมูลบิลเหล่านั้นออกจากระบบหลักเพื่อเพิ่มประสิทธิภาพความเร็วในการทำงานของตัวเครื่อง
         </p>
 
@@ -10401,14 +10401,14 @@ class App {
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
             หนังสือสัญญาเช่าห้องแถว
           </div>
-          <div style="text-align:right; margin-bottom:1rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.3rem; font-size:0.85rem;">
             เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
-          <div style="text-align:right; margin-bottom:1.5rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.6rem; font-size:0.85rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
-          <div style="line-height:2.2; font-size:0.95rem; text-align:justify;">
+          <div style="line-height:2.2; font-size:0.85rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
@@ -10454,7 +10454,7 @@ class App {
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
           </div>
 
-          <ol style="line-height:2.1; font-size:0.95rem; margin-left:1.5rem; text-align:justify;">
+          <ol style="line-height:2.1; font-size:0.85rem; margin-left:1.5rem; text-align:justify;">
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
@@ -10470,7 +10470,7 @@ class App {
             <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
           </ol>
 
-          <div style="margin-top:2.5rem; font-size:0.95rem; line-height:1.9;">
+          <div style="margin-top:2.5rem; font-size:0.85rem; line-height:1.9;">
             <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
@@ -10514,17 +10514,17 @@ class App {
       const printArea = document.getElementById('print-receipt-area');
       printArea.innerHTML = `
         <div class="contract-print-page front-page">
-          <div style="text-align:center; font-weight:bold; font-size:1.5rem; margin-bottom:1.2rem;">
+          <div style="text-align:center; font-weight:bold; font-size:1.3rem; margin-bottom:0.6rem;">
             หนังสือสัญญาเช่าห้องแถว
           </div>
-          <div style="text-align:right; margin-bottom:1rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.3rem; font-size:0.85rem;">
             เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
-          <div style="text-align:right; margin-bottom:1.5rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.6rem; font-size:0.85rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
-          <div style="line-height:1.9; font-size:0.92rem; text-align:justify;">
+          <div style="line-height:1.6; font-size:0.85rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
@@ -10566,11 +10566,11 @@ class App {
         </div>
 
         <div class="contract-print-page back-page">
-          <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1rem;">
+          <div style="text-align:center; font-weight:bold; font-size:1.3rem; margin-bottom:0.6rem;">
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
           </div>
 
-          <ol style="line-height:1.85; font-size:0.90rem; margin-left:1.5rem; text-align:justify;">
+          <ol style="line-height:1.6; font-size:0.85rem; text-align:justify;">
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
@@ -10586,7 +10586,7 @@ class App {
             <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
           </ol>
 
-          <div style="margin-top:1.2rem; font-size:0.90rem; line-height:1.7;">
+          <div style="margin-top:0.8rem; font-size:0.85rem; line-height:1.5;">
             <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
