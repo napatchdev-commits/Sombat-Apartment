@@ -1,4 +1,4 @@
-﻿// ==========================================================================
+// ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - 100% COMPLETE APP CONTROLLER
 // Fully Interactive 10 Modules: Dashboard, Contracts, Tenants, Rooms, Billing,
 // Repairs, Accounting Ledger, Event Calendar, Reports & Settings System.
@@ -1944,8 +1944,11 @@ class LoginComponent {
 
 class NavbarComponent {
   static render(user, state) {
-    const overdueCount = state.rooms.filter(r => r.status === 'overdue').length;
-    const vacantCount = state.rooms.filter(r => r.status === 'vacant').length;
+    if (!state) state = {};
+    const rooms = state.rooms || [];
+    const tenants = state.tenants || [];
+    const overdueCount = rooms.filter(r => r.status === 'overdue').length;
+    const vacantCount = rooms.filter(r => r.status === 'vacant').length;
     
     const today = new Date();
     const expiringContracts = tenants.filter(t => {
@@ -5583,7 +5586,8 @@ class App {
   }
 
   static switchTab(tabId) {
-    if (tabId === 'billing' || tabId === 'slip-verification' || tabId === 'dashboard') {
+    try {
+      if (tabId === 'billing' || tabId === 'slip-verification' || tabId === 'dashboard') {
       const changed = DBService.updateInvoicePenalties(this.state);
       if (changed) {
         DBService.saveState(this.state, true);
@@ -5623,6 +5627,22 @@ class App {
         item.classList.remove('active');
       }
     });
+    } catch (err) {
+      console.error('Error rendering view:', err);
+      const workspace = document.getElementById('main-workspace');
+      if (workspace) {
+        workspace.innerHTML = `
+          <div class="glass-card text-center" style="padding:3rem 1.5rem; margin:2rem auto; max-width:500px; text-align:center;">
+            <i class="fa-solid fa-triangle-exclamation text-danger" style="font-size:3rem; margin-bottom:1rem; color:#dc2626;"></i>
+            <h3 style="font-weight:700; color:#0f172a; margin-bottom:0.5rem;">เกิดข้อผิดพลาดในการโหลดข้อมูล</h3>
+            <p style="color:#64748b; font-size:0.9rem; margin-bottom:1.5rem;">${err.message || 'ระบบไม่สามารถประมวลผลหน้านี้ได้'}</p>
+            <button class="btn btn-primary" onclick="window.location.reload();" style="padding:0.75rem 1.5rem; border-radius:8px; font-weight:700;">
+              <i class="fa-solid fa-rotate-right"></i> ลองใหม่
+            </button>
+          </div>
+        `;
+      }
+    }
   }
 
   static setupGlobalEvents() {
@@ -11153,6 +11173,26 @@ class App {
     });
   }
 }
+
+// Global Error Boundary & Exception Handler
+window.addEventListener('error', (event) => {
+  console.error('Global Error Boundary caught:', event.error || event.message);
+  const loader = document.getElementById('app-startup-loader');
+  if (loader) loader.remove();
+  const workspace = document.getElementById('main-workspace') || document.getElementById('app-root');
+  if (workspace && !workspace.querySelector('.error-boundary-box')) {
+    workspace.innerHTML = `
+      <div class="error-boundary-box glass-card text-center" style="padding:3rem 1.5rem; margin:2rem auto; max-width:500px; text-align:center;">
+        <i class="fa-solid fa-triangle-exclamation text-danger" style="font-size:3rem; margin-bottom:1rem; color:#dc2626;"></i>
+        <h3 style="font-weight:700; color:#0f172a; margin-bottom:0.5rem;">เกิดข้อผิดพลาดในการโหลดข้อมูล</h3>
+        <p style="color:#64748b; font-size:0.9rem; margin-bottom:1.5rem;">${event.message || 'ระบบขัดข้องชั่วคราว กรุณากดลองใหม่อีกครั้ง'}</p>
+        <button class="btn btn-primary" onclick="window.location.reload();" style="padding:0.75rem 1.5rem; border-radius:8px; font-weight:700;">
+          <i class="fa-solid fa-rotate-right"></i> ลองใหม่
+        </button>
+      </div>
+    `;
+  }
+});
 
 // Global Launcher
 if (document.readyState === 'loading') {
