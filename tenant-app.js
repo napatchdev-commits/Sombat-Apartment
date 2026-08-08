@@ -1012,100 +1012,90 @@ class MyBillsApp {
 
   static renderHomeTab() {
     const sortedInvoices = this.getMatchedInvoices();
-    let latestInvoice = sortedInvoices.length > 0 ? sortedInvoices[0] : null;
+    const latestInvoice = sortedInvoices.length > 0 ? sortedInvoices[0] : null;
     const rooms = this.state.rooms || [];
     const room = rooms.find(r => r.id === this.currentTenant.assignedRoomId) || { name: 'S101', floor: 1, baseRent: 2500 };
 
-    if (!latestInvoice) {
-      const monthKey = new Date().toISOString().slice(0, 7);
-      const rentAmt = (room.baseRent !== undefined && room.baseRent !== null && room.baseRent !== '') ? Number(room.baseRent) : 2500;
-      const elecAmt = 520;
-      const waterAmt = 200;
-      const trashAmt = 20;
-      const totalAmt = rentAmt + elecAmt + waterAmt + trashAmt;
-      
-      latestInvoice = {
-        id: 'inv_mock_latest',
-        invoiceNumber: `INV${monthKey.replace('-', '')}-${room.name}`,
-        monthKey: monthKey,
-        roomId: room.id,
-        roomName: room.name,
-        tenantName: this.currentTenant.name,
-        issueDate: new Date().toISOString().slice(0, 10),
-        dueDate: Formatters.getNextMonth05(monthKey),
-        elecPrev: room.lastElecMeter || 1000, elecCurr: (room.lastElecMeter || 1000) + 65, elecAmount: elecAmt,
-        waterPrev: room.lastWaterMeter || 100, waterCurr: (room.lastWaterMeter || 100) + 10, waterAmount: waterAmt,
-        rentAmount: rentAmt,
-        trashFee: trashAmt,
-        totalAmount: totalAmt,
-        paidAmount: 0,
-        outstandingAmount: totalAmt,
-        status: 'unpaid'
-      };
-    }
+    const hasInvoice = (latestInvoice !== null);
 
-    MyBillsApp.activeInvoiceNumber = latestInvoice.invoiceNumber;
-    const isPaid = latestInvoice.status === 'paid';
-    const isPending = latestInvoice.status === 'pending';
-    const totalAmt = parseFloat(latestInvoice.totalAmount) || 0;
-    const payments = latestInvoice.payments || [];
-    const approvedPaid = payments.filter(p => p.status === 'approved').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-    const pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-    const amountToPay = totalAmt - approvedPaid - pendingPaid;
+    let activeInvoiceNumber = '';
+    let isPaid = true;
+    let isPending = false;
+    let totalAmt = 0;
+    let approvedPaid = 0;
+    let pendingPaid = 0;
+    let amountToPay = 0;
+    let cardBgClass = 'paid';
+    let cardStyle = '';
+    let statusText = 'ไม่มีบิลค้างชำระในขณะนี้';
+    let statusColor = '#059669';
+    let amountColor = '#059669';
+    let iconClass = 'fa-solid fa-circle-check text-success';
+    let iconBgColor = '#d1fae5';
+    let monthKey = new Date().toISOString().slice(0, 7);
+
+    if (hasInvoice) {
+      activeInvoiceNumber = latestInvoice.invoiceNumber;
+      MyBillsApp.activeInvoiceNumber = latestInvoice.invoiceNumber;
+      isPaid = latestInvoice.status === 'paid';
+      isPending = latestInvoice.status === 'pending';
+      totalAmt = parseFloat(latestInvoice.totalAmount) || 0;
+      const payments = latestInvoice.payments || [];
+      approvedPaid = payments.filter(p => p.status === 'approved').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      pendingPaid = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      amountToPay = totalAmt - approvedPaid - pendingPaid;
+      monthKey = latestInvoice.monthKey;
+
+      statusText = `ครบกำหนดวันที่ ${Formatters.thaiDate(latestInvoice.dueDate)}`;
+      statusColor = '#b45309';
+      amountColor = 'var(--danger)';
+      iconClass = 'fa-regular fa-file-lines text-danger';
+      iconBgColor = '#fee2e2';
+      
+      if (amountToPay <= 0) {
+        if (pendingPaid > 0) {
+          statusText = 'ส่งหลักฐานครบแล้ว รอแอดมินตรวจสอบ';
+          statusColor = '#d97706';
+          amountColor = '#d97706';
+          iconClass = 'fa-regular fa-clock text-warning';
+          iconBgColor = '#fef3c7';
+          cardBgClass = 'pending';
+          cardStyle = 'border-color: rgba(245, 158, 11, 0.35); box-shadow: 0 10px 25px rgba(245, 158, 11, 0.08);';
+        } else {
+          statusText = 'ชำระค่าห้องเรียบร้อยแล้ว ขอบคุณครับ!';
+          statusColor = '#059669';
+          amountColor = '#059669';
+          iconClass = 'fa-solid fa-circle-check text-success';
+          iconBgColor = '#d1fae5';
+          cardBgClass = 'paid';
+        }
+      } else {
+        cardBgClass = '';
+        if (pendingPaid > 0) {
+          statusText = `รอตรวจสอบยอด ${Formatters.currency(pendingPaid)} (คงเหลือค้างชำระ ${Formatters.currency(amountToPay)})`;
+          statusColor = '#d97706';
+          amountColor = '#d97706';
+          iconClass = 'fa-regular fa-clock text-warning';
+          iconBgColor = '#fef3c7';
+        } else if (approvedPaid > 0) {
+          statusText = `แบ่งชำระแล้ว ${Formatters.currency(approvedPaid)} (คงเหลือ ${Formatters.currency(amountToPay)})`;
+          statusColor = '#c2410c';
+          amountColor = 'var(--danger)';
+          iconClass = 'fa-solid fa-credit-card text-warning';
+          iconBgColor = '#fff7ed';
+        }
+      }
+    } else {
+      MyBillsApp.activeInvoiceNumber = '';
+    }
 
     // Badges calculation
     const unpaidCount = sortedInvoices.filter(i => i.status !== 'paid' && i.status !== 'pending').length;
     const activeRepairsCount = (this.state.repairs || []).filter(r => r.status !== 'completed' && r.status !== 'เสร็จสิ้น').length;
 
     // ยอดค้างชำระสะสมทั้งหมด (รวมทุกบิลที่ยังไม่จ่าย ไม่ใช่แค่บิลล่าสุดที่โชว์ในการ์ดด้านบน)
-    // แสดงเฉพาะตอนที่มีบิลค้างมากกว่า 1 ใบ เพื่อไม่ให้ซ้ำซ้อนกับยอดในการ์ดหลักตอนมีแค่ใบเดียว
     const overdueInvoices = sortedInvoices.filter(i => i.status !== 'paid' && i.status !== 'pending');
     const overdueTotal = overdueInvoices.reduce((sum, i) => sum + Number((i.outstandingAmount !== undefined && i.outstandingAmount !== null) ? i.outstandingAmount : (i.totalAmount || 0)), 0);
-
-    let cardBgClass = '';
-    let cardStyle = '';
-    if (isPaid) {
-      cardBgClass = 'paid';
-    } else if (isPending) {
-      cardBgClass = 'pending';
-      cardStyle = 'border-color: rgba(245, 158, 11, 0.35); box-shadow: 0 10px 25px rgba(245, 158, 11, 0.08);';
-    }
-
-    let statusText = `ครบกำหนดวันที่ ${Formatters.thaiDate(latestInvoice.dueDate)}`;
-    let statusColor = '#b45309';
-    let amountColor = 'var(--danger)';
-    let iconClass = 'fa-regular fa-file-lines text-danger';
-    let iconBgColor = '#fee2e2';
-    
-    if (amountToPay <= 0) {
-      if (pendingPaid > 0) {
-        statusText = 'ส่งหลักฐานครบแล้ว รอแอดมินตรวจสอบ';
-        statusColor = '#d97706';
-        amountColor = '#d97706';
-        iconClass = 'fa-regular fa-clock text-warning';
-        iconBgColor = '#fef3c7';
-      } else {
-        statusText = 'ชำระค่าห้องเรียบร้อยแล้ว ขอบคุณครับ!';
-        statusColor = '#059669';
-        amountColor = '#059669';
-        iconClass = 'fa-solid fa-circle-check text-success';
-        iconBgColor = '#d1fae5';
-      }
-    } else {
-      if (pendingPaid > 0) {
-        statusText = `รอตรวจสอบยอด ${Formatters.currency(pendingPaid)} (คงเหลือค้างชำระ ${Formatters.currency(amountToPay)})`;
-        statusColor = '#d97706';
-        amountColor = '#d97706';
-        iconClass = 'fa-regular fa-clock text-warning';
-        iconBgColor = '#fef3c7';
-      } else if (approvedPaid > 0) {
-        statusText = `แบ่งชำระแล้ว ${Formatters.currency(approvedPaid)} (คงเหลือ ${Formatters.currency(amountToPay)})`;
-        statusColor = '#c2410c';
-        amountColor = 'var(--danger)';
-        iconClass = 'fa-solid fa-credit-card text-warning';
-        iconBgColor = '#fff7ed';
-      }
-    }
 
     // Top 3 recent invoices for payment history widget
     const recentInvoicesTop3 = sortedInvoices.slice(0, 3);
@@ -1145,15 +1135,21 @@ class MyBillsApp {
           </div>
 
           <!-- Dual Action Buttons -->
-          <div class="outstanding-actions">
-            <button type="button" class="btn btn-outline-indigo" id="btn-home-view-bill">
-              <i class="fa-regular fa-file-lines"></i> ดูบิล
-            </button>
-            <button type="button" class="btn ${amountToPay <= 0 && pendingPaid === 0 ? 'btn-success' : (pendingPaid > 0 ? 'btn-secondary' : 'btn-indigo')}" id="btn-home-pay-bill">
-              <i class="${amountToPay <= 0 && pendingPaid === 0 ? 'fa-solid fa-receipt' : (pendingPaid > 0 ? 'fa-regular fa-clock' : 'fa-solid fa-qrcode')}"></i>
-              <span>${amountToPay <= 0 && pendingPaid === 0 ? 'ดูใบเสร็จ' : (pendingPaid > 0 ? 'รอตรวจสอบ' : 'ชำระเงิน')}</span>
-            </button>
-          </div>
+          ${hasInvoice ? `
+            <div class="outstanding-actions">
+              <button type="button" class="btn btn-outline-indigo" id="btn-home-view-bill">
+                <i class="fa-regular fa-file-lines"></i> ดูบิล
+              </button>
+              <button type="button" class="btn ${amountToPay <= 0 && pendingPaid === 0 ? 'btn-success' : (pendingPaid > 0 ? 'btn-secondary' : 'btn-indigo')}" id="btn-home-pay-bill">
+                <i class="${amountToPay <= 0 && pendingPaid === 0 ? 'fa-solid fa-receipt' : (pendingPaid > 0 ? 'fa-regular fa-clock' : 'fa-solid fa-qrcode')}"></i>
+                <span>${amountToPay <= 0 && pendingPaid === 0 ? 'ดูใบเสร็จ' : (pendingPaid > 0 ? 'รอตรวจสอบ' : 'ชำระเงิน')}</span>
+              </button>
+            </div>
+          ` : `
+            <div style="text-align:center; padding:0.5rem; font-size:0.85rem; color:#059669; font-weight:700;">
+              ✨ ไม่มีบิลค้างชำระในขณะนี้
+            </div>
+          `}
         </div>
 
         ${overdueInvoices.length > 1 ? `
