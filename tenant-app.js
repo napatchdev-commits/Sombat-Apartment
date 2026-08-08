@@ -1116,7 +1116,7 @@ class MyBillsApp {
           <div class="outstanding-header">
             <div>
               <div class="outstanding-title">
-                <i class="fa-solid fa-file-invoice"></i> ยอดค้างชำระ · ${Formatters.thaiMonthBE(latestInvoice.monthKey)}
+                <i class="fa-solid fa-file-invoice"></i> ยอดค้างชำระ · ${Formatters.thaiMonthBE(monthKey)}
               </div>
               <div class="outstanding-amount-wrapper">
                 <span class="outstanding-amount" style="color:${amountColor};">
