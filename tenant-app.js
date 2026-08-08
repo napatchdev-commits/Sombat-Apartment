@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    MYBILLS TENANT PORTAL - SOMBAT APARTMENT ENTERPRISE (MOBILE-FIRST JS)
    ========================================================================== */
 
@@ -2243,7 +2243,7 @@ class MyBillsApp {
                 console.warn('LINE notification trigger error:', lineErr);
               }
 
-              dialog.innerHTML = 
+              dialog.innerHTML = `
                 <div class="modal-header" style="background:#059669; color:#ffffff; text-align:center;">
                   <h3><i class="fa-solid fa-circle-check"></i> ส่งข้อมูลชำระเงินเรียบร้อยแล้ว</h3>
                 </div>
@@ -2263,7 +2263,7 @@ class MyBillsApp {
                     <i class="fa-solid fa-arrow-left"></i> กลับไปหน้าบิล
                   </button>
                 </div>
-              ;
+              `;
               modal.classList.add('active');
               document.getElementById('btn-back-to-bills-view').addEventListener('click', async () => {
                 modal.classList.remove('active');
@@ -2333,7 +2333,7 @@ class MyBillsApp {
                 console.warn('LINE notification trigger error:', lineErr);
               }
 
-              dialog.innerHTML = 
+              dialog.innerHTML = `
                 <div class="modal-header" style="background:#059669; color:#ffffff; text-align:center;">
                   <h3><i class="fa-solid fa-circle-check"></i> แจ้งชำระเงินสดเรียบร้อยแล้ว</h3>
                 </div>
@@ -2353,7 +2353,7 @@ class MyBillsApp {
                     <i class="fa-solid fa-arrow-left"></i> กลับไปหน้าบิล
                   </button>
                 </div>
-              ;
+              `;
               modal.classList.add('active');
               document.getElementById('btn-back-to-bills-view-cash').addEventListener('click', async () => {
                 modal.classList.remove('active');

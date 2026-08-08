@@ -1380,16 +1380,16 @@ class DBService {
     return null;
   }
 
-    static async addAdminPayment(invoiceId, amount, paymentDate, paymentMethod, note, adminName, slipUrl) {
+  static async addAdminPayment(invoiceId, amount, paymentDate, paymentMethod, note, adminName, slipUrl) {
     const url = this.getSavedSupabaseUrl();
     const apiKey = this.getSavedApiKey();
     const baseUrl = this.getBaseSupabaseUrl(url);
 
-    const res = await fetch(${baseUrl}/rest/v1/rpc/add_admin_payment, {
+    const res = await fetch(`${baseUrl}/rest/v1/rpc/add_admin_payment`, {
       method: 'POST',
       headers: {
         'apikey': apiKey,
-        'Authorization': Bearer ,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -1410,11 +1410,11 @@ class DBService {
     const apiKey = this.getSavedApiKey();
     const baseUrl = this.getBaseSupabaseUrl(url);
 
-    const res = await fetch(${baseUrl}/rest/v1/rpc/approve_partial_payment, {
+    const res = await fetch(`${baseUrl}/rest/v1/rpc/approve_partial_payment`, {
       method: 'POST',
       headers: {
         'apikey': apiKey,
-        'Authorization': Bearer ,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -1430,11 +1430,11 @@ class DBService {
     const apiKey = this.getSavedApiKey();
     const baseUrl = this.getBaseSupabaseUrl(url);
 
-    const res = await fetch(${baseUrl}/rest/v1/rpc/reject_partial_payment, {
+    const res = await fetch(`${baseUrl}/rest/v1/rpc/reject_partial_payment`, {
       method: 'POST',
       headers: {
         'apikey': apiKey,
-        'Authorization': Bearer ,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
