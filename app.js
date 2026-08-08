@@ -2695,7 +2695,7 @@ class PartialPaymentsComponent {
       list.sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
     }
 
-    return 
+    return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
           <div>
@@ -2704,7 +2704,7 @@ class PartialPaymentsComponent {
           </div>
           <div class="header-actions">
             <span class="badge-pill badge-warning" style="font-size:0.9rem; padding:0.5rem 1rem;">
-              💳 แบ่งชำระ: <strong> + totalPartialCount + </strong> บิล (ยอดค้างรวม  + Formatters.currency(totalPartialOutstanding) + )
+              💳 แบ่งชำระ: <strong>${totalPartialCount}</strong> บิล (ยอดค้างรวม ${Formatters.currency(totalPartialOutstanding)})
             </span>
           </div>
         </div>
@@ -2714,34 +2714,34 @@ class PartialPaymentsComponent {
           <div style="display:grid; grid-template-columns: 1fr auto auto; gap:0.75rem; align-items:center;">
             <div style="position:relative;">
               <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:1rem; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
-              <input type="text" id="partial-search-input" class="form-control" placeholder="ค้นหาตามเลขห้อง, ชื่อผู้เช่า หรือเลขที่บิล..." value=" + this.searchKeyword + " style="padding-left:2.5rem; border-radius:10px;">
+              <input type="text" id="partial-search-input" class="form-control" placeholder="ค้นหาตามเลขห้อง, ชื่อผู้เช่า หรือเลขที่บิล..." value="${this.searchKeyword}" style="padding-left:2.5rem; border-radius:10px;">
             </div>
             
             <select id="partial-filter-select" class="form-control" style="border-radius:10px; font-weight:600;">
-              <option value="all"  + (this.currentFilter === 'all' ? 'selected' : '') + >บิลค้างชำระทั้งหมด ( + invoices.filter(i => i.status === 'partial' || i.status === 'unpaid' || i.status === 'overdue').length + )</option>
-              <option value="partial"  + (this.currentFilter === 'partial' ? 'selected' : '') + >🟠 กำลังแบ่งชำระ ( + totalPartialCount + )</option>
-              <option value="unpaid"  + (this.currentFilter === 'unpaid' ? 'selected' : '') + >🔴 ยังไม่เคยชำระ</option>
-              <option value="approaching"  + (this.currentFilter === 'approaching' ? 'selected' : '') + >⏰ ใกล้ครบกำหนด (ภายใน 5 วัน)</option>
+              <option value="all" ${this.currentFilter === 'all' ? 'selected' : ''}>บิลค้างชำระทั้งหมด (${invoices.filter(i => i.status === 'partial' || i.status === 'unpaid' || i.status === 'overdue').length})</option>
+              <option value="partial" ${this.currentFilter === 'partial' ? 'selected' : ''}>🟠 กำลังแบ่งชำระ (${totalPartialCount})</option>
+              <option value="unpaid" ${this.currentFilter === 'unpaid' ? 'selected' : ''}>🔴 ยังไม่เคยชำระ</option>
+              <option value="approaching" ${this.currentFilter === 'approaching' ? 'selected' : ''}>⏰ ใกล้ครบกำหนด (ภายใน 5 วัน)</option>
             </select>
 
             <select id="partial-sort-select" class="form-control" style="border-radius:10px; font-weight:600;">
-              <option value="latest"  + (this.currentSort === 'latest' ? 'selected' : '') + >เรียงตามรอบบิลล่าสุด</option>
-              <option value="highest_remaining"  + (this.currentSort === 'highest_remaining' ? 'selected' : '') + >เรียงตามยอดคงเหลือมากสุด</option>
-              <option value="room"  + (this.currentSort === 'room' ? 'selected' : '') + >เรียงตามเลขห้อง</option>
+              <option value="latest" ${this.currentSort === 'latest' ? 'selected' : ''}>เรียงตามรอบบิลล่าสุด</option>
+              <option value="highest_remaining" ${this.currentSort === 'highest_remaining' ? 'selected' : ''}>เรียงตามยอดคงเหลือมากสุด</option>
+              <option value="room" ${this.currentSort === 'room' ? 'selected' : ''}>เรียงตามเลขห้อง</option>
             </select>
           </div>
         </div>
 
         <!-- Cards Grid Container -->
-         + (list.length === 0 ? 
+        ${list.length === 0 ? `
           <div class="glass-card text-center" style="padding:3rem 1.5rem;">
             <i class="fa-solid fa-circle-check text-success" style="font-size:3rem; margin-bottom:1rem;"></i>
             <h3 style="font-weight:700; color:var(--text-main);">ไม่พบรายการบิลแบ่งชำระในเงื่อนไขนี้</h3>
             <p style="color:var(--text-muted);">ไม่มีบิลที่ตรงกับคำค้นหาหรือตัวกรองที่เลือก</p>
           </div>
-         : 
+        ` : `
           <div class="partial-payment-grid">
-             + list.map(inv => {
+            ${list.map(inv => {
               const total = parseFloat(inv.totalAmount) || 0;
               const paid = parseFloat(inv.paidAmount) || 0;
               const remaining = parseFloat(inv.outstandingAmount) || (total - paid);
@@ -2752,65 +2752,65 @@ class PartialPaymentsComponent {
               const latestPayment = payments.length > 0 ? payments[payments.length - 1] : null;
               const latestDate = latestPayment ? Formatters.thaiDate(latestPayment.paymentDate || latestPayment.createdAt) : '-';
 
-              return 
+              return `
                 <div class="partial-payment-card">
                   <div>
                     <div class="partial-card-header">
                       <div>
-                        <h3 style="font-size:1.15rem; font-weight:800; color:var(--text-main); margin:0;">ห้อง  + inv.roomName + </h3>
-                        <span style="font-size:0.85rem; color:var(--text-muted);> + (inv.tenantName || 'ผู้เช่า') +  • บิลเดือน  + Formatters.thaiMonthBE(inv.monthKey) + </span>
+                        <h3 style="font-size:1.15rem; font-weight:800; color:var(--text-main); margin:0;">ห้อง ${inv.roomName}</h3>
+                        <span style="font-size:0.85rem; color:var(--text-muted);">${inv.tenantName || 'ผู้เช่า'} • บิลเดือน ${Formatters.thaiMonthBE(inv.monthKey)}</span>
                       </div>
-                      <span class="status-chip  + (inv.status === 'partial' ? 'partial' : 'pending') + ">
-                         + (inv.status === 'partial' ? '🟠 แบ่งชำระ' : '🔴 ค้างชำระ') + 
+                      <span class="status-chip ${inv.status === 'partial' ? 'partial' : 'pending'}">
+                        ${inv.status === 'partial' ? '🟠 แบ่งชำระ' : '🔴 ค้างชำระ'}
                       </span>
                     </div>
 
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; text-align:center; background:var(--bg-hover, #f8fafc); padding:0.6rem; border-radius:10px; margin-bottom:0.75rem;">
                       <div>
                         <span style="font-size:0.72rem; color:var(--text-muted); display:block;">ยอดบิล</span>
-                        <strong style="font-size:0.92rem; color:var(--text-main);"> + Formatters.currency(total) + </strong>
+                        <strong style="font-size:0.92rem; color:var(--text-main);">${Formatters.currency(total)}</strong>
                       </div>
                       <div>
                         <span style="font-size:0.72rem; color:#16a34a; display:block;">ชำระแล้ว</span>
-                        <strong style="font-size:0.92rem; color:#16a34a;"> + Formatters.currency(paid) + </strong>
+                        <strong style="font-size:0.92rem; color:#16a34a;">${Formatters.currency(paid)}</strong>
                       </div>
                       <div>
                         <span style="font-size:0.72rem; color:#dc2626; display:block;">คงเหลือ</span>
-                        <strong style="font-size:0.95rem; color:#dc2626;"> + Formatters.currency(remaining) + </strong>
+                        <strong style="font-size:0.95rem; color:#dc2626;">${Formatters.currency(remaining)}</strong>
                       </div>
                     </div>
 
                     <div class="payment-progress-bar-container">
                       <div class="progress-label-row">
-                        <span>ชำระแล้ว  + Formatters.currency(paid) +  /  + Formatters.currency(total) + </span>
-                        <span> + percent + %</span>
+                        <span>ชำระแล้ว ${Formatters.currency(paid)} / ${Formatters.currency(total)}</span>
+                        <span>${percent}%</span>
                       </div>
                       <div class="payment-progress-track">
-                        <div class="payment-progress-fill" style="width: + percent + %;"></div>
+                        <div class="payment-progress-fill" style="width:${percent}%;"></div>
                       </div>
                     </div>
 
                     <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.6rem; display:flex; justify-content:space-between; border-top:1px dashed var(--border-color); padding-top:0.4rem;">
-                      <span><i class="fa-solid fa-receipt text-primary"></i> ชำระแล้ว  + approvedPayments.length +  ครั้ง</span>
-                      <span><i class="fa-regular fa-clock"></i> ล่าสุด:  + latestDate + </span>
+                      <span><i class="fa-solid fa-receipt text-primary"></i> ชำระแล้ว ${approvedPayments.length} ครั้ง</span>
+                      <span><i class="fa-regular fa-clock"></i> ล่าสุด: ${latestDate}</span>
                     </div>
                   </div>
 
                   <div style="display:flex; gap:0.5rem; margin-top:1.25rem;">
-                    <button class="btn btn-secondary btn-sm btn-partial-details" data-id=" + inv.id + " style="flex:1; border-radius:8px; font-weight:700;">
+                    <button class="btn btn-secondary btn-sm btn-partial-details" data-id="${inv.id}" style="flex:1; border-radius:8px; font-weight:700;">
                       <i class="fa-solid fa-eye"></i> ดูรายละเอียด
                     </button>
-                    <button class="btn btn-primary btn-sm btn-partial-add-pay" data-id=" + inv.id + " style="flex:1; border-radius:8px; font-weight:700; background:#f97316; border-color:#f97316;">
+                    <button class="btn btn-primary btn-sm btn-partial-add-pay" data-id="${inv.id}" style="flex:1; border-radius:8px; font-weight:700; background:#f97316; border-color:#f97316;">
                       <i class="fa-solid fa-plus"></i> บันทึกการชำระ
                     </button>
                   </div>
                 </div>
-              ;
-            }).join('') + 
+              `;
+            }).join('')}
           </div>
-        ) + 
+        `}
       </div>
-    ;
+    `;
   }
 
   static bindEvents(state) {
@@ -2865,87 +2865,87 @@ class PartialPaymentsComponent {
     const remaining = parseFloat(inv.outstandingAmount) || (total - paid);
     const payments = state.payments ? state.payments.filter(p => p.invoiceId === inv.id) : [];
 
-    dialog.innerHTML = 
+    dialog.innerHTML = `
       <div class="modal-header" style="background:#f97316; color:#ffffff;">
-        <h3><i class="fa-solid fa-receipt"></i> รายละเอียดบิลและการแบ่งชำระ - ห้อง  + inv.roomName + </h3>
+        <h3><i class="fa-solid fa-receipt"></i> รายละเอียดบิลและการแบ่งชำระ - ห้อง ${inv.roomName}</h3>
         <button type="button" class="close-modal-btn" style="color:#ffffff;">&times;</button>
       </div>
       <div class="modal-body" style="padding:1.25rem;">
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1rem; margin-bottom:1.25rem;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-            <span style="font-weight:700; font-size:1.05rem;">บิลเดือน  + Formatters.thaiMonthBE(inv.monthKey) + </span>
-            <span class="status-chip  + (inv.status === 'partial' ? 'partial' : 'pending') + "> + (inv.status === 'partial' ? '🟠 แบ่งชำระ' : '🔴 ค้างชำระ') + </span>
+            <span style="font-weight:700; font-size:1.05rem;">บิลเดือน ${Formatters.thaiMonthBE(inv.monthKey)}</span>
+            <span class="status-chip ${inv.status === 'partial' ? 'partial' : 'pending'}">${inv.status === 'partial' ? '🟠 แบ่งชำระ' : '🔴 ค้างชำระ'}</span>
           </div>
-          <div style="font-size:0.85rem; color:#64748b;">ผู้เช่า: <strong> + inv.tenantName + </strong> | เลขที่บิล:  + inv.invoiceNumber + </div>
+          <div style="font-size:0.85rem; color:#64748b;">ผู้เช่า: <strong>${inv.tenantName}</strong> | เลขที่บิล: ${inv.invoiceNumber}</div>
 
           <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; text-align:center; margin-top:0.75rem; background:#ffffff; padding:0.75rem; border-radius:8px; border:1px solid #cbd5e1;">
             <div>
               <div style="font-size:0.75rem; color:#64748b;">ยอดบิล</div>
-              <strong style="font-size:1.05rem; color:#0f172a;"> + Formatters.currency(total) + </strong>
+              <strong style="font-size:1.05rem; color:#0f172a;">${Formatters.currency(total)}</strong>
             </div>
             <div>
               <div style="font-size:0.75rem; color:#16a34a;">ยอดชำระแล้ว</div>
-              <strong style="font-size:1.05rem; color:#16a34a;"> + Formatters.currency(paid) + </strong>
+              <strong style="font-size:1.05rem; color:#16a34a;">${Formatters.currency(paid)}</strong>
             </div>
             <div>
               <div style="font-size:0.75rem; color:#dc2626;">ยอดคงเหลือ</div>
-              <strong style="font-size:1.15rem; color:#dc2626;"> + Formatters.currency(remaining) + </strong>
+              <strong style="font-size:1.15rem; color:#dc2626;">${Formatters.currency(remaining)}</strong>
             </div>
           </div>
         </div>
 
         <h4 style="font-weight:700; font-size:0.95rem; margin-bottom:0.75rem; color:#1e293b;">
-          <i class="fa-solid fa-history text-primary"></i> ประวัติการชำระเงิน ( + payments.length +  ครั้ง)
+          <i class="fa-solid fa-history text-primary"></i> ประวัติการชำระเงิน (${payments.length} ครั้ง)
         </h4>
 
-         + (payments.length === 0 ? 
+        ${payments.length === 0 ? `
           <div style="text-align:center; color:#94a3b8; padding:2rem; background:#f8fafc; border-radius:10px;">
             ยังไม่มีประวัติการส่งชำระเงินในระบบสำหรับบิลนี้
           </div>
-         : 
+        ` : `
           <div class="payment-history-timeline">
-             + payments.map((p, idx) => 
-              <div class="payment-history-item  + p.status + ">
+            ${payments.map((p, idx) => `
+              <div class="payment-history-item ${p.status}">
                 <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:0.85rem; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
                   <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                      <strong style="font-size:0.95rem;">ครั้งที่  + (idx + 1) +  ( + (p.paymentMethod === 'cash' ? '💵 เงินสด' : '💳 โอนเงิน') + )</strong>
+                      <strong style="font-size:0.95rem;">ครั้งที่ ${idx + 1} (${p.paymentMethod === 'cash' ? '💵 เงินสด' : '💳 โอนเงิน'})</strong>
                       <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem;">
-                        วันที่:  + Formatters.thaiDate(p.paymentDate || p.createdAt) + 
+                        วันที่: ${Formatters.thaiDate(p.paymentDate || p.createdAt)}
                       </div>
-                       + (p.slipUrl ? <a href=" + p.slipUrl + " target="_blank" style="font-size:0.8rem; color:#2563eb; font-weight:600; display:inline-block; margin-top:0.25rem;"><i class="fa-solid fa-paperclip"></i> ดูรูปสลิป</a> : '') + 
-                       + (p.note ? <div style="font-size:0.78rem; color:#475569; margin-top:0.2rem;">หมายเหตุ:  + p.note + </div> : '') + 
-                       + (p.status === 'rejected' && p.rejectionReason ? <div style="font-size:0.78rem; color:#dc2626; font-weight:600; margin-top:0.2rem;">❌ เหตุผลที่ปฏิเสธ:  + p.rejectionReason + </div> : '') + 
+                      ${p.slipUrl ? `<a href="${p.slipUrl}" target="_blank" style="font-size:0.8rem; color:#2563eb; font-weight:600; display:inline-block; margin-top:0.25rem;"><i class="fa-solid fa-paperclip"></i> ดูรูปสลิป</a>` : ''}
+                      ${p.note ? `<div style="font-size:0.78rem; color:#475569; margin-top:0.2rem;">หมายเหตุ: ${p.note}</div>` : ''}
+                      ${p.status === 'rejected' && p.rejectionReason ? `<div style="font-size:0.78rem; color:#dc2626; font-weight:600; margin-top:0.2rem;">❌ เหตุผลที่ปฏิเสธ: ${p.rejectionReason}</div>` : ''}
                     </div>
                     <div style="text-align:right;">
-                      <span class="status-chip  + p.status + ">
-                         + (p.status === 'approved' ? '🟢 อนุมัติแล้ว' : (p.status === 'rejected' ? '🔴 ไม่ผ่าน' : '🟡 รอตรวจสอบ')) + 
+                      <span class="status-chip ${p.status}">
+                        ${p.status === 'approved' ? '🟢 อนุมัติแล้ว' : (p.status === 'rejected' ? '🔴 ไม่ผ่าน' : '🟡 รอตรวจสอบ')}
                       </span>
-                      <div style="font-weight:800; font-size:1.1rem; color: + (p.status === 'approved' ? '#16a34a' : (p.status === 'rejected' ? '#dc2626' : '#d97706')) + ; margin-top:0.3rem;">
-                         + Formatters.currency(p.amount) + 
+                      <div style="font-weight:800; font-size:1.1rem; color:${p.status === 'approved' ? '#16a34a' : (p.status === 'rejected' ? '#dc2626' : '#d97706')}; margin-top:0.3rem;">
+                        ${Formatters.currency(p.amount)}
                       </div>
-                       + (p.status === 'pending' ? 
+                      ${p.status === 'pending' ? `
                         <div style="display:flex; gap:0.35rem; margin-top:0.5rem; justify-content:flex-end;">
-                          <button type="button" class="btn btn-success btn-xs btn-approve-pay" data-pay-id=" + p.id + " style="padding:0.2rem 0.55rem; font-size:0.75rem; font-weight:700;">
+                          <button type="button" class="btn btn-success btn-xs btn-approve-pay" data-pay-id="${p.id}" style="padding:0.2rem 0.55rem; font-size:0.75rem; font-weight:700;">
                             <i class="fa-solid fa-check"></i> อนุมัติ
                           </button>
-                          <button type="button" class="btn btn-danger btn-xs btn-reject-pay" data-pay-id=" + p.id + " style="padding:0.2rem 0.55rem; font-size:0.75rem; font-weight:700;">
+                          <button type="button" class="btn btn-danger btn-xs btn-reject-pay" data-pay-id="${p.id}" style="padding:0.2rem 0.55rem; font-size:0.75rem; font-weight:700;">
                             <i class="fa-solid fa-xmark"></i> ปฏิเสธ
                           </button>
                         </div>
-                       : '') + 
+                      ` : ''}
                     </div>
                   </div>
                 </div>
               </div>
-            ).join('') + 
+            `).join('')}
           </div>
-        ) + 
+        `}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary close-modal-trigger">ปิดหน้าต่าง</button>
       </div>
-    ;
+    `;
 
     modal.classList.add('active');
     modal.querySelectorAll('.close-modal-btn, .close-modal-trigger').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
@@ -3012,31 +3012,31 @@ class PartialPaymentsComponent {
     const remaining = parseFloat(inv.outstandingAmount) || (total - paid);
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    dialog.innerHTML = 
+    dialog.innerHTML = `
       <div class="modal-header" style="background:#2563eb; color:#ffffff;">
-        <h3><i class="fa-solid fa-plus-circle"></i> บันทึกการชำระเงิน - ห้อง  + inv.roomName + </h3>
+        <h3><i class="fa-solid fa-plus-circle"></i> บันทึกการชำระเงิน - ห้อง ${inv.roomName}</h3>
         <button type="button" class="close-modal-btn" style="color:#ffffff;">&times;</button>
       </div>
       <form id="form-admin-add-payment">
         <div class="modal-body" style="padding:1.25rem;">
           <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:0.85rem; margin-bottom:1rem; font-size:0.85rem;">
-            <div>บิลเดือน: <strong> + Formatters.thaiMonthBE(inv.monthKey) +  ( + inv.invoiceNumber + )</strong></div>
-            <div>ผู้เช่า: <strong> + inv.tenantName + </strong></div>
-            <div style="margin-top:0.35rem; color:#1e3a8a;">ยอดบิลรวม: <strong> + Formatters.currency(total) + </strong> | ชำระแล้ว: <strong style="color:#16a34a;"> + Formatters.currency(paid) + </strong> | คงเหลือ: <strong style="color:#dc2626;"> + Formatters.currency(remaining) + </strong></div>
+            <div>บิลเดือน: <strong>${Formatters.thaiMonthBE(inv.monthKey)} (${inv.invoiceNumber})</strong></div>
+            <div>ผู้เช่า: <strong>${inv.tenantName}</strong></div>
+            <div style="margin-top:0.35rem; color:#1e3a8a;">ยอดบิลรวม: <strong>${Formatters.currency(total)}</strong> | ชำระแล้ว: <strong style="color:#16a34a;">${Formatters.currency(paid)}</strong> | คงเหลือ: <strong style="color:#dc2626;">${Formatters.currency(remaining)}</strong></div>
           </div>
 
           <div class="form-group" style="margin-bottom:1rem;">
             <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.35rem;">
               จำนวนเงินที่รับชำระ (บาท) *
             </label>
-            <input type="number" id="adm-pay-amount" class="form-control" min="1" max=" + remaining + " step="any" value=" + remaining + " required style="font-size:1.1rem; font-weight:800; color:#2563eb;">
+            <input type="number" id="adm-pay-amount" class="form-control" min="1" max="${remaining}" step="any" value="${remaining}" required style="font-size:1.1rem; font-weight:800; color:#2563eb;">
           </div>
 
           <div class="form-group" style="margin-bottom:1rem;">
             <label style="font-weight:700; color:#334155; display:block; margin-bottom:0.35rem;">
               วันที่รับชำระ *
             </label>
-            <input type="date" id="adm-pay-date" class="form-control" value=" + todayStr + " required>
+            <input type="date" id="adm-pay-date" class="form-control" value="${todayStr}" required>
           </div>
 
           <div class="form-group" style="margin-bottom:1rem;">
@@ -3063,7 +3063,7 @@ class PartialPaymentsComponent {
           </button>
         </div>
       </form>
-    ;
+    `;
 
     modal.classList.add('active');
     modal.querySelectorAll('.close-modal-btn, .close-modal-trigger').forEach(b => b.addEventListener('click', () => modal.classList.remove('active')));
