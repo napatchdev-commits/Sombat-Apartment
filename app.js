@@ -3193,8 +3193,11 @@ class BillingComponent {
                   const isPaid = (remaining <= 0) || inv.status === 'paid';
                   const isPartial = approvedPaid > 0 && !isPaid;
 
+                  const payments = state.payments ? state.payments.filter(p => p.invoiceId === inv.id || p.invoice_id === inv.id) : [];
+                  const hasPendingPayment = payments.some(p => p.status === 'pending');
+
                   let statusHtml = '';
-                  if (inv.status === 'pending_verification') {
+                  if (inv.status === 'pending_verification' || hasPendingPayment) {
                     statusHtml = `
                       <button class="btn btn-xs btn-goto-slip-verification" data-room="${inv.roomName}" style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-weight:700;">
                         🧾 รอตรวจสอบสลิป

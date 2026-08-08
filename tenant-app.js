@@ -1047,7 +1047,9 @@ class MyBillsApp {
     MyBillsApp.activeInvoiceNumber = latestInvoice.invoiceNumber;
     const isPaid = latestInvoice.status === 'paid';
     const isPending = latestInvoice.status === 'pending';
-    const amountToPay = latestInvoice.outstandingAmount || latestInvoice.totalAmount;
+    const totalAmt = parseFloat(latestInvoice.totalAmount) || 0;
+    const paidAmt = parseFloat(latestInvoice.paidAmount) || 0;
+    const amountToPay = totalAmt - paidAmt;
 
     // Badges calculation
     const unpaidCount = sortedInvoices.filter(i => i.status !== 'paid' && i.status !== 'pending').length;
@@ -1893,7 +1895,9 @@ class MyBillsApp {
     const modal = document.getElementById('app-modal');
     const dialog = modal.querySelector('.modal-dialog');
 
-    const amountToPay = inv.outstandingAmount || inv.totalAmount;
+    const total = parseFloat(inv.totalAmount) || 0;
+    const paid = parseFloat(inv.paidAmount) || 0;
+    const amountToPay = total - paid;
     const settings = this.state.settings || {};
     // ห้ามใช้เลขพร้อมเพย์ตัวอย่าง/เดโมเป็น fallback เด็ดขาด — ถ้าแอดมินยังไม่ตั้งค่าจริง
     // ให้ถือว่าไม่มีเลขพร้อมเพย์ แล้วซ่อน QR พร้อมแจ้งให้ติดต่อแอดมินแทน
