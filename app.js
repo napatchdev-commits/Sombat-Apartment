@@ -1,4 +1,4 @@
-// ==========================================================================
+﻿// ==========================================================================
 // SOMBAT APARTMENT (ENTERPRISE EDITION) - 100% COMPLETE APP CONTROLLER
 // Fully Interactive 10 Modules: Dashboard, Contracts, Tenants, Rooms, Billing,
 // Repairs, Accounting Ledger, Event Calendar, Reports & Settings System.
@@ -2412,8 +2412,9 @@ class TenantsComponent {
       `;
     }
 
+    const allTenants = state.tenants || [];
     const isPast = this.activeSection === 'inactive';
-    const filteredTenants = tenants.filter(t => {
+    const filteredTenants = allTenants.filter(t => {
       if (isPast) {
         return t.status === 'inactive';
       } else {
@@ -2422,8 +2423,8 @@ class TenantsComponent {
     });
 
     const tenants = [...filteredTenants].sort((a, b) => {
-      const roomA = state.rooms?.find(r => r.id === a.assignedRoomId);
-      const roomB = state.rooms?.find(r => r.id === b.assignedRoomId);
+      const roomA = state.rooms ? state.rooms.find(r => r.id === a.assignedRoomId) : null;
+      const roomB = state.rooms ? state.rooms.find(r => r.id === b.assignedRoomId) : null;
       if (!roomA && !roomB) return 0;
       if (!roomA) return 1;
       if (!roomB) return -1;
