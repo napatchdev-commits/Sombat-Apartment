@@ -1134,7 +1134,7 @@ class DBService {
     return {
       payments: {
         table: 'payments', onConflict: 'id',
-        fields: [['id','id'],['invoiceId','invoice_id'],['tenantId','tenant_id'],['roomId','room_id'],['amount','amount'],['paymentDate','payment_date'],['paymentMethod','payment_method'],['slipId','slip_id'],['slipUrl','slip_url'],['status','status'],['note','note'],['rejectionReason','rejection_reason'],['verifiedBy','verified_by'],['verifiedAt','verified_at'],['createdAt','created_at']]
+        fields: [['id','id'],['invoiceId','invoice_id'],['tenantId','tenant_id'],['roomId','room_id'],['amount','amount'],['paymentDate','payment_date'],['paymentMethod','payment_method'],['slipId','slip_id'],['slipUrl','slip_url'],['status','status'],['note','note'],['rejectionReason','rejection_reason'],['verifiedBy','verified_by'],['verifiedAt','verified_at'],['createdAt','created_at'],['lineNotificationStatus','line_notification_status'],['lineNotificationSentAt','line_notification_sent_at'],['lineNotificationError','line_notification_error']]
       },
       rooms: {
         table: 'rooms', onConflict: 'id',
@@ -1197,7 +1197,7 @@ class DBService {
       },
       payments: {
         table: 'payments', onConflict: 'id',
-        fields: [['id','id'],['invoiceId','invoice_id'],['tenantId','tenant_id'],['roomId','room_id'],['amount','amount'],['paymentDate','payment_date'],['paymentMethod','payment_method'],['slipId','slip_id'],['slipUrl','slip_url'],['status','status'],['note','note'],['rejectionReason','rejection_reason'],['verifiedBy','verified_by'],['verifiedAt','verified_at'],['createdAt','created_at']]
+        fields: [['id','id'],['invoiceId','invoice_id'],['tenantId','tenant_id'],['roomId','room_id'],['amount','amount'],['paymentDate','payment_date'],['paymentMethod','payment_method'],['slipId','slip_id'],['slipUrl','slip_url'],['status','status'],['note','note'],['rejectionReason','rejection_reason'],['verifiedBy','verified_by'],['verifiedAt','verified_at'],['createdAt','created_at'],['lineNotificationStatus','line_notification_status'],['lineNotificationSentAt','line_notification_sent_at'],['lineNotificationError','line_notification_error']]
       },
       paymentSlips: {
         table: 'payment_slips', onConflict: 'id',
@@ -2961,6 +2961,23 @@ class PartialPaymentsComponent {
                       <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem;">
                         วันที่: ${Formatters.thaiDate(p.paymentDate || p.createdAt)}
                       </div>
+                      <!-- LINE Notification Status -->
+                      <div style="font-size:0.75rem; margin-top:0.25rem; display:flex; align-items:center; gap:0.35rem;">
+                        <span style="color:#64748b; font-weight:700;">LINE แจ้งเตือน:</span>
+                        ${p.lineNotificationStatus === 'sent' ? `
+                          <span style="color:#16a34a; font-weight:700;">🟢 ส่งสำเร็จ</span>
+                        ` : p.lineNotificationStatus === 'failed' ? `
+                          <span style="color:#dc2626; font-weight:700; cursor:help;" title="${p.lineNotificationError || 'ส่งไม่สำเร็จ'}">🔴 ส่งไม่สำเร็จ ❓</span>
+                          <button type="button" class="btn btn-secondary btn-xs btn-retry-line" data-pay-id="${p.id}" style="padding:0.1rem 0.35rem; font-size:0.68rem; font-weight:700; border-radius:4px; margin-left:0.25rem; height:20px; line-height:1;">
+                            <i class="fa-solid fa-rotate-right text-success"></i> ส่งอีกครั้ง
+                          </button>
+                        ` : `
+                          <span style="color:#a16207; font-weight:700;">🟡 รอดำเนินการ</span>
+                          <button type="button" class="btn btn-secondary btn-xs btn-retry-line" data-pay-id="${p.id}" style="padding:0.1rem 0.35rem; font-size:0.68rem; font-weight:700; border-radius:4px; margin-left:0.25rem; height:20px; line-height:1;">
+                            <i class="fa-solid fa-paper-plane text-success"></i> ส่งแจ้งเตือน
+                          </button>
+                        `}
+                      </div>
                       ${p.slipUrl ? `<a href="${p.slipUrl}" target="_blank" style="font-size:0.8rem; color:#2563eb; font-weight:600; display:inline-block; margin-top:0.25rem;"><i class="fa-solid fa-paperclip"></i> ดูรูปสลิป</a>` : ''}
                       ${p.note ? `<div style="font-size:0.78rem; color:#475569; margin-top:0.2rem;">หมายเหตุ: ${p.note}</div>` : ''}
                       ${p.status === 'rejected' && p.rejectionReason ? `<div style="font-size:0.78rem; color:#dc2626; font-weight:600; margin-top:0.2rem;">❌ เหตุผลที่ปฏิเสธ: ${p.rejectionReason}</div>` : ''}
@@ -3043,6 +3060,50 @@ class PartialPaymentsComponent {
           } catch (e) {
             alert('❌ เกิดข้อผิดพลาด: ' + e.message);
           }
+        }
+      });
+    });
+
+    modal.querySelectorAll('.btn-retry-line').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const payId = btn.getAttribute('data-pay-id');
+        btn.disabled = true;
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ส่ง...`;
+        
+        try {
+          const supabaseUrl = DBService.getSavedSupabaseUrl();
+          const apiKey = DBService.getSavedApiKey();
+          if (supabaseUrl && apiKey) {
+            const baseUrl = DBService.getBaseSupabaseUrl(supabaseUrl);
+            const response = await fetch(`${baseUrl}/functions/v1/line-notify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': apiKey,
+                'Authorization': `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                action: 'notifyPaymentCreated',
+                paymentId: payId
+              })
+            });
+            const res = await response.json();
+            if (res.status === 'success') {
+              alert('✅ ส่งการแจ้งเตือนไปยัง LINE เรียบร้อยแล้ว!');
+              modal.classList.remove('active');
+              App.state = await DBService.pullFromSupabase(supabaseUrl);
+              App.switchTab('partial-payments');
+            } else {
+              alert('❌ ส่งล้มเหลว: ' + (res.message || 'กรุณาลองอีกครั้ง'));
+              btn.disabled = false;
+              btn.innerHTML = originalHTML;
+            }
+          }
+        } catch (e) {
+          alert('❌ เกิดข้อผิดพลาด: ' + e.message);
+          btn.disabled = false;
+          btn.innerHTML = originalHTML;
         }
       });
     });
@@ -4041,9 +4102,15 @@ class SettingsComponent {
         </div>
       `;
     } else if (this.activeSection === 'line_bot') {
+      const isConnected = !!(settings.lineToken && settings.lineUserId);
       cardBody = `
         <div class="glass-card">
-          <h3><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot (Messaging API)</h3>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <h3 style="margin:0;"><i class="fa-brands fa-line text-success"></i> ตั้งค่าระบบ LINE Bot (Messaging API)</h3>
+            <span class="badge-pill ${isConnected ? 'badge-success' : 'badge-danger'}" style="font-weight:700; font-size:0.8rem; padding:0.25rem 0.6rem; border-radius:6px;">
+              ${isConnected ? '🟢 เชื่อมต่อแล้ว' : '🔴 ยังไม่ได้เชื่อมต่อ'}
+            </span>
+          </div>
           <p class="text-muted" style="font-size:0.85rem; margin-top:0.25rem;">
             ระบุข้อมูลเพื่อส่งบิลและรับการแจ้งเตือนยอดชำระเงินอัตโนมัติเข้ากลุ่ม LINE หรือบัญชีส่วนตัวของแอดมิน
           </p>
@@ -10339,10 +10406,7 @@ class App {
               'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-              action: 'notifyAdminNewSlip',
-              roomName: 'ห้องทดสอบ (Test Room)',
-              tenantName: 'ผู้เช่าทดสอบ (Test Tenant)',
-              amount: 9999
+              action: 'testLineBot'
             })
           });
 

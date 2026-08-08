@@ -381,8 +381,9 @@ Deno.serve(async (req: Request) => {
       return json(result);
     }
 
-    // 3. Tenant uploaded a slip, notify admin
-    if (requestData.action === "notifyAdminNewSlip") {
+    // 3. Admin / Test Bot action
+    if (requestData.action === "testLineBot" || requestData.action === "notifyAdminNewSlip") {
+      const isTest = requestData.action === "testLineBot";
       const state = await getLatestState();
       const settings = state?.settings || {};
       const roomName = requestData.roomName || "ไม่ทราบห้อง";
@@ -390,29 +391,29 @@ Deno.serve(async (req: Request) => {
       const amount = Number(requestData.amount || 0);
       const paymentMethod = requestData.paymentMethod || "transfer";
 
-      const messageText = paymentMethod === "cash"
-        ? `🔔 แจ้งชำระเงินด้วยเงินสด!\n\n` +
-          `ห้อง: ${roomName}\n` +
-          `ผู้เช่า: ${tenantName}\n` +
-          `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
-          `ผู้เช่าแจ้งชำระเงินด้วย "เงินสด" แอดมินกรุณาตรวจสอบและบันทึกรับเงินสดด้วยครับ 💵`
-        : `🔔 แจ้งเตือนสลิปเงินโอนใหม่!\n\n` +
-          `ห้อง: ${roomName}\n` +
-          `ผู้เช่า: ${tenantName}\n` +
-          `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
-          `ขณะนี้ผู้เช่าได้อัปโหลดหลักฐานสลิปเข้าระบบแล้ว แอดมินกรุณาตรวจสอบความถูกต้องอีกครั้งครับ 🧾`;
+      const messageText = isTest
+        ? "🟢 ทดสอบระบบ LINE Bot สำเร็จ"
+        : (paymentMethod === "cash"
+          ? `🔔 แจ้งชำระเงินด้วยเงินสด!\n\n` +
+            `ห้อง: ${roomName}\n` +
+            `ผู้เช่า: ${tenantName}\n` +
+            `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
+            `ผู้เช่าแจ้งชำระเงินด้วย "เงินสด" แอดมินกรุณาตรวจสอบและบันทึกรับเงินสดด้วยครับ 💵`
+          : `🔔 แจ้งเตือนสลิปเงินโอนใหม่!\n\n` +
+            `ห้อง: ${roomName}\n` +
+            `ผู้เช่า: ${tenantName}\n` +
+            `ยอดเงิน: ฿${amount.toLocaleString()} บาท\n\n` +
+            `ขณะนี้ผู้เช่าได้อัปโหลดหลักฐานสลิปเข้าระบบแล้ว แอดมินกรุณาตรวจสอบความถูกต้องอีกครั้งครับ 🧾`);
 
       let sentNotify = false;
       let sentBot = false;
       let errorMsg = "";
 
-      // A. Try LINE Notify if token is configured
       const notifyToken = settings.lineNotifyToken || "";
       if (notifyToken && notifyToken.trim()) {
         try {
           const params = new URLSearchParams();
           params.append("message", messageText);
-
           const notifyRes = await fetch("https://notify-api.line.me/api/notify", {
             method: "POST",
             headers: {
@@ -431,16 +432,15 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // B. Try LINE Bot Push if channel token and admin user ID are configured
-      const channelToken = getChannelToken(state);
-      const adminUserId = settings.lineUserId || "";
+      const channelToken = Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") || getChannelToken(state);
+      const adminUserId = Deno.env.get("LINE_ADMIN_USER_ID") || settings.lineUserId || "";
       if (channelToken && adminUserId && adminUserId.trim()) {
         try {
           const pushRes = await fetch("https://api.line.me/v2/bot/message/push", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${channelToken}`,
+              Authorization: `Bearer ${channelToken.trim()}`,
             },
             body: JSON.stringify({
               to: adminUserId.trim(),
@@ -460,13 +460,168 @@ Deno.serve(async (req: Request) => {
       if (sentNotify || sentBot) {
         return json({
           status: "success",
-          message: `แจ้งเตือนไปยังแอดมินสำเร็จ (Notify: ${sentNotify}, Bot: ${sentBot})`,
+          message: `แจ้งเตือนสำเร็จ (Notify: ${sentNotify}, Bot: ${sentBot})`,
         });
       } else {
         return json({
           status: "error",
           message: errorMsg || "ยังไม่ได้ตั้งค่า LINE Notify Token หรือ LINE Bot UserId สำหรับแอดมิน",
         });
+      }
+    }
+
+    // 4. Upgraded Payment creation trigger
+    if (requestData.action === "notifyPaymentCreated") {
+      const paymentId = requestData.paymentId;
+      if (!paymentId) {
+        return json({ status: "error", message: "Missing paymentId" }, 400);
+      }
+
+      try {
+        // A. Fetch payment details
+        const paymentRes = await fetch(`${SUPABASE_URL}/rest/v1/payments?id=eq.${paymentId}&select=*`, {
+          headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` }
+        });
+        const paymentData = await paymentRes.json();
+        if (!paymentData || paymentData.length === 0) {
+          return json({ status: "error", message: `Payment with ID ${paymentId} not found.` }, 404);
+        }
+        const payment = paymentData[0];
+
+        // B. Fetch invoice details
+        const invoiceRes = await fetch(`${SUPABASE_URL}/rest/v1/invoices?id=eq.${payment.invoice_id}&select=*`, {
+          headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` }
+        });
+        const invoiceData = await invoiceRes.json();
+        if (!invoiceData || invoiceData.length === 0) {
+          return json({ status: "error", message: `Invoice with ID ${payment.invoice_id} not found.` }, 404);
+        }
+        const invoice = invoiceData[0];
+
+        // C. Fetch all payments to compute balances
+        const paymentsRes = await fetch(`${SUPABASE_URL}/rest/v1/payments?invoice_id=eq.${payment.invoice_id}&select=*`, {
+          headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` }
+        });
+        const payments = await paymentsRes.json();
+
+        const approvedPaid = payments.filter((p: any) => p.status === 'approved').reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+        const pendingPaid = payments.filter((p: any) => p.status === 'pending').reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+        
+        const totalAmount = (Number(invoice.rent_amount) || 0) + (Number(invoice.water_amount) || 0) + (Number(invoice.elec_amount) || 0) +
+                            (Number(invoice.trash_fee) || 0) + (Number(invoice.internet_fee) || 0) + (Number(invoice.common_fee) || 0) +
+                            (Number(invoice.fine_amount) || 0) + (Number(invoice.penalty_amount) || 0);
+
+        const remaining = totalAmount - approvedPaid - pendingPaid;
+
+        const state = await getLatestState();
+        const settings = state?.settings || {};
+
+        // Generate date string in Bangkok timezone
+        const paymentDateStr = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+
+        const isTransfer = payment.payment_method === 'transfer';
+        const methodText = isTransfer ? 'โอนเงิน (PromptPay) 📎 มีสลิปแนบ' : 'เงินสด 💵';
+
+        const messageText = 
+          `🔔 มีรายการชำระเงินใหม่\n\n` +
+          `ห้อง: ${invoice.room_name || 'ไม่ระบุ'}\n` +
+          `ผู้เช่า: ${invoice.tenant_name || 'ผู้เช่า'}\n` +
+          `เลขบิล: ${invoice.invoice_number || '-'}\n` +
+          `รอบบิล: ${invoice.month_key ? invoice.month_key : '-'}\n\n` +
+          `ยอดบิลรวม: ฿${totalAmount.toLocaleString()} บาท\n` +
+          `ชำระครั้งนี้: ฿${Number(payment.amount).toLocaleString()} บาท\n` +
+          `ยอดที่อนุมัติแล้ว: ฿${approvedPaid.toLocaleString()} บาท\n` +
+          `ยอดที่รอตรวจสอบ: ฿${pendingPaid.toLocaleString()} บาท\n` +
+          `ยอดคงเหลือ: ฿${remaining.toLocaleString()} บาท\n\n` +
+          `วิธีชำระ: ${methodText}\n` +
+          `สถานะ: 🟡 รอตรวจสอบ\n` +
+          `วันที่/เวลา: ${paymentDateStr}\n` +
+          `Payment ID: ${payment.id}\n\n` +
+          `กรุณาตรวจสอบรายการชำระเงินในระบบ:\n` +
+          `${TENANT_PORTAL_URL.replace('tenant.html', '')}#partial-payments`;
+
+        let sentNotify = false;
+        let sentBot = false;
+        let errorMsg = "";
+
+        // Send via LINE Notify if token configured
+        const notifyToken = settings.lineNotifyToken || "";
+        if (notifyToken && notifyToken.trim()) {
+          try {
+            const params = new URLSearchParams();
+            params.append("message", messageText);
+            const notifyRes = await fetch("https://notify-api.line.me/api/notify", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Authorization: `Bearer ${notifyToken.trim()}`,
+              },
+              body: params,
+            });
+            if (notifyRes.ok) {
+              sentNotify = true;
+            } else {
+              errorMsg += `LINE Notify error status: ${notifyRes.status} ${await notifyRes.text()}; `;
+            }
+          } catch (err: any) {
+            errorMsg += `LINE Notify exception: ${err.message}; `;
+          }
+        }
+
+        // Send via LINE Bot Push if channel access token and admin user id are configured
+        const channelToken = Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") || getChannelToken(state);
+        const adminUserId = Deno.env.get("LINE_ADMIN_USER_ID") || settings.lineUserId || "";
+        if (channelToken && adminUserId && adminUserId.trim()) {
+          try {
+            const pushRes = await fetch("https://api.line.me/v2/bot/message/push", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${channelToken.trim()}`,
+              },
+              body: JSON.stringify({
+                to: adminUserId.trim(),
+                messages: [{ type: "text", text: messageText }],
+              }),
+            });
+            if (pushRes.ok) {
+              sentBot = true;
+            } else {
+              errorMsg += `LINE Bot Push error status: ${pushRes.status} ${await pushRes.text()}; `;
+            }
+          } catch (err: any) {
+            errorMsg += `LINE Bot Push exception: ${err.message}; `;
+          }
+        }
+
+        const isSuccess = sentNotify || sentBot;
+        const lineStatus = isSuccess ? 'sent' : 'failed';
+        const lineError = isSuccess ? null : (errorMsg || "ยังไม่ได้ตั้งค่า LINE Notify Token หรือ LINE Bot UserId สำหรับแอดมิน");
+
+        // Update database row (Service Role Key)
+        await fetch(`${SUPABASE_URL}/rest/v1/payments?id=eq.${paymentId}`, {
+          method: "PATCH",
+          headers: {
+            apikey: SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify({
+            line_notification_status: lineStatus,
+            line_notification_sent_at: isSuccess ? new Date().toISOString() : null,
+            line_notification_error: lineError
+          })
+        });
+
+        if (isSuccess) {
+          return json({ status: "success", message: "แจ้งเตือนสำเร็จ" });
+        } else {
+          return json({ status: "error", message: lineError }, 500);
+        }
+      } catch (err: any) {
+        console.error(err);
+        return json({ status: "error", message: err.message }, 500);
       }
     }
 

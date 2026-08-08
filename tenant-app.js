@@ -2246,7 +2246,7 @@ class MyBillsApp {
               try {
                 const supabaseUrl = TenantDBService.getSavedSupabaseUrl();
                 const apiKey = TenantDBService.getSavedTenantApiKey();
-                if (supabaseUrl && apiKey) {
+                if (supabaseUrl && apiKey && result && result.payment_id) {
                   const baseUrl = TenantDBService.getBaseSupabaseUrl(supabaseUrl);
                   fetch(`${baseUrl}/functions/v1/line-notify`, {
                     method: 'POST',
@@ -2256,10 +2256,8 @@ class MyBillsApp {
                       'Authorization': `Bearer ${apiKey}`
                     },
                     body: JSON.stringify({
-                      action: 'notifyAdminNewSlip',
-                      roomName: room ? room.name : tenant.assignedRoomId,
-                      tenantName: tenant.name,
-                      amount: amountToPay
+                      action: 'notifyPaymentCreated',
+                      paymentId: result.payment_id
                     })
                   }).catch(e => console.warn('Failed to send LINE notification to admin:', e));
                 }
@@ -2348,10 +2346,8 @@ class MyBillsApp {
               try {
                 const supabaseUrl = TenantDBService.getSavedSupabaseUrl();
                 const apiKey = TenantDBService.getSavedTenantApiKey();
-                if (supabaseUrl && apiKey) {
+                if (supabaseUrl && apiKey && result && result.payment_id) {
                   const baseUrl = TenantDBService.getBaseSupabaseUrl(supabaseUrl);
-                  const rooms = MyBillsApp.state.rooms || [];
-                  const room = rooms.find(r => r.id === tenant.assignedRoomId);
                   fetch(`${baseUrl}/functions/v1/line-notify`, {
                     method: 'POST',
                     headers: {
@@ -2360,11 +2356,8 @@ class MyBillsApp {
                       'Authorization': `Bearer ${apiKey}`
                     },
                     body: JSON.stringify({
-                      action: 'notifyAdminNewSlip',
-                      roomName: room ? room.name : tenant.assignedRoomId,
-                      tenantName: tenant.name,
-                      amount: amountToPay,
-                      paymentMethod: 'cash'
+                      action: 'notifyPaymentCreated',
+                      paymentId: result.payment_id
                     })
                   }).catch(e => console.warn('Failed to send LINE notification to admin:', e));
                 }
