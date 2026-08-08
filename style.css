@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    STYLE SHEET - SOMBAT APARTMENT (MODERN MINIMAL PROFESSIONAL THEME)
    ========================================================================== */
 
@@ -918,8 +918,8 @@ body {
     }
 
     .contract-print-page.back-page {
-        page-break-before: always !important;
-        break-before: page !important;
+        page-break-before: auto !important;
+        break-before: auto !important;
         page-break-after: avoid !important;
         break-after: avoid !important;
         padding-top: 0.2cm !important;
