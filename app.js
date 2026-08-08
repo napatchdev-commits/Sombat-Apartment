@@ -3314,6 +3314,9 @@ class AccountingComponent {
       else totalExpense += entry.amount;
     });
 
+    const invoices = state.invoices || [];
+    const partialCount = invoices.filter(i => i.status === 'partial').length;
+
     return `
       <div class="view-container animate-fade-in">
         <div class="view-header">
