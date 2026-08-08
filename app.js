@@ -2660,7 +2660,7 @@ class RoomTypesComponent {
 class PartialPaymentsComponent {
   static searchKeyword = '';
   static currentFilter = 'all'; // 'all' | 'partial' | 'unpaid' | 'approaching'
-  static currentSort = 'latest'; // 'latest' | 'highest_remaining' | 'room'
+  static currentSort = 'room'; // 'latest' | 'highest_remaining' | 'room'
 
   static render(state) {
     const invoices = state.invoices || [];
@@ -2697,11 +2697,11 @@ class PartialPaymentsComponent {
     // Sort
     if (this.currentSort === 'highest_remaining') {
       list.sort((a, b) => (parseFloat(b.outstandingAmount) || 0) - (parseFloat(a.outstandingAmount) || 0));
-    } else if (this.currentSort === 'room') {
-      list.sort((a, b) => (a.roomName || '').localeCompare(b.roomName || ''));
-    } else {
-      // latest
+    } else if (this.currentSort === 'latest') {
       list.sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
+    } else {
+      // room (Default)
+      list.sort((a, b) => DBService.compareRooms({ name: a.roomName }, { name: b.roomName }));
     }
 
     return `
