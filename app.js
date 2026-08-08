@@ -10401,14 +10401,14 @@ class App {
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
             หนังสือสัญญาเช่าห้องแถว
           </div>
-          <div style="text-align:right; margin-bottom:0.8rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.4rem; font-size:0.90rem;">
             เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
-          <div style="text-align:right; margin-bottom:1.2rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.6rem; font-size:0.90rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
-          <div style="line-height:2.1; font-size:0.95rem; text-align:justify;">
+          <div style="line-height:1.95; font-size:0.90rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
@@ -10454,7 +10454,7 @@ class App {
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
           </div>
 
-          <ol style="line-height:2.0; font-size:0.95rem; margin-left:1.5rem; text-align:justify;">
+          <ol style="line-height:1.9; font-size:0.90rem; margin-left:1.5rem; text-align:justify;">
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
@@ -10470,7 +10470,7 @@ class App {
             <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
           </ol>
 
-          <div style="margin-top:1.5rem; font-size:0.95rem; line-height:1.8;">
+          <div style="margin-top:1rem; font-size:0.90rem; line-height:1.6;">
             <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
@@ -10517,14 +10517,14 @@ class App {
           <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
             หนังสือสัญญาเช่าห้องแถว
           </div>
-          <div style="text-align:right; margin-bottom:0.8rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.4rem; font-size:0.90rem;">
             เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
-          <div style="text-align:right; margin-bottom:1.2rem; font-size:0.95rem;">
+          <div style="text-align:right; margin-bottom:0.6rem; font-size:0.90rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
-          <div style="line-height:2.1; font-size:0.95rem; text-align:justify;">
+          <div style="line-height:1.95; font-size:0.90rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
@@ -10570,7 +10570,7 @@ class App {
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
           </div>
 
-          <ol style="line-height:2.1; font-size:0.95rem; text-align:justify;">
+          <ol style="line-height:1.95; font-size:0.90rem; text-align:justify;">
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
@@ -10586,7 +10586,7 @@ class App {
             <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
           </ol>
 
-          <div style="margin-top:1.5rem; font-size:0.95rem; line-height:1.8;">
+          <div style="margin-top:1rem; font-size:0.90rem; line-height:1.6;">
             <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>

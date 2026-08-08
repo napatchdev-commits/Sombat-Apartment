@@ -903,8 +903,8 @@ body {
         border: none !important;
         font-family: 'Sarabun', 'Noto Sans Thai', THSarabunNew, sans-serif !important;
         color: #000000 !important;
-        line-height: 2.0 !important;
-        font-size: 0.95rem !important;
+        line-height: 1.95 !important;
+        font-size: 0.90rem !important;
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
@@ -915,11 +915,13 @@ body {
         break-before: avoid !important;
         page-break-after: always !important;
         break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
     }
 
     .contract-print-page.back-page {
-        page-break-before: auto !important;
-        break-before: auto !important;
+        page-break-before: avoid !important;
+        break-before: avoid !important;
         page-break-after: avoid !important;
         break-after: avoid !important;
         padding-top: 0.2cm !important;
