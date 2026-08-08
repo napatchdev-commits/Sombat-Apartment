@@ -866,7 +866,7 @@ body {
 @media print {
     @page {
         size: A4 portrait;
-        margin: 10mm 15mm;
+        margin: 6mm 12mm;
     }
 
     #app-root {
@@ -903,8 +903,8 @@ body {
         border: none !important;
         font-family: 'Sarabun', 'Noto Sans Thai', THSarabunNew, sans-serif !important;
         color: #000000 !important;
-        line-height: 1.6 !important;
-        font-size: 0.85rem !important;
+        line-height: 2.0 !important;
+        font-size: 0.95rem !important;
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
