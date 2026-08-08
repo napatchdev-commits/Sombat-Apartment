@@ -10398,17 +10398,17 @@ class App {
 
       <div class="modal-body" style="padding-top: 0.5rem;">
         <div id="contract-front-view" class="contract-paper front-page">
-          <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
+          <div style="text-align:center; font-weight:bold; font-size:1.25rem; margin-bottom:0.5rem;">
             หนังสือสัญญาเช่าห้องแถว
           </div>
-          <div style="text-align:right; margin-bottom:0.4rem; font-size:0.90rem;">
+          <div style="text-align:right; margin-bottom:0.2rem; font-size:0.85rem;">
             เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
-          <div style="text-align:right; margin-bottom:0.6rem; font-size:0.90rem;">
+          <div style="text-align:right; margin-bottom:0.4rem; font-size:0.85rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
-          <div style="line-height:1.95; font-size:0.90rem; text-align:justify;">
+          <div style="line-height:1.7; font-size:0.85rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
@@ -10425,7 +10425,7 @@ class App {
 
             <strong>ข้อ ๕.</strong> ถ้าเกิดอัคคีภัยขึ้นไม่ว่ากรณีใดๆ ให้สัญญานี้เป็นอันสิ้นสุดลง<br>
             <strong>ข้อ ๖.</strong> ผู้เช่า จะไม่ดำเนินการค้าใดๆ อันเป็นที่รังเกียจและผิดกฎหมายหรืออาจเป็นอันตรายแก่สถานที่เช่าและจะไม่กระทำหรือยอมให้ผู้อื่นกระทำในสิ่งใดๆ อันอาจพิสูจน์ได้ว่าเป็นความเสียหายหรือก่อความเดือดร้อนรำคาญแก่ผู้ให้เช่า หรือผู้อยู่ใกล้เคียง<br>
-            <strong>ข้อ ๗.</strong> เมื่อผู้เช่ากระทำผิดสัญญาข้อหนึ่งข้อใด ผู้ให้เช่ามีสิทธิบอกเลิกสัญญาได้ทันที และผู้เช่ายอมให้ผู้เช่าทรงไว้ซึ่งสิทธิที่จะเข้ายึดครอบครองสถานที่และสิ่งที่เช่าได้โดยพลัน<br><br>
+            <strong>ข้อ ๗.</strong> เมื่อผู้เช่ากระทำผิดสัญญาข้อหนึ่งข้อใด ผู้ให้เช่ามีสิทธิบอกเลิกสัญญาได้ทันที และผู้เช่ายอมให้ผู้เช่าทรงไว้ซึ่งสิทธิที่จะเข้ายึดครอบครองสถานที่และสิ่งที่เช่าได้โดยพลัน<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความอย่างเดียวกัน ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความในสัญญานี้โดยละเอียดดีแล้ว ต่างยึดถือไว้คนละฉบับ และได้ลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน
           </div>
 
@@ -10454,7 +10454,7 @@ class App {
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
           </div>
 
-          <ol style="line-height:1.9; font-size:0.90rem; margin-left:1.5rem; text-align:justify;">
+          <ol style="line-height:1.7; font-size:0.85rem; margin-left:1.5rem; text-align:justify;">
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
@@ -10470,7 +10470,7 @@ class App {
             <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
           </ol>
 
-          <div style="margin-top:1rem; font-size:0.90rem; line-height:1.6;">
+          <div style="margin-top:0.6rem; font-size:0.85rem; line-height:1.5;">
             <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
@@ -10514,17 +10514,17 @@ class App {
       const printArea = document.getElementById('print-receipt-area');
       printArea.innerHTML = `
         <div class="contract-print-page front-page">
-          <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
+          <div style="text-align:center; font-weight:bold; font-size:1.25rem; margin-bottom:0.5rem;">
             หนังสือสัญญาเช่าห้องแถว
           </div>
-          <div style="text-align:right; margin-bottom:0.4rem; font-size:0.90rem;">
+          <div style="text-align:right; margin-bottom:0.2rem; font-size:0.85rem;">
             เขียนที่ ${d.ownerAddress} โทร. ${d.ownerTel}
           </div>
-          <div style="text-align:right; margin-bottom:0.6rem; font-size:0.90rem;">
+          <div style="text-align:right; margin-bottom:0.4rem; font-size:0.85rem;">
             วันที่<span class="dotted-fill">${d.day}</span>เดือน<span class="dotted-fill">${d.month}</span>พ.ศ.<span class="dotted-fill">${d.year}</span>
           </div>
 
-          <div style="line-height:1.95; font-size:0.90rem; text-align:justify;">
+          <div style="line-height:1.7; font-size:0.85rem; text-align:justify;">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;โดยหนังสือฉบับนี้ ข้าพเจ้า <strong>${d.ownerName}</strong> อยู่บ้านเลขที่ ${d.ownerAddress} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>“ผู้ให้เช่า”</strong> ฝ่ายหนึ่งกับข้าพเจ้า <span class="dotted-fill">${d.tenantName}</span><br>
             อยู่บ้านเลขที่ ${d.tenantAddressFormatted}<br>
             ถือบัตรประชาชน <span class="dotted-fill">${d.tenantIdCard}</span> เมื่อวันที่ <span class="dotted-fill">${d.tenantIdIssueDate}</span><br>
@@ -10541,7 +10541,7 @@ class App {
 
             <strong>ข้อ ๕.</strong> ถ้าเกิดอัคคีภัยขึ้นไม่ว่ากรณีใดๆ ให้สัญญานี้เป็นอันสิ้นสุดลง<br>
             <strong>ข้อ ๖.</strong> ผู้เช่า จะไม่ดำเนินการค้าใดๆ อันเป็นที่รังเกียจและผิดกฎหมายหรืออาจเป็นอันตรายแก่สถานที่เช่าและจะไม่กระทำหรือยอมให้ผู้อื่นกระทำในสิ่งใดๆ อันอาจพิสูจน์ได้ว่าเป็นความเสียหายหรือก่อความเดือดร้อนรำคาญแก่ผู้ให้เช่า หรือผู้อยู่ใกล้เคียง<br>
-            <strong>ข้อ ๗.</strong> เมื่อผู้เช่ากระทำผิดสัญญาข้อหนึ่งข้อใด ผู้ให้เช่ามีสิทธิบอกเลิกสัญญาได้ทันที และผู้เช่ายอมให้ผู้เช่าทรงไว้ซึ่งสิทธิที่จะเข้ายึดครอบครองสถานที่และสิ่งที่เช่าได้โดยพลัน<br><br>
+            <strong>ข้อ ๗.</strong> เมื่อผู้เช่ากระทำผิดสัญญาข้อหนึ่งข้อใด ผู้ให้เช่ามีสิทธิบอกเลิกสัญญาได้ทันที และผู้เช่ายอมให้ผู้เช่าทรงไว้ซึ่งสิทธิที่จะเข้ายึดครอบครองสถานที่และสิ่งที่เช่าได้โดยพลัน<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความอย่างเดียวกัน ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความในสัญญานี้โดยละเอียดดีแล้ว ต่างยึดถือไว้คนละฉบับ และได้ลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน
           </div>
 
@@ -10566,11 +10566,11 @@ class App {
         </div>
 
         <div class="contract-print-page back-page">
-          <div style="text-align:center; font-weight:bold; font-size:1.4rem; margin-bottom:1.2rem;">
+          <div style="text-align:center; font-weight:bold; font-size:1.25rem; margin-bottom:0.5rem;">
             กฎและมารยาทในการอยู่เช่าห้อง/บ้าน
           </div>
 
-          <ol style="line-height:1.95; font-size:0.90rem; text-align:justify;">
+          <ol style="line-height:1.7; font-size:0.85rem; text-align:justify;">
             <li>ทำหนังสือสัญญาห้องเช่าก่อนเข้าอยู่อาศัย (เงินมัดจำจะคืนเมื่ออยู่เกิน 6 เดือน)</li>
             <li>จ่ายค่าเช่าทุกวันที่ 1 ของเดือน โดยมีค่าไฟฟ้ายูนิตละ 8 บาท / ค่าน้ำประปายูนิตละ 20 บาท</li>
             <li>หากจ่ายเกินวันที่ 5 เสียค่าปรับ 200 บาท เกินวันที่ 15 เสียค่าปรับ 300 บาท / หากไม่มีการแจ้งภายใน 5 วัน (ล็อคห้องทันทีโดยไม่ต้องแจ้งให้ทราบ)</li>
@@ -10586,7 +10586,7 @@ class App {
             <li>กรุณาช่วยกันดูแลรักษาความสะอาดให้เรียบร้อยและเป็นระเบียบ</li>
           </ol>
 
-          <div style="margin-top:1rem; font-size:0.90rem; line-height:1.6;">
+          <div style="margin-top:0.6rem; font-size:0.85rem; line-height:1.5;">
             <p>เบอร์เจ้าของห้อง ${d.ownerTel}</p>
             <p>เบอร์สถานีตำรวจไทรน้อย 02-9238778</p>
             <p>เบอร์สถานีอนามัยวัดราษฎร์นิยม 02-9855158</p>
