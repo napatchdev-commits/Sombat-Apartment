@@ -2746,6 +2746,8 @@ class MyBillsApp {
 }
 
 // Auto bootstrap application shell
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => MyBillsApp.init());
+} else {
   MyBillsApp.init();
-});
+}

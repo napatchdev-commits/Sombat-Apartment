@@ -787,7 +787,7 @@ class DBService {
     if (state.invoices && Array.isArray(state.invoices)) {
       state.invoices = this.getUniqueInvoices(state.invoices);
       let migrated = false;
-      invoices.forEach(inv => {
+      state.invoices.forEach(inv => {
         if (inv.monthKey && inv.dueDate && inv.dueDate.slice(0, 7) === inv.monthKey) {
           const [year, month] = inv.monthKey.split('-').map(Number);
           let nextMonth = month + 1;
@@ -1065,7 +1065,7 @@ class DBService {
   static updateInvoicePenalties(state) {
     if (!state || !state.invoices) return false;
     let changed = false;
-    invoices.forEach(inv => {
+    state.invoices.forEach(inv => {
       if (inv.status === 'unpaid') {
         const penalty = this.calculateLatePenalty(inv, state.lateFeeSettings);
         if (Number(inv.penaltyAmount || 0) !== penalty.amount || inv.penaltyRule !== penalty.rule) {
@@ -2119,7 +2119,7 @@ class DashboardComponent {
 
     let todayIncome = 0; let monthIncome = 0; let yearIncome = 0; let totalOutstanding = 0;
 
-    invoices.forEach(inv => {
+    state.invoices.forEach(inv => {
       if (inv.paymentDate === todayStr) todayIncome += inv.paidAmount;
       if (inv.monthKey === monthKeyCurrent) monthIncome += inv.paidAmount;
       if (inv.issueDate && inv.issueDate.startsWith(yearCurrent)) yearIncome += inv.paidAmount;
@@ -11155,6 +11155,8 @@ class App {
 }
 
 // Global Launcher
-window.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => App.init());
+} else {
   App.init();
-});
+}
