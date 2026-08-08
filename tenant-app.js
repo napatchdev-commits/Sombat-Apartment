@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    MYBILLS TENANT PORTAL - SOMBAT APARTMENT ENTERPRISE (MOBILE-FIRST JS)
    ========================================================================== */
 
@@ -314,9 +314,6 @@ class TenantDBService {
           });
 
           if (!slipRes.ok) {
-            // เดิมโค้ดจุดนี้ไม่เช็ค response เลย (fetch ไม่ throw error ตอน HTTP 4xx/5xx)
-            // ทำให้ต่อให้ insert ไม่ผ่าน (เช่น foreign key ผิด, คอลัมน์ไม่ตรง, RLS บล็อก)
-            // ก็จะไม่มีใครรู้เลย - สลิปหายไปเงียบๆ ไม่ขึ้นในหน้า Slip Verification ของแอดมิน
             const errText = await slipRes.text().catch(() => '');
             console.error('บันทึกตาราง payment_slips ไม่สำเร็จ:', slipRes.status, errText);
           }
@@ -325,24 +322,27 @@ class TenantDBService {
         }
       }
       
-      const res = await fetch(`${baseUrl}/rest/v1/rpc/submit_tenant_payment`, {
-        method: 'POST',
+      const res = await fetch(`${baseUrl}/rest/v1/rpc/submit_partial_payment`, {
+        method: "POST",
         headers: {
-          'apikey': apiKey,
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
+          "apikey": apiKey,
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           p_id_card: paymentData.idCard,
           p_room_id: paymentData.roomId,
-          p_invoice_number: paymentData.invoiceNumber,
+          p_invoice_id: paymentData.invoiceId,
+          p_amount: parseFloat(paymentData.amount) || 0,
           p_payment_method: paymentData.paymentMethod,
-          p_slip_url: slipUrl
+          p_slip_url: slipUrl || null,
+          p_image_hash: paymentData.imageHash || null,
+          p_note: paymentData.note || null
         })
       });
       const result = await res.json();
-      if (result.status === 'error') {
-        throw new Error(result.message || 'บันทึกการชำระเงินไม่สำเร็จ');
+      if (result.status === "error") {
+        throw new Error(result.message || "บันทึกการชำระเงินไม่สำเร็จ");
       }
       return result;
     } else if (paymentData.action === 'submitTenantRepair') {
@@ -2290,13 +2290,28 @@ class MyBillsApp {
             const invIdx = invoicesList.findIndex(i => i.invoiceNumber === MyBillsApp.activeInvoiceNumber);
             const inv = invIdx !== -1 ? invoicesList[invIdx] : null;
 
+            const customAmtInput = document.getElementById('pay-modal-custom-amount');
+            const payAmtToSubmit = customAmtInput ? (parseFloat(customAmtInput.value) || 0) : amountToPay;
+
+            if (payAmtToSubmit <= 0) {
+              alert('กรุณาระบุจำนวนเงินที่ต้องการชำระให้ถูกต้อง');
+              return;
+            }
+
+            if (payAmtToSubmit > amountToPay + 0.01) {
+              alert('จำนวนเงินเกินยอดคงเหลือที่สามารถชำระได้');
+              return;
+            }
+
             try {
               const result = await TenantDBService.submitPayment({
                 action: 'submitTenantPayment',
                 idCard: String(tenant.idCard).replace(/\D/g, ''),
                 roomId: tenant.assignedRoomId,
+                invoiceId: inv ? inv.id : null,
                 invoiceNumber: MyBillsApp.activeInvoiceNumber,
-                paymentMethod: 'cash'
+                paymentMethod: 'cash',
+                amount: payAmtToSubmit
               });
 
               modal.classList.remove('active');
